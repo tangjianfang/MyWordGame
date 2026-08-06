@@ -25,6 +25,12 @@ sysinfo.txt
 *.app
 crashlytics-build.properties
 
+# Unity 每次导入都会在仓库根目录重新生成这些；我们自己的工程在 tools/dotnet 下
+/*.sln
+/*.csproj
+/unity-*.log
+/unity-test-results.xml
+
 # === .NET (tools/dotnet 下的独立测试工程) ===
 bin/
 [Oo]bj/

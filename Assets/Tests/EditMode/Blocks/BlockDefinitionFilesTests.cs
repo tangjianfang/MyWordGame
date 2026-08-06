@@ -93,6 +93,10 @@ namespace MyWorld.Core.Tests.Blocks
 
         private static string LocateBlocksDirectory()
         {
+#if UNITY_EDITOR
+            // Unity 下 AppContext.BaseDirectory 指向编辑器安装目录，必须走引擎提供的路径
+            return Path.Combine(UnityEngine.Application.streamingAssetsPath, "blocks");
+#else
             var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
             while (directory != null)
@@ -107,6 +111,7 @@ namespace MyWorld.Core.Tests.Blocks
             }
 
             throw new DirectoryNotFoundException("未能从测试输出目录向上找到 Assets/StreamingAssets/blocks。");
+#endif
         }
     }
 }

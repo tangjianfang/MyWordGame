@@ -20,35 +20,44 @@ Unity API。这既让世界逻辑可以脱离引擎快速测试，也是将来�
 Core 层是标准 .NET 类库，可直接在命令行开发和验证：
 
 ```powershell
-dotnet test
+dotnet test tools/dotnet/MyWorld.Tools.sln
 ```
 
-`tools/dotnet/` 下的两个工程只是**链接** `Assets/` 中的同一份源码，不复制文件。
-测试框架使用 NUnit，与 Unity Test Framework 一致，因此同一批测试将来可原样在 EditMode 下运行。
+注意解决方案在 `tools/dotnet/` 下而不在仓库根目录——**Unity 每次导入都会在根目录重新生成
+自己的 `.sln` 和 `.csproj`**，两者放一起会互相覆盖。根目录的工程文件已加入 `.gitignore`。
+
+`tools/dotnet/` 下的三个工程只是**链接** `Assets/` 中的同一份源码，不复制文件。
+测试框架使用 NUnit，与 Unity Test Framework 一致，因此**同一批测试在两边都能跑**：
+
+```powershell
+# Unity 侧（EditMode）
+& "C:\Program Files\Unity\Hub\Editor\2022.3.62f3c1\Editor\Unity.exe" `
+  -batchmode -nographics -projectPath . -runTests -testPlatform EditMode `
+  -testResults unity-test-results.xml -logFile unity-tests.log
+```
+
+运行前确保没有其它 Unity 实例占用本项目，否则会报
+`another Unity instance is running with this project open`。
+**Unity 批处理的退出码不可信**（崩溃时仍返回 0），必须以日志和结果文件为准。
 
 `global.json` 将 SDK 固定为 9.0.x，保证构建可复现。
 
-## 首次在 Unity 中打开
+## 引擎环境
 
-**目标引擎：Unity 6（6000.0 LTS）。** 本项目不使用团结引擎（Tuanjie，基于 Unity 2022.3）——
-若改用它，`Packages/manifest.json` 至少需要把 URP 降到 14.x、Collections 降到 2.1.x。
+**实际使用：Unity 2022.3.62f3c1（中国版）**，已实机验证全部 155 个测试在 EditMode 下通过。
 
-1. 安装 Unity Hub 与 Unity 6（6000.0 LTS）。
-2. 在 Hub 中选择「Add project from disk」，指向本仓库根目录。
-3. 首次打开时 Unity 会生成 `Library/`、`ProjectSettings/` 与各类 `.meta` 文件。
+最初规划的是 Unity 6（6000.0 LTS），但实际安装的是 2022.3。这对本项目**没有实质影响**：
+Core 层是 `netstandard2.1` + C# 9，2022.3 完全支持；我们需要的
+`Mesh.AllocateWritableMeshData`、Burst、Job System、URP Forward+ 在 2022.3 上也都具备。
 
-### 如果首次打开报包版本错误
+若日后升级到 Unity 6，需要调整的只有 `Packages/manifest.json` 里的包版本（如 URP 14.x → 17.x）。
 
-`Packages/manifest.json` 是在没有 Unity 环境的情况下手写的，其中
-URP、Input System、Test Framework 的具体补丁号**未经实机验证**。若 Package Manager 报某个
-版本不存在，按以下顺序处理：
+### 首次打开
 
-1. 在 Package Manager 里把报错的包切换到该 Unity 版本推荐的版本
-2. 仍不行就**直接删除 `Packages/manifest.json`**，让 Unity 重新生成一份默认清单，
-   再在 Package Manager 中手动添加：Burst、Collections、Mathematics、Input System、
-   Universal RP、Newtonsoft Json
-
-第 2 种做法一定可行，因为 Unity 只会装它自己认可的版本。
+1. 在 Unity Hub 中选择「Add project from disk」，指向本仓库根目录。
+2. Unity 会生成 `Library/`（已忽略）与根目录的 `.sln`/`.csproj`（已忽略）。
+3. `ProjectSettings/` 与 `.meta` 文件**已纳入版本管理**，不要删除——`.meta` 决定资源 GUID，
+   丢失会导致场景引用全部断链。
 
 **Newtonsoft Json 是必需的**——`MyWorld.Core` 的方块注册表用它解析 JSON，缺了会编译失败。
 
