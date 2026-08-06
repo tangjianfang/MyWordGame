@@ -30,10 +30,27 @@ dotnet test
 
 ## 首次在 Unity 中打开
 
+**目标引擎：Unity 6（6000.0 LTS）。** 本项目不使用团结引擎（Tuanjie，基于 Unity 2022.3）——
+若改用它，`Packages/manifest.json` 至少需要把 URP 降到 14.x、Collections 降到 2.1.x。
+
 1. 安装 Unity Hub 与 Unity 6（6000.0 LTS）。
 2. 在 Hub 中选择「Add project from disk」，指向本仓库根目录。
-3. 首次打开时 Unity 会生成 `Library/`、`ProjectSettings/` 与各类 `.meta` 文件（均已被 git 忽略或将随首次提交纳入）。
-4. 若 `Packages/manifest.json` 中某个包版本在你的 Unity 版本下不可用，用 Package Manager 调整即可。
+3. 首次打开时 Unity 会生成 `Library/`、`ProjectSettings/` 与各类 `.meta` 文件。
+
+### 如果首次打开报包版本错误
+
+`Packages/manifest.json` 是在没有 Unity 环境的情况下手写的，其中
+URP、Input System、Test Framework 的具体补丁号**未经实机验证**。若 Package Manager 报某个
+版本不存在，按以下顺序处理：
+
+1. 在 Package Manager 里把报错的包切换到该 Unity 版本推荐的版本
+2. 仍不行就**直接删除 `Packages/manifest.json`**，让 Unity 重新生成一份默认清单，
+   再在 Package Manager 中手动添加：Burst、Collections、Mathematics、Input System、
+   Universal RP、Newtonsoft Json
+
+第 2 种做法一定可行，因为 Unity 只会装它自己认可的版本。
+
+**Newtonsoft Json 是必需的**——`MyWorld.Core` 的方块注册表用它解析 JSON，缺了会编译失败。
 
 ## 视觉设计的表达方式
 
