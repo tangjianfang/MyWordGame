@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyWorld.Core", "tools\dotne
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyWorld.Core.Tests", "tools\dotnet\MyWorld.Core.Tests\MyWorld.Core.Tests.csproj", "{00ACC335-C6A9-47AD-95F3-E4E669B132E6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyWorld.Preview", "tools\dotnet\MyWorld.Preview\MyWorld.Preview.csproj", "{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +47,18 @@ Global
 		{00ACC335-C6A9-47AD-95F3-E4E669B132E6}.Release|x64.Build.0 = Release|Any CPU
 		{00ACC335-C6A9-47AD-95F3-E4E669B132E6}.Release|x86.ActiveCfg = Release|Any CPU
 		{00ACC335-C6A9-47AD-95F3-E4E669B132E6}.Release|x86.Build.0 = Release|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Debug|x64.Build.0 = Debug|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Debug|x86.Build.0 = Debug|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Release|x64.ActiveCfg = Release|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Release|x64.Build.0 = Release|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Release|x86.ActiveCfg = Release|Any CPU
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -53,5 +67,6 @@ Global
 		{125BAC79-6A17-2D96-F82B-9BC759B09EAC} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{B4F04075-76DD-413A-A996-E78B49C70D88} = {125BAC79-6A17-2D96-F82B-9BC759B09EAC}
 		{00ACC335-C6A9-47AD-95F3-E4E669B132E6} = {125BAC79-6A17-2D96-F82B-9BC759B09EAC}
+		{212E24FB-D59D-4AA1-B203-85A09EFA7E9C} = {125BAC79-6A17-2D96-F82B-9BC759B09EAC}
 	EndGlobalSection
 EndGlobal

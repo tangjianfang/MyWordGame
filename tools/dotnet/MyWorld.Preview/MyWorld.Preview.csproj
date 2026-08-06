@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <RootNamespace>MyWorld.Preview</RootNamespace>
+    <AssemblyName>MyWorld.Preview</AssemblyName>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyWorld.Core\MyWorld.Core.csproj" />
+  </ItemGroup>
+
+</Project>
