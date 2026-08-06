@@ -18,4 +18,8 @@
     <Compile Include="..\..\..\Assets\Scripts\Core\**\*.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
 </Project>

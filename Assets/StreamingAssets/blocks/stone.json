@@ -1,0 +1,10 @@
+{
+  "id": "stone",
+  "displayName": "石头",
+  "numericId": 1,
+  "textures": { "all": "stone" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 1.5
+}

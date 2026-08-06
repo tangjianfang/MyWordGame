@@ -1,0 +1,10 @@
+{
+  "id": "bedrock",
+  "displayName": "基岩",
+  "numericId": 6,
+  "textures": { "all": "bedrock" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": -1
+}

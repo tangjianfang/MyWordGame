@@ -1,0 +1,10 @@
+{
+  "id": "sand",
+  "displayName": "沙子",
+  "numericId": 4,
+  "textures": { "all": "sand" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 0.5
+}

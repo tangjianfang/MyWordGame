@@ -1,0 +1,8 @@
+{
+  "id": "air",
+  "displayName": "空气",
+  "numericId": 0,
+  "solid": false,
+  "opaque": false,
+  "hardness": -1
+}

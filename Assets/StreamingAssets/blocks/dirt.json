@@ -1,0 +1,10 @@
+{
+  "id": "dirt",
+  "displayName": "泥土",
+  "numericId": 2,
+  "textures": { "all": "dirt" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 0.5
+}

@@ -1,0 +1,10 @@
+{
+  "id": "grass",
+  "displayName": "草方块",
+  "numericId": 3,
+  "textures": { "top": "grass-top", "bottom": "dirt", "side": "grass-side" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 0.6
+}
