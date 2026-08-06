@@ -1,5 +1,8 @@
 using System;
+using System.IO;
+using System.Linq;
 using System.Text;
+using MyWorld.Core.Blocks;
 using MyWorld.Core.Meshing;
 using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
@@ -82,8 +85,6 @@ namespace MyWorld.Preview
         /// <summary>用真实区块数据验证贪心合并的压缩效果。</summary>
         private static void PrintMeshStats(WorldGenerator generator)
         {
-            ChunkColumn column = generator.Generate(new ChunkPos(0, 0));
-
             // 选取跨越地表的那一段，避免全实心或全空气的段落给出失真的压缩比
             int surface = generator.SurfaceHeightAt(8, 8);
             int sectionIndex = VoxelCoords.SectionIndexForY(surface);
@@ -91,8 +92,19 @@ namespace MyWorld.Preview
 
             Console.WriteLine($"── 贪心网格压缩效果 (区块 0,0, 地表段 y={sectionBaseY}..{sectionBaseY + 15}) ──");
 
+            // 连同相邻区块一起装入，使接缝处的面剔除与实际渲染一致
+            var world = new World();
+            for (var chunkX = -1; chunkX <= 1; chunkX++)
+            {
+                for (var chunkZ = -1; chunkZ <= 1; chunkZ++)
+                {
+                    LoadChunkInto(generator, world, new ChunkPos(chunkX, chunkZ));
+                }
+            }
+
+            BlockRegistry registry = LoadBlockRegistry();
+            var source = new ChunkMeshSource(world, registry, new ChunkPos(0, 0), sectionBaseY);
             var mesh = new MeshBuffer();
-            var source = new ColumnSectionSource(column, sectionBaseY);
 
             GreedyMesher.Build(source, mesh);
 
@@ -106,7 +118,7 @@ namespace MyWorld.Preview
             }
         }
 
-        private static int CountNaiveQuads(ColumnSectionSource source)
+        private static int CountNaiveQuads(ChunkMeshSource source)
         {
             var count = 0;
             for (var y = 0; y < ChunkSection.Size; y++)
@@ -134,19 +146,47 @@ namespace MyWorld.Preview
             int chunkCount = width / VoxelCoords.ChunkSize + 1;
             for (var chunkX = 0; chunkX < chunkCount; chunkX++)
             {
-                ChunkColumn column = generator.Generate(new ChunkPos(chunkX, 0));
-                for (int y = VoxelCoords.MinY; y < VoxelCoords.MaxY; y++)
+                LoadChunkInto(generator, world, new ChunkPos(chunkX, 0));
+            }
+        }
+
+        private static void LoadChunkInto(WorldGenerator generator, World world, ChunkPos pos)
+        {
+            ChunkColumn column = generator.Generate(pos);
+            int originX = pos.X * VoxelCoords.ChunkSize;
+            int originZ = pos.Z * VoxelCoords.ChunkSize;
+
+            for (int y = VoxelCoords.MinY; y < VoxelCoords.MaxY; y++)
+            {
+                for (var localZ = 0; localZ < VoxelCoords.ChunkSize; localZ++)
                 {
                     for (var localX = 0; localX < VoxelCoords.ChunkSize; localX++)
                     {
-                        ushort block = column.GetBlock(localX, y, 0);
+                        ushort block = column.GetBlock(localX, y, localZ);
                         if (block != BlockIds.Air)
                         {
-                            world.SetBlock(chunkX * VoxelCoords.ChunkSize + localX, y, 0, block);
+                            world.SetBlock(originX + localX, y, originZ + localZ, block);
                         }
                     }
                 }
             }
+        }
+
+        private static BlockRegistry LoadBlockRegistry()
+        {
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null)
+            {
+                string candidate = Path.Combine(directory.FullName, "Assets", "StreamingAssets", "blocks");
+                if (Directory.Exists(candidate))
+                {
+                    return BlockRegistry.FromJson(Directory.GetFiles(candidate, "*.json").Select(File.ReadAllText));
+                }
+
+                directory = directory.Parent;
+            }
+
+            throw new DirectoryNotFoundException("未找到 Assets/StreamingAssets/blocks 目录。");
         }
 
         private static char Glyph(ushort blockId)
@@ -162,30 +202,5 @@ namespace MyWorld.Preview
                 default: return ' ';
             }
         }
-    }
-
-    /// <summary>把区块列的某一段包装成网格生成所需的方块来源。</summary>
-    internal readonly struct ColumnSectionSource : IBlockSource
-    {
-        private readonly ChunkColumn _column;
-        private readonly int _baseY;
-
-        public ColumnSectionSource(ChunkColumn column, int sectionBaseY)
-        {
-            _column = column;
-            _baseY = sectionBaseY;
-        }
-
-        public ushort GetBlock(int x, int y, int z)
-        {
-            if (x < 0 || x >= ChunkSection.Size || z < 0 || z >= ChunkSection.Size)
-            {
-                return BlockIds.Air;
-            }
-
-            return _column.GetBlock(x, _baseY + y, z);
-        }
-
-        public bool IsSolid(ushort blockId) => blockId != BlockIds.Air && blockId != BlockIds.Water;
     }
 }

@@ -83,6 +83,10 @@ namespace MyWorld.Core.Blocks
             return definition;
         }
 
+        /// <summary>网格生成与碰撞的热路径用这个，遇到未注册 ID 时不抛异常。</summary>
+        public bool TryGetByNumericId(ushort numericId, out BlockDefinition definition)
+            => _byNumericId.TryGetValue(numericId, out definition);
+
         private void Add(BlockDefinition definition)
         {
             if (_byId.ContainsKey(definition.Id))
