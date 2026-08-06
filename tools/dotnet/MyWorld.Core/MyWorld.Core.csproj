@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.1 + C# 9 对齐 Unity 6 的 API 兼容级别，保证同一份源码在 Unity 内可编译 -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <RootNamespace>MyWorld.Core</RootNamespace>
+    <AssemblyName>MyWorld.Core</AssemblyName>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 源码物理位置在 Assets 下，供 Unity 直接使用；此处仅链接编译 -->
+    <Compile Include="..\..\..\Assets\Scripts\Core\**\*.cs" />
+  </ItemGroup>
+
+</Project>
