@@ -1,0 +1,6 @@
+# 统一按 LF 存入仓库，与 .editorconfig 保持一致
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.unitypackage binary

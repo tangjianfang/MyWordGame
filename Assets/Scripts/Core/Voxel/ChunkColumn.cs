@@ -12,6 +12,23 @@ namespace MyWorld.Core.Voxel
 
         public int AllocatedSectionCount => _allocatedSectionCount;
 
+        public bool HasSection(int sectionIndex) => _sections[sectionIndex] != null;
+
+        public ChunkSection GetSection(int sectionIndex) => _sections[sectionIndex];
+
+        public ChunkSection GetOrCreateSection(int sectionIndex)
+        {
+            ChunkSection section = _sections[sectionIndex];
+            if (section == null)
+            {
+                section = new ChunkSection();
+                _sections[sectionIndex] = section;
+                _allocatedSectionCount++;
+            }
+
+            return section;
+        }
+
         /// <summary>
         /// 越界时返回空气而非抛异常：网格生成需要采样世界顶底部的“邻居”，宽容读取可免掉大量边界判断。
         /// </summary>

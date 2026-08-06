@@ -79,5 +79,17 @@ namespace MyWorld.Core.Tests.Voxel
             Assert.That(column.GetBlock(0, -65, 0), Is.EqualTo(ChunkSection.AirId));
             Assert.That(column.GetBlock(0, 320, 0), Is.EqualTo(ChunkSection.AirId));
         }
+
+        [Test]
+        public void HasSection_ReportsWhichSectionsHoldData()
+        {
+            var column = new ChunkColumn();
+            column.SetBlock(0, 0, 0, Stone);
+
+            int touched = VoxelCoords.SectionIndexForY(0);
+
+            Assert.That(column.HasSection(touched), Is.True);
+            Assert.That(column.HasSection(touched + 1), Is.False);
+        }
     }
 }
