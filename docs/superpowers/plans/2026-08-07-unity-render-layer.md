@@ -510,3 +510,619 @@ git commit -m "渲染层: 网格数据源提供每面的贴图索引"
 ```
 
 ---
+
+## Task 4: 贪心网格记录每个 quad 的贴图
+
+`GreedyMesher` 的 mask 里存的是方块 ID（正数=面朝 +axis，负数=面朝 -axis），
+所以**同一个合并后的 quad 内方块 ID 与朝向必然一致**，贴图也就必然一致——
+可以安全地一个 quad 记一个贴图索引。
+
+**Files:**
+- Modify: `Assets/Scripts/Core/Meshing/MeshBuffer.cs`
+- Modify: `Assets/Scripts/Core/Meshing/GreedyMesher.cs`
+- Test: `Assets/Tests/EditMode/Meshing/GreedyMesherTextureTests.cs`
+
+- [ ] **Step 1: 写失败的测试**
+
+创建 `Assets/Tests/EditMode/Meshing/GreedyMesherTextureTests.cs`：
+
+```csharp
+using System.Linq;
+using MyWorld.Core.Meshing;
+using NUnit.Framework;
+
+namespace MyWorld.Core.Tests.Meshing
+{
+    /// <summary>
+    /// 复用 GreedyMesherTests 里的 PaddedBlockSource——它把方块 ID 直接当贴图索引返回，
+    /// 所以断言里的「贴图索引」就等于放进去的方块 ID。
+    /// </summary>
+    [TestFixture]
+    public class GreedyMesherTextureTests
+    {
+        private const ushort Stone = 1;
+        private const ushort Dirt = 2;
+
+        [Test]
+        public void QuadTextures_HasOneEntryPerQuad()
+        {
+            var source = new PaddedBlockSource();
+            source.Set(0, 0, 0, Stone);
+            var mesh = new MeshBuffer();
+
+            GreedyMesher.Build(source, mesh);
+
+            Assert.That(mesh.QuadTextures.Count, Is.EqualTo(mesh.QuadCount));
+            Assert.That(mesh.QuadCount, Is.EqualTo(6));
+        }
+
+        [Test]
+        public void QuadTextures_RecordTheBlockThatOwnsTheFace()
+        {
+            var source = new PaddedBlockSource();
+            source.Set(0, 0, 0, Stone);
+            var mesh = new MeshBuffer();
+
+            GreedyMesher.Build(source, mesh);
+
+            Assert.That(mesh.QuadTextures.Distinct(), Is.EqualTo(new[] { (int)Stone }),
+                "只放了一种方块，六个面的贴图索引应当全都指向它");
+        }
+
+        [Test]
+        public void QuadTextures_DistinguishNeighbouringBlockTypes()
+        {
+            var source = new PaddedBlockSource();
+            source.Set(0, 0, 0, Stone);
+            source.Set(1, 0, 0, Dirt);
+            var mesh = new MeshBuffer();
+
+            GreedyMesher.Build(source, mesh);
+
+            Assert.That(mesh.QuadTextures.Distinct().OrderBy(t => t),
+                Is.EqualTo(new[] { (int)Stone, (int)Dirt }));
+            Assert.That(mesh.QuadTextures.Count(t => t == Stone), Is.EqualTo(5));
+            Assert.That(mesh.QuadTextures.Count(t => t == Dirt), Is.EqualTo(5));
+        }
+
+        [Test]
+        public void Clear_AlsoResetsQuadTextures()
+        {
+            var source = new PaddedBlockSource();
+            source.Set(0, 0, 0, Stone);
+            var mesh = new MeshBuffer();
+
+            GreedyMesher.Build(source, mesh);
+            mesh.Clear();
+
+            Assert.That(mesh.QuadTextures, Is.Empty);
+        }
+
+        [Test]
+        public void EachQuad_OwnsSixConsecutiveIndices()
+        {
+            var source = new PaddedBlockSource();
+            source.Set(0, 0, 0, Stone);
+            source.Set(3, 4, 5, Dirt);
+            var mesh = new MeshBuffer();
+
+            GreedyMesher.Build(source, mesh);
+
+            // SplitByTexture 依赖这个不变量：第 i 个 quad 的索引恰好是 [i*6, i*6+6)
+            Assert.That(mesh.IndexCount, Is.EqualTo(mesh.QuadCount * 6));
+            for (var quad = 0; quad < mesh.QuadCount; quad++)
+            {
+                for (var k = 0; k < 6; k++)
+                {
+                    Assert.That(mesh.Indices[quad * 6 + k], Is.InRange(quad * 4, quad * 4 + 3),
+                        $"第 {quad} 个 quad 的索引越出了它自己的四个顶点");
+                }
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 2: 跑测试确认它失败**
+
+```bash
+dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTextureTests"
+```
+
+预期：编译失败，报 `"MeshBuffer"未包含"QuadTextures"的定义`
+
+- [ ] **Step 3: MeshBuffer 增加 QuadTextures**
+
+把 `Assets/Scripts/Core/Meshing/MeshBuffer.cs` 整个替换为：
+
+```csharp
+using System.Collections.Generic;
+using MyWorld.Core.Math;
+
+namespace MyWorld.Core.Meshing
+{
+    /// <summary>网格生成的输出缓冲。不含任何 Unity 类型，由适配层负责上传。</summary>
+    public sealed class MeshBuffer
+    {
+        public readonly List<Float3> Positions = new List<Float3>();
+        public readonly List<Float3> Normals = new List<Float3>();
+        public readonly List<Float2> Uvs = new List<Float2>();
+        public readonly List<int> Indices = new List<int>();
+
+        /// <summary>每个 quad 一项，记它用哪张贴图。渲染层据此把网格拆成多个 submesh。</summary>
+        public readonly List<int> QuadTextures = new List<int>();
+
+        public int VertexCount => Positions.Count;
+
+        public int IndexCount => Indices.Count;
+
+        public int QuadCount => Positions.Count / 4;
+
+        public void Clear()
+        {
+            Positions.Clear();
+            Normals.Clear();
+            Uvs.Clear();
+            Indices.Clear();
+            QuadTextures.Clear();
+        }
+    }
+}
+```
+
+- [ ] **Step 4: GreedyMesher 填入贴图索引**
+
+在 `Assets/Scripts/Core/Meshing/GreedyMesher.cs` 顶部的 using 区补上：
+
+```csharp
+using MyWorld.Core.Blocks;
+```
+
+把 `Build` 里的这一行：
+
+```csharp
+                    EmitQuads(output, mask, cursor, spanU, spanV, axis, u, v);
+```
+
+改成：
+
+```csharp
+                    EmitQuads(source, output, mask, cursor, spanU, spanV, axis, u, v);
+```
+
+把 `EmitQuads` 的签名改成泛型：
+
+```csharp
+        private static void EmitQuads<TSource>(TSource source, MeshBuffer output, int[] mask, int[] cursor,
+            int[] spanU, int[] spanV, int axis, int u, int v) where TSource : IBlockSource
+```
+
+把 `EmitQuads` 里调用 `AddQuad` 的那一行：
+
+```csharp
+                    AddQuad(output, cursor, spanU, spanV, axis, face > 0, width, height);
+```
+
+替换为：
+
+```csharp
+                    // mask 的正负同时编码了「面属于谁」和「朝向」，二者共同决定用哪张贴图
+                    bool facingPositive = face > 0;
+                    var owner = (ushort)(facingPositive ? face : -face);
+                    int textureIndex = source.GetTextureIndex(owner, BlockFaces.FromAxis(axis, facingPositive));
+
+                    AddQuad(output, cursor, spanU, spanV, axis, facingPositive, width, height, textureIndex);
+```
+
+把 `AddQuad` 的签名改成：
+
+```csharp
+        private static void AddQuad(MeshBuffer output, int[] origin, int[] spanU, int[] spanV, int axis,
+            bool facingPositive, int width, int height, int textureIndex)
+```
+
+并在 `AddQuad` 内 `int baseVertex = output.Positions.Count;` 的下一行插入：
+
+```csharp
+            output.QuadTextures.Add(textureIndex);
+```
+
+- [ ] **Step 5: 跑测试确认通过**
+
+```bash
+dotnet test tools/dotnet/MyWorld.Tools.sln
+```
+
+预期：全部通过，总数 177
+
+- [ ] **Step 6: 提交**
+
+```bash
+git add Assets/Scripts/Core/Meshing/MeshBuffer.cs Assets/Scripts/Core/Meshing/GreedyMesher.cs Assets/Tests/EditMode/Meshing/GreedyMesherTextureTests.cs
+git commit -m "渲染层: 贪心网格记录每个面的贴图索引"
+```
+
+---
+
+## Task 5: 按贴图把索引缓冲拆成 submesh
+
+Unity 的一个 submesh 必须对应索引缓冲里**连续的一段**。贪心网格是按轴产出的，
+不同贴图的 quad 天然交错，所以要重排一次。顶点缓冲不用动——多个 submesh 共享同一份顶点。
+
+**Files:**
+- Create: `Assets/Scripts/Core/Meshing/Submesh.cs`
+- Modify: `Assets/Scripts/Core/Meshing/MeshBuffer.cs`
+- Test: `Assets/Tests/EditMode/Meshing/MeshBufferSplitTests.cs`
+
+- [ ] **Step 1: 写失败的测试**
+
+创建 `Assets/Tests/EditMode/Meshing/MeshBufferSplitTests.cs`：
+
+```csharp
+using System.Collections.Generic;
+using System.Linq;
+using MyWorld.Core.Math;
+using MyWorld.Core.Meshing;
+using NUnit.Framework;
+
+namespace MyWorld.Core.Tests.Meshing
+{
+    [TestFixture]
+    public class MeshBufferSplitTests
+    {
+        /// <summary>手工塞一个 quad：4 个顶点 + 6 个索引 + 1 个贴图索引，与 GreedyMesher 的产出形状一致。</summary>
+        private static void AddQuad(MeshBuffer buffer, int textureIndex)
+        {
+            int baseVertex = buffer.Positions.Count;
+            for (var i = 0; i < 4; i++)
+            {
+                buffer.Positions.Add(new Float3(i, 0f, 0f));
+                buffer.Normals.Add(new Float3(0f, 1f, 0f));
+                buffer.Uvs.Add(new Float2(0f, 0f));
+            }
+
+            buffer.Indices.Add(baseVertex);
+            buffer.Indices.Add(baseVertex + 1);
+            buffer.Indices.Add(baseVertex + 2);
+            buffer.Indices.Add(baseVertex);
+            buffer.Indices.Add(baseVertex + 2);
+            buffer.Indices.Add(baseVertex + 3);
+
+            buffer.QuadTextures.Add(textureIndex);
+        }
+
+        private static List<string> TrianglesOf(MeshBuffer buffer)
+        {
+            var triangles = new List<string>();
+            for (var i = 0; i < buffer.IndexCount; i += 3)
+            {
+                triangles.Add($"{buffer.Indices[i]},{buffer.Indices[i + 1]},{buffer.Indices[i + 2]}");
+            }
+
+            return triangles;
+        }
+
+        [Test]
+        public void EmptyBuffer_ProducesNoSubmeshes()
+        {
+            var buffer = new MeshBuffer();
+            var submeshes = new List<Submesh>();
+
+            buffer.SplitByTexture(submeshes);
+
+            Assert.That(submeshes, Is.Empty);
+        }
+
+        [Test]
+        public void SingleTexture_ProducesOneSubmeshCoveringEverything()
+        {
+            var buffer = new MeshBuffer();
+            AddQuad(buffer, 7);
+            AddQuad(buffer, 7);
+            var submeshes = new List<Submesh>();
+
+            buffer.SplitByTexture(submeshes);
+
+            Assert.That(submeshes.Count, Is.EqualTo(1));
+            Assert.That(submeshes[0].TextureIndex, Is.EqualTo(7));
+            Assert.That(submeshes[0].IndexStart, Is.EqualTo(0));
+            Assert.That(submeshes[0].IndexCount, Is.EqualTo(12));
+        }
+
+        [Test]
+        public void InterleavedTextures_AreRegroupedIntoContiguousRanges()
+        {
+            var buffer = new MeshBuffer();
+            AddQuad(buffer, 5);
+            AddQuad(buffer, 2);
+            AddQuad(buffer, 5);
+            var submeshes = new List<Submesh>();
+
+            buffer.SplitByTexture(submeshes);
+
+            Assert.That(submeshes.Select(s => s.TextureIndex), Is.EqualTo(new[] { 2, 5 }),
+                "段按贴图索引升序排列，与 quad 的产出顺序无关");
+            Assert.That(submeshes[0].IndexStart, Is.EqualTo(0));
+            Assert.That(submeshes[0].IndexCount, Is.EqualTo(6));
+            Assert.That(submeshes[1].IndexStart, Is.EqualTo(6));
+            Assert.That(submeshes[1].IndexCount, Is.EqualTo(12));
+        }
+
+        [Test]
+        public void SubmeshRanges_CoverTheWholeIndexBufferWithoutOverlap()
+        {
+            var buffer = new MeshBuffer();
+            AddQuad(buffer, 3);
+            AddQuad(buffer, 1);
+            AddQuad(buffer, 3);
+            AddQuad(buffer, 9);
+            var submeshes = new List<Submesh>();
+
+            buffer.SplitByTexture(submeshes);
+
+            var cursor = 0;
+            foreach (Submesh submesh in submeshes)
+            {
+                Assert.That(submesh.IndexStart, Is.EqualTo(cursor), "各段必须首尾相接");
+                cursor += submesh.IndexCount;
+            }
+
+            Assert.That(cursor, Is.EqualTo(buffer.IndexCount), "所有段加起来应覆盖整个索引缓冲");
+        }
+
+        [Test]
+        public void Reordering_PreservesTheSetOfTriangles()
+        {
+            var buffer = new MeshBuffer();
+            AddQuad(buffer, 4);
+            AddQuad(buffer, 0);
+            AddQuad(buffer, 4);
+
+            List<string> before = TrianglesOf(buffer);
+
+            buffer.SplitByTexture(new List<Submesh>());
+
+            List<string> after = TrianglesOf(buffer);
+
+            Assert.That(after.OrderBy(t => t), Is.EqualTo(before.OrderBy(t => t)),
+                "重排只能改变三角形的顺序，不能增删或改写任何一个三角形");
+        }
+
+        [Test]
+        public void SplitByTexture_ClearsPreviousOutput()
+        {
+            var buffer = new MeshBuffer();
+            AddQuad(buffer, 1);
+            var submeshes = new List<Submesh> { new Submesh(99, 0, 0) };
+
+            buffer.SplitByTexture(submeshes);
+
+            Assert.That(submeshes.Count, Is.EqualTo(1));
+            Assert.That(submeshes[0].TextureIndex, Is.EqualTo(1));
+        }
+    }
+}
+```
+
+- [ ] **Step 2: 跑测试确认它失败**
+
+```bash
+dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~MeshBufferSplitTests"
+```
+
+预期：编译失败，报 `未能找到类型或命名空间名"Submesh"`
+
+- [ ] **Step 3: 新建 Submesh**
+
+创建 `Assets/Scripts/Core/Meshing/Submesh.cs`：
+
+```csharp
+namespace MyWorld.Core.Meshing
+{
+    /// <summary>索引缓冲中属于同一张贴图的一段，一段对应 Unity 侧的一个 submesh。</summary>
+    public readonly struct Submesh
+    {
+        public readonly int TextureIndex;
+        public readonly int IndexStart;
+        public readonly int IndexCount;
+
+        public Submesh(int textureIndex, int indexStart, int indexCount)
+        {
+            TextureIndex = textureIndex;
+            IndexStart = indexStart;
+            IndexCount = indexCount;
+        }
+
+        public override string ToString() => $"贴图 {TextureIndex}：索引 [{IndexStart}, {IndexStart + IndexCount})";
+    }
+}
+```
+
+- [ ] **Step 4: MeshBuffer 增加 SplitByTexture**
+
+在 `Assets/Scripts/Core/Meshing/MeshBuffer.cs` 顶部的 using 区补上：
+
+```csharp
+using System;
+```
+
+在 `Clear()` 方法之后追加：
+
+```csharp
+        /// <summary>每个 quad 固定产出 4 个顶点 6 个索引，重排时据此定位某个 quad 的索引。</summary>
+        private const int IndicesPerQuad = 6;
+
+        /// <summary>
+        /// 按贴图重排索引缓冲，使同一张贴图的三角形连续，并把每段的范围写进 <paramref name="output"/>。
+        /// 顶点缓冲保持不动——多个 submesh 共享同一份顶点，索引可以指向其中任意位置。
+        /// 段按贴图索引升序排列，与 quad 的产出顺序无关，便于断言与复现。
+        /// </summary>
+        public void SplitByTexture(List<Submesh> output)
+        {
+            if (output == null)
+            {
+                throw new ArgumentNullException(nameof(output));
+            }
+
+            output.Clear();
+
+            if (QuadTextures.Count == 0)
+            {
+                return;
+            }
+
+            var buckets = new SortedDictionary<int, List<int>>();
+            for (var quad = 0; quad < QuadTextures.Count; quad++)
+            {
+                if (!buckets.TryGetValue(QuadTextures[quad], out List<int> quads))
+                {
+                    quads = new List<int>();
+                    buckets[QuadTextures[quad]] = quads;
+                }
+
+                quads.Add(quad);
+            }
+
+            var reordered = new List<int>(Indices.Count);
+            var reorderedTextures = new List<int>(QuadTextures.Count);
+
+            foreach (KeyValuePair<int, List<int>> bucket in buckets)
+            {
+                int start = reordered.Count;
+                foreach (int quad in bucket.Value)
+                {
+                    int origin = quad * IndicesPerQuad;
+                    for (var k = 0; k < IndicesPerQuad; k++)
+                    {
+                        reordered.Add(Indices[origin + k]);
+                    }
+
+                    reorderedTextures.Add(bucket.Key);
+                }
+
+                output.Add(new Submesh(bucket.Key, start, reordered.Count - start));
+            }
+
+            Indices.Clear();
+            Indices.AddRange(reordered);
+
+            // QuadTextures 跟着一起重排，保持「第 i 个 quad 的索引在 [i*6, i*6+6)」这个不变量
+            QuadTextures.Clear();
+            QuadTextures.AddRange(reorderedTextures);
+        }
+```
+
+- [ ] **Step 5: 跑测试确认通过**
+
+```bash
+dotnet test tools/dotnet/MyWorld.Tools.sln
+```
+
+预期：全部通过，总数 183
+
+- [ ] **Step 6: 提交**
+
+```bash
+git add Assets/Scripts/Core/Meshing/Submesh.cs Assets/Scripts/Core/Meshing/MeshBuffer.cs Assets/Tests/EditMode/Meshing/MeshBufferSplitTests.cs
+git commit -m "渲染层: 按贴图把索引缓冲拆成 submesh"
+```
+
+---
+
+## Task 6: World 支持整块塞入已生成的区块
+
+`WorldGenerator.Generate` 返回一根完整的 `ChunkColumn`，但 `World` 目前只能靠
+`SetBlock` 一格一格创建区块。渲染层需要「生成一根、挂一根」。
+
+**Files:**
+- Modify: `Assets/Scripts/Core/Voxel/World.cs`
+- Test: `Assets/Tests/EditMode/Voxel/WorldTests.cs`
+
+- [ ] **Step 1: 写失败的测试**
+
+在 `Assets/Tests/EditMode/Voxel/WorldTests.cs` 的最后一个测试方法之后、类的结束大括号之前追加：
+
+```csharp
+        [Test]
+        public void AddChunk_MakesItsBlocksReadable()
+        {
+            var world = new World();
+            var column = new ChunkColumn();
+            column.SetBlock(3, 64, 5, Stone);
+
+            world.AddChunk(new ChunkPos(2, -3), column);
+
+            Assert.That(world.LoadedChunkCount, Is.EqualTo(1));
+            Assert.That(world.GetBlock(2 * 16 + 3, 64, -3 * 16 + 5), Is.EqualTo(Stone));
+        }
+
+        [Test]
+        public void AddChunk_ReplacesAnExistingChunkAtTheSamePosition()
+        {
+            var world = new World();
+            world.SetBlock(0, 64, 0, Stone);
+
+            var replacement = new ChunkColumn();
+            replacement.SetBlock(0, 64, 0, Dirt);
+            world.AddChunk(new ChunkPos(0, 0), replacement);
+
+            Assert.That(world.LoadedChunkCount, Is.EqualTo(1), "同一位置不应留下两根区块列");
+            Assert.That(world.GetBlock(0, 64, 0), Is.EqualTo(Dirt));
+        }
+
+        [Test]
+        public void AddChunk_WithNullColumn_Throws()
+        {
+            var world = new World();
+
+            Assert.Throws<System.ArgumentNullException>(() => world.AddChunk(new ChunkPos(0, 0), null));
+        }
+```
+
+- [ ] **Step 2: 跑测试确认它失败**
+
+```bash
+dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~WorldTests"
+```
+
+预期：编译失败，报 `"World"未包含"AddChunk"的定义`
+
+- [ ] **Step 3: 写实现**
+
+在 `Assets/Scripts/Core/Voxel/World.cs` 顶部的 using 区补上：
+
+```csharp
+using System;
+```
+
+在 `public void SetBlock(...)` 之后追加：
+
+```csharp
+        /// <summary>挂入一根已经生成好的区块列。同一位置已有区块时整根替换。</summary>
+        public void AddChunk(ChunkPos pos, ChunkColumn column)
+        {
+            if (column == null)
+            {
+                throw new ArgumentNullException(nameof(column));
+            }
+
+            _chunks[pos] = column;
+        }
+```
+
+- [ ] **Step 4: 跑测试确认通过**
+
+```bash
+dotnet test tools/dotnet/MyWorld.Tools.sln
+```
+
+预期：全部通过，总数 186
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add Assets/Scripts/Core/Voxel/World.cs Assets/Tests/EditMode/Voxel/WorldTests.cs
+git commit -m "渲染层: World 支持整块挂入已生成的区块列"
+```
+
+---
