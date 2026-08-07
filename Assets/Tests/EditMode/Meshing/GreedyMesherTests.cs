@@ -1,3 +1,4 @@
+using MyWorld.Core.Blocks;
 using MyWorld.Core.Meshing;
 using MyWorld.Core.Voxel;
 using NUnit.Framework;
@@ -173,5 +174,8 @@ namespace MyWorld.Core.Tests.Meshing
         public ushort GetBlock(int x, int y, int z) => Blocks[Index(x, y, z)];
 
         public bool IsSolid(ushort blockId) => blockId != ChunkSection.AirId;
+
+        /// <summary>测试里不接真实注册表，直接拿方块 ID 当贴图索引，断言写起来最直观。</summary>
+        public int GetTextureIndex(ushort blockId, BlockFace face) => blockId;
     }
 }

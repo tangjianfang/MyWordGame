@@ -9,5 +9,8 @@ namespace MyWorld.Core.Meshing
         ushort GetBlock(int x, int y, int z);
 
         bool IsSolid(ushort blockId);
+
+        /// <summary>该面用哪张贴图。返回的是索引而非贴图对象，Core 层不认识 Unity 的贴图类型。</summary>
+        int GetTextureIndex(ushort blockId, Blocks.BlockFace face);
     }
 }

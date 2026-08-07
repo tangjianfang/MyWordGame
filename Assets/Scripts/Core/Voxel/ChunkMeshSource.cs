@@ -30,5 +30,7 @@ namespace MyWorld.Core.Voxel
         /// <summary>此处的"实心"指是否遮挡视线：水不透明会挡住水下地形，与碰撞用的判定不同。</summary>
         public bool IsSolid(ushort blockId)
             => _registry.TryGetByNumericId(blockId, out BlockDefinition definition) && definition.Opaque;
+
+        public int GetTextureIndex(ushort blockId, BlockFace face) => _registry.GetTextureIndex(blockId, face);
     }
 }
