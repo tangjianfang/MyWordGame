@@ -57,3 +57,10 @@ art/incoming/*
 .env
 
 __pycache__/
+
+# === Unity 批处理产物 ===
+# 一次性日志与测试结果，不入版本管理
+scene-build.log
+urp-import.log
+unity-tests.log
+unity-test-results.xml
