@@ -23,6 +23,14 @@ namespace MyWorld.Unity.Bootstrap
 
         private void Start()
         {
+            BuildWorld();
+        }
+
+        /// <summary>
+        /// 生成世界并建好全部网格。独立成公开方法，使编辑器的无头冒烟检查能在非播放态下跑同一条路径。
+        /// </summary>
+        public void BuildWorld()
+        {
             var stopwatch = Stopwatch.StartNew();
 
             BlockRegistry registry = BlockRegistryLoader.Load();
@@ -79,13 +87,26 @@ namespace MyWorld.Unity.Bootstrap
                         else
                         {
                             // 完全被包裹的段一个面都没有，留着只是白占一个 GameObject
-                            Destroy(view.gameObject);
+                            DestroyObject(view.gameObject);
                         }
                     }
                 }
             }
 
             return visible;
+        }
+
+        /// <summary>编辑器非播放态下 Destroy 不生效，必须走 DestroyImmediate。</summary>
+        private static void DestroyObject(GameObject target)
+        {
+            if (Application.isPlaying)
+            {
+                Destroy(target);
+            }
+            else
+            {
+                DestroyImmediate(target);
+            }
         }
 
         private void OnDestroy()
