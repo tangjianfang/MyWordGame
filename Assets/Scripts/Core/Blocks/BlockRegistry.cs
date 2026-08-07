@@ -18,11 +18,26 @@ namespace MyWorld.Core.Blocks
         private readonly Dictionary<string, BlockDefinition> _byId = new Dictionary<string, BlockDefinition>();
         private readonly Dictionary<ushort, BlockDefinition> _byNumericId = new Dictionary<ushort, BlockDefinition>();
 
+        /// <summary>numericId → 六个面各自的贴图索引。渲染热路径按这张表查，不再碰字符串。</summary>
+        private readonly Dictionary<ushort, int[]> _faceTextures = new Dictionary<ushort, int[]>();
+
+        private string[] _textureNames = Array.Empty<string>();
+
         private BlockRegistry()
         {
         }
 
+        /// <summary>没有贴图（空气、未注册方块）时的索引。</summary>
+        public const int NoTextureIndex = -1;
+
         public int Count => _byId.Count;
+
+        /// <summary>全部被引用到的贴图名，去重并按序数排序。下标即贴图索引。</summary>
+        public IReadOnlyList<string> TextureNames => _textureNames;
+
+        /// <summary>热路径查询，未注册的方块返回 <see cref="NoTextureIndex"/> 而不抛异常。</summary>
+        public int GetTextureIndex(ushort numericId, BlockFace face)
+            => _faceTextures.TryGetValue(numericId, out int[] faces) ? faces[(int)face] : NoTextureIndex;
 
         public static BlockRegistry FromJson(IEnumerable<string> jsonDocuments)
         {
@@ -60,7 +75,46 @@ namespace MyWorld.Core.Blocks
                 registry.Add(definition);
             }
 
+            registry.BuildTextureTable();
+
             return registry;
+        }
+
+        /// <summary>
+        /// 在全部方块登记完之后建一次贴图索引表。索引按贴图名的序数排序决定，
+        /// 与方块的枚举顺序无关，因此跨机器一致。
+        /// </summary>
+        private void BuildTextureTable()
+        {
+            _textureNames = _byId.Values
+                .Where(definition => definition.Textures != null)
+                .SelectMany(definition => definition.Textures)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+
+            var slots = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (var i = 0; i < _textureNames.Length; i++)
+            {
+                slots[_textureNames[i]] = i;
+            }
+
+            foreach (BlockDefinition definition in _byId.Values)
+            {
+                if (definition.Textures == null)
+                {
+                    continue;
+                }
+
+                var faces = new int[6];
+                for (var face = 0; face < faces.Length; face++)
+                {
+                    string textureName = definition.Textures[face];
+                    faces[face] = textureName != null ? slots[textureName] : NoTextureIndex;
+                }
+
+                _faceTextures[definition.NumericId] = faces;
+            }
         }
 
         public BlockDefinition GetById(string id)
