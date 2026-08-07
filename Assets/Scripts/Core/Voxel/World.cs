@@ -33,5 +33,19 @@ namespace MyWorld.Core.Voxel
         }
 
         public bool TryGetChunk(ChunkPos pos, out ChunkColumn column) => _chunks.TryGetValue(pos, out column);
+
+        /// <summary>
+        /// 直接挂入一根已经生成好（或从存档载入）的区块列。同一位置已有区块时覆盖，
+        /// 使"重新生成"与"用存档覆盖"走同一条路径。
+        /// </summary>
+        public void AddChunk(ChunkPos pos, ChunkColumn column)
+        {
+            if (column == null)
+            {
+                throw new System.ArgumentNullException(nameof(column));
+            }
+
+            _chunks[pos] = column;
+        }
     }
 }
