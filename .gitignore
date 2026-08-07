@@ -51,3 +51,9 @@ Thumbs.db
 # 待验收的多模态生成结果，验收后才移入 Assets
 art/incoming/*
 !art/incoming/README.txt
+
+# === 密钥 ===
+# MINIMAX_API_KEY 等，绝不入库
+.env
+
+__pycache__/

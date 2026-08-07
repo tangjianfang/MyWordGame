@@ -51,38 +51,33 @@
 
 ## AI 提示词
 
-对每一阶单独生成，或先生成第 5 阶再手工删减（推荐后者，更容易保证递进关系）。
+只需要生成第 5 阶（`break-4`），其余四阶由它派生（脚本按到中心的距离裁剪）。
 
 ```
 Pixel art crack overlay texture for a breaking block in a voxel game, 1024x1024,
-on a fully transparent background, designed to be downscaled to 32x32 pixel art.
+designed to be downscaled to 32x32 pixel art.
 
-Content: irregular jagged black cracks radiating outward from near the center,
-like fractured stone. The cracks are thin sharp angular lines that branch at random
+Content: a dense network of irregular jagged black cracks covering the entire
+surface, radiating outward from the center, with small chips at the edges, like
+fractured stone. The cracks are thin sharp angular lines that branch at random
 angles. Lines are straight segments meeting at sharp angles, never smooth curves.
 
-Stage: [替换为下列之一]
-  - "a single short crack, very sparse, covering only a small part of the center"
-  - "one crack extended with a single branch, still sparse"
-  - "three or four cracks beginning to reach toward the corners"
-  - "six to eight cracks covering most of the surface"
-  - "a dense network of cracks covering the entire surface with small chips at the edges"
-
 Style: crisp hard-edged pixel art, no anti-aliasing, no blur, no glow, no shading.
-The cracks are pure black. Everything that is not a crack is fully transparent.
+The cracks are pure black. Everything that is not a crack is flat pure magenta
+#FF00FF, fully saturated, hard edges, no anti-aliasing against the cracks.
 
-No background, no fill, no color, no shadow, no highlight, no circle, no star shape,
-no symmetrical pattern, no spider web, no text, no watermark, no block texture
-underneath — only the cracks on transparency.
+No opaque background other than magenta, no color, no shadow, no highlight, no
+circle, no star shape, no symmetrical pattern, no spider web, no text, no
+watermark, no block texture underneath — only black cracks on flat magenta.
 ```
 
 ## 负面提示词
 
 ```
-background, opaque background, block texture, stone texture, color, colored cracks,
-shadow, highlight, glow, bloom, circle, star, spider web, symmetrical pattern,
-smooth curves, rounded lines, text, watermark, signature, blur, anti-aliasing,
-3D render, bevel, emboss
+white background, opaque background, block texture, stone texture, color, colored
+cracks, shadow, highlight, glow, bloom, circle, star, spider web, symmetrical
+pattern, smooth curves, rounded lines, text, watermark, signature, blur,
+anti-aliasing, 3D render, bevel, emboss, transparent background, checkerboard
 ```
 
 ## 后处理
