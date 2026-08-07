@@ -1812,3 +1812,276 @@ git commit -m "渲染层: 世界启动器"
 ```
 
 ---
+
+## Task 13: 预览场景与批处理验证
+
+场景文件（`.unity`）是 YAML 序列化的引用网，**手写不现实**，所以用一段编辑器脚本生成它。
+这样场景可以随时重建，也能在批处理里跑，不依赖人在编辑器里点鼠标。
+
+**Files:**
+- Create: `Assets/Scripts/Unity/Editor/MyWorld.Unity.Editor.asmdef`
+- Create: `Assets/Scripts/Unity/Editor/PreviewSceneBuilder.cs`
+- Create: `Assets/Scenes/Preview.unity`（由脚本生成，不手写）
+
+- [ ] **Step 1: 建编辑器程序集**
+
+创建 `Assets/Scripts/Unity/Editor/MyWorld.Unity.Editor.asmdef`：
+
+```json
+{
+  "name": "MyWorld.Unity.Editor",
+  "rootNamespace": "MyWorld.Unity.EditorTools",
+  "references": [
+    "MyWorld.Core",
+    "MyWorld.Unity"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
+```
+
+- [ ] **Step 2: 写场景生成脚本**
+
+创建 `Assets/Scripts/Unity/Editor/PreviewSceneBuilder.cs`：
+
+```csharp
+using System.IO;
+using MyWorld.Unity.Bootstrap;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace MyWorld.Unity.EditorTools
+{
+    /// <summary>
+    /// 生成里程碑 1 的验收场景。场景文件是 YAML 引用网，手写不现实，
+    /// 一律由这段脚本重建——既能在编辑器菜单里点，也能被批处理 -executeMethod 调用。
+    /// </summary>
+    public static class PreviewSceneBuilder
+    {
+        private const string ScenePath = "Assets/Scenes/Preview.unity";
+
+        [MenuItem("MyWorld/重建预览场景")]
+        public static void Build()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            CreateLight();
+            CreateCamera();
+
+            var world = new GameObject("世界");
+            world.AddComponent<WorldBootstrap>();
+
+            Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
+            EditorSceneManager.SaveScene(scene, ScenePath);
+            AssetDatabase.Refresh();
+
+            Debug.Log($"预览场景已生成：{ScenePath}");
+        }
+
+        private static void CreateLight()
+        {
+            var gameObject = new GameObject("方向光");
+            Light light = gameObject.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.intensity = 1f;
+            // 略微偏斜，让方块的三个可见面亮度分开，轮廓才清楚
+            gameObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+        }
+
+        private static void CreateCamera()
+        {
+            var gameObject = new GameObject("相机");
+            gameObject.tag = "MainCamera";
+
+            Camera camera = gameObject.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.45f, 0.65f, 0.95f);
+            // 默认 1000 太远、地形又不高，缩到 500 让深度精度好一些
+            camera.farClipPlane = 500f;
+
+            gameObject.AddComponent<AudioListener>();
+            gameObject.AddComponent<FreeFlyCamera>();
+
+            // 站在地表之上、稍微退开一点，Play 之后立刻能看到地形而不是卡在土里
+            gameObject.transform.position = new Vector3(0f, 95f, -40f);
+            gameObject.transform.rotation = Quaternion.Euler(20f, 0f, 0f);
+        }
+    }
+}
+```
+
+- [ ] **Step 3: 批处理跑一遍编译 + 生成场景**
+
+先确认没有别的 Unity 实例占着这个项目，否则会报 `another Unity instance is running`。
+
+```powershell
+& "C:\Program Files\Unity\Hub\Editor\2022.3.62f3c1\Editor\Unity.exe" `
+  -batchmode -nographics -projectPath . `
+  -executeMethod MyWorld.Unity.EditorTools.PreviewSceneBuilder.Build `
+  -quit -logFile scene-build.log
+```
+
+**退出码不可信——Unity 崩溃时照样返回 0**，必须查日志：
+
+```bash
+grep -n "error CS\|Exception\|预览场景已生成" scene-build.log
+```
+
+预期：没有 `error CS`、没有 `Exception`，能看到「预览场景已生成：Assets/Scenes/Preview.unity」，
+且 `Assets/Scenes/Preview.unity` 确实存在。
+
+有编译错误就回到对应任务修，改完重跑本步。
+
+- [ ] **Step 4: 跑一遍 EditMode 测试，确认新程序集没破坏既有测试**
+
+```powershell
+& "C:\Program Files\Unity\Hub\Editor\2022.3.62f3c1\Editor\Unity.exe" `
+  -batchmode -nographics -projectPath . -runTests -testPlatform EditMode `
+  -testResults unity-test-results.xml -logFile unity-tests.log
+```
+
+```bash
+grep -o 'total="[0-9]*" passed="[0-9]*" failed="[0-9]*"' unity-test-results.xml | head -1
+```
+
+预期：`total="186" passed="186" failed="0"`
+
+- [ ] **Step 5: 提交**
+
+日志与测试结果是一次性产物，不入版本管理。
+
+```bash
+git add Assets/Scripts/Unity/Editor Assets/Scenes
+git commit -m "渲染层: 预览场景生成脚本"
+```
+
+如果 `git status` 里出现了 `scene-build.log` / `unity-tests.log` / `unity-test-results.xml`，
+把它们加进 `.gitignore` 再提交。
+
+- [ ] **Step 6: 人工验收（唯一无法自动化的一步）**
+
+这一步需要人打开编辑器，无法在无人值守时完成。**验收前置条件不满足时，把结论如实
+记下来，不要写成"已验证"。**
+
+打开 Unity，加载 `Assets/Scenes/Preview.unity`，按 Play，逐条核对：
+
+| 检查项 | 通过标准 |
+| --- | --- |
+| 地形出现 | 视野里有连成片的体素地形，不是空场景 |
+| 贴图正确 | 草顶是草、草侧是草侧、往下是土和石头，没有整片洋红 |
+| 贴图无缝 | 大平面上看不到规则的网格状接缝（贪心合并 + Repeat 环绕的关键验证点） |
+| 贴图不糊 | 32×32 像素边缘锐利，不是模糊插值（Point 过滤生效） |
+| 区块拼接 | 区块之间没有缝隙，也没有多出来的重叠面（接缝剔除正确） |
+| 相机可用 | WASD/QE 能飞，按住右键能转视角 |
+| 控制台 | 打印出「世界就绪：49 根区块列 …」，没有报错 |
+
+任何一项不通过，记录现象后回到对应任务排查，不要带着问题往下走。
+
+---
+
+## Task 14: 接入 URP（最后一步，可整体回滚）
+
+前面所有代码在内置渲染管线下已经能跑。这一步是**纯升级**：装 URP 包、建管线资产、
+在项目设置里挂上。包解析涉及网络，是整个计划里最容易卡住的一环，所以放最后，
+且刻意只占一个提交——**失败就 `git revert` 这一个提交，前面 13 个任务的成果一点不受影响**。
+
+**Files:**
+- Modify: `Packages/manifest.json`
+- Create: `Assets/Settings/UniversalRenderPipelineAsset.asset`（由编辑器生成）
+- Modify: `ProjectSettings/GraphicsSettings.asset`
+
+- [ ] **Step 1: 加包**
+
+在 `Packages/manifest.json` 的 `dependencies` 里加一行（保持字母序）：
+
+```json
+"com.unity.render-pipelines.universal": "14.0.11",
+```
+
+**版本必须是 14.x**——URP 17.x 是 Unity 6 的，2022.3 上不存在，会把包解析卡死。
+
+- [ ] **Step 2: 让 Unity 解析包**
+
+```powershell
+& "C:\Program Files\Unity\Hub\Editor\2022.3.62f3c1\Editor\Unity.exe" `
+  -batchmode -nographics -projectPath . -quit -logFile urp-import.log
+```
+
+```bash
+grep -n "error\|Failed to resolve\|universal" urp-import.log | head -20
+```
+
+预期：能看到 URP 包被解析导入，没有 `Failed to resolve`。
+
+**解析失败的处理方式**：不要在这里反复试。撤掉 `Packages/manifest.json` 的改动，
+在计划末尾如实记下「URP 未接入，当前使用内置管线」，然后结束——内置管线下画面照样是对的，
+URP 的收益（更好的光照与后处理）属于后续里程碑。
+
+- [ ] **Step 3: 建管线资产并挂上**
+
+在编辑器里：`Assets` 右键 → `Create` → `Rendering` → `URP Asset (with Universal Renderer)`，
+存到 `Assets/Settings/UniversalRenderPipelineAsset.asset`；
+然后 `Edit` → `Project Settings` → `Graphics` → `Scriptable Render Pipeline Settings` 指到该资产。
+
+`Project Settings` → `Quality` 下每个质量档位的 `Render Pipeline Asset` 也指同一个资产，
+否则切换质量档时会掉回内置管线。
+
+- [ ] **Step 4: 确认材质走的是 URP**
+
+`BlockMaterialLibrary.FindShader` 会优先找 `Universal Render Pipeline/Lit`。装了 URP 之后
+重新 Play，画面应当和内置管线下基本一致（可能整体亮度略有差异，这是正常的）。
+
+**如果地形变成洋红**，说明材质用的还是内置 Standard shader 而 URP 不认——检查
+`Shader.Find("Universal Render Pipeline/Lit")` 是否返回了 null（URP 资产没挂上时会）。
+
+- [ ] **Step 5: 重跑测试与场景生成，确认没被 URP 破坏**
+
+```bash
+dotnet test tools/dotnet/MyWorld.Tools.sln
+```
+
+预期：186 个全部通过（Core 与渲染管线无关，这步是回归确认）
+
+- [ ] **Step 6: 提交**
+
+```bash
+git add Packages/manifest.json Packages/packages-lock.json Assets/Settings ProjectSettings
+git commit -m "渲染层: 接入 URP 14.0.11"
+```
+
+---
+
+## 完成后的状态
+
+做完这 14 个任务，仓库里应当有：
+
+- Core 层多出「贴图索引」这条贯穿数据流：`BlockRegistry.TextureNames` →
+  `IBlockSource.GetTextureIndex` → `MeshBuffer.QuadTextures` → `Submesh[]`，
+  全程只有 int，Core 仍然零 Unity 依赖
+- Core 测试从 155 涨到 186
+- `Assets/Scripts/Unity/` 从空目录变成三个目录（`Bootstrap` / `Rendering` / `Editor`）共 7 个文件
+- 一个可重建的预览场景，按 Play 能飞着看地形
+
+**下一个里程碑（玩家层）会用到本里程碑的这些东西**：`ChunkSectionView.Rebuild` 会被
+挖掘/放置后的局部重建复用；`WorldBootstrap` 里固定范围的生成循环会被跟随玩家的
+动态加载替换；`FreeFlyCamera` 会被真正的玩家控制器替换。
+
+## 已知的技术债（记下来，不在本里程碑处理）
+
+- 网格生成全在主线程同步做，区块一多会卡住一帧。Burst/Job 化留给「打磨」里程碑
+- 每个区块段一个 GameObject + 一份 Mesh，没有对象池，动态加载后会频繁 GC
+- `ChunkSectionView` 用静态共享 `MeshBuffer`，天然不支持多线程，多线程化时要一起改
+- 一个区块段有几种贴图就有几个 drawcall。真成瓶颈了再上 Texture2DArray（设计文档
+  「考虑过的方案」里的方案 B）
+- 没有接顶点光照/AO，Core 的 `Lighting` 数据目前没被渲染用到
