@@ -1126,3 +1126,689 @@ git commit -m "渲染层: World 支持整块挂入已生成的区块列"
 ```
 
 ---
+
+## Task 7: Unity 程序集与方块注册表加载
+
+从这里开始进入 Unity 层。这一层允许用 `UnityEngine.*`，与 Core 的
+`noEngineReferences: true` 相对。
+
+**Files:**
+- Create: `Assets/Scripts/Unity/MyWorld.Unity.asmdef`
+- Create: `Assets/Scripts/Unity/Bootstrap/BlockRegistryLoader.cs`
+
+本任务及之后的 Unity 层任务**没有 `dotnet test` 覆盖**——`tools/dotnet/*.csproj` 只链接
+`Assets/Scripts/Core` 与 `Assets/Tests/EditMode`，不含 `Assets/Scripts/Unity`。
+Unity 层的验证手段是 Task 13 的批处理编译 + 人工验收，这一点在计划里如实标注，
+不假装它有自动化覆盖。
+
+- [ ] **Step 1: 建程序集定义**
+
+创建 `Assets/Scripts/Unity/MyWorld.Unity.asmdef`：
+
+```json
+{
+  "name": "MyWorld.Unity",
+  "rootNamespace": "MyWorld.Unity",
+  "references": [
+    "MyWorld.Core"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
+```
+
+- [ ] **Step 2: 写方块注册表加载器**
+
+创建 `Assets/Scripts/Unity/Bootstrap/BlockRegistryLoader.cs`：
+
+```csharp
+using System.Collections.Generic;
+using System.IO;
+using MyWorld.Core.Blocks;
+using UnityEngine;
+
+namespace MyWorld.Unity.Bootstrap
+{
+    /// <summary>
+    /// 从 StreamingAssets 读方块定义。桌面平台上 StreamingAssets 就是普通目录，可以直接文件 IO；
+    /// 将来要出 Android 版再换成 UnityWebRequest，不影响调用方。
+    /// </summary>
+    public static class BlockRegistryLoader
+    {
+        public static string BlockDirectory => Path.Combine(Application.streamingAssetsPath, "blocks");
+
+        public static string TextureDirectory => Path.Combine(BlockDirectory, "textures");
+
+        public static BlockRegistry Load()
+        {
+            string directory = BlockDirectory;
+            if (!Directory.Exists(directory))
+            {
+                throw new DirectoryNotFoundException($"未找到方块定义目录：{directory}");
+            }
+
+            var documents = new List<string>();
+            foreach (string path in Directory.GetFiles(directory, "*.json"))
+            {
+                documents.Add(File.ReadAllText(path));
+            }
+
+            if (documents.Count == 0)
+            {
+                throw new InvalidDataException($"{directory} 下没有任何方块定义文件。");
+            }
+
+            return BlockRegistry.FromJson(documents);
+        }
+    }
+}
+```
+
+- [ ] **Step 3: 确认 Core 测试没被影响**
+
+```bash
+dotnet test tools/dotnet/MyWorld.Tools.sln
+```
+
+预期：全部通过，总数仍是 186（新增的 Unity 文件不在这个解决方案里）
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add Assets/Scripts/Unity
+git commit -m "渲染层: Unity 程序集与方块注册表加载"
+```
+
+---
+
+## Task 8: 方块材质库
+
+每张方块贴图一个材质。贴图 PNG 放在 StreamingAssets 下、没有经过 Unity 的资源导入流程，
+所以在运行时用 `Texture2D.LoadImage` 从字节流建纹理——好处是**加方块贴图依然不用碰 Unity 编辑器**，
+与「方块定义数据驱动」这条既有约定保持一致。
+
+**Files:**
+- Create: `Assets/Scripts/Unity/Rendering/BlockMaterialLibrary.cs`
+
+- [ ] **Step 1: 写材质库**
+
+创建 `Assets/Scripts/Unity/Rendering/BlockMaterialLibrary.cs`：
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.IO;
+using MyWorld.Core.Blocks;
+using UnityEngine;
+
+namespace MyWorld.Unity.Rendering
+{
+    /// <summary>
+    /// 贴图索引 → 材质。贪心网格的 UV 是按格数铺开的（(0,0)..(width,height)），
+    /// 所以材质只要开 Repeat 环绕，合并后的大面就能保持单个方块的贴图密度，无需自定义 shader。
+    /// </summary>
+    public sealed class BlockMaterialLibrary : IDisposable
+    {
+        private readonly Material[] _materials;
+        private readonly Material _missing;
+        private readonly List<Texture2D> _textures = new List<Texture2D>();
+
+        private BlockMaterialLibrary(int slotCount, Material missing)
+        {
+            _materials = new Material[slotCount];
+            _missing = missing;
+        }
+
+        public int Count => _materials.Length;
+
+        /// <summary>越界或缺贴图时给出醒目的洋红占位材质，让问题在画面上一眼可见而不是静默消失。</summary>
+        public Material Get(int textureIndex)
+            => textureIndex >= 0 && textureIndex < _materials.Length ? _materials[textureIndex] : _missing;
+
+        public static BlockMaterialLibrary Load(BlockRegistry registry, string textureDirectory)
+        {
+            if (registry == null)
+            {
+                throw new ArgumentNullException(nameof(registry));
+            }
+
+            Shader shader = FindShader();
+            var library = new BlockMaterialLibrary(registry.TextureNames.Count, CreateMissingMaterial(shader));
+
+            for (var slot = 0; slot < registry.TextureNames.Count; slot++)
+            {
+                string textureName = registry.TextureNames[slot];
+                string path = Path.Combine(textureDirectory, textureName + ".png");
+                Texture2D texture = library.LoadTexture(path);
+
+                if (texture == null)
+                {
+                    Debug.LogError($"方块贴图缺失或无法解码：{path}，该贴图改用占位材质。");
+                    library._materials[slot] = library._missing;
+                    continue;
+                }
+
+                library._materials[slot] = new Material(shader)
+                {
+                    name = textureName,
+                    mainTexture = texture
+                };
+            }
+
+            return library;
+        }
+
+        /// <summary>装了 URP 就用 URP 的 Lit，没装则退回内置管线的 Standard，两条路都能跑。</summary>
+        private static Shader FindShader()
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            if (shader == null)
+            {
+                throw new InvalidOperationException("URP Lit 与内置 Standard 都找不到，无法建立方块材质。");
+            }
+
+            return shader;
+        }
+
+        private Texture2D LoadTexture(string path)
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, mipChain: false);
+            if (!texture.LoadImage(File.ReadAllBytes(path)))
+            {
+                DestroyObject(texture);
+                return null;
+            }
+
+            // 必须在 LoadImage 之后设置：LoadImage 会按 PNG 重建纹理，之前的采样设置会丢
+            // 32×32 像素风要 Point 过滤；关掉 mipmap，否则远处方块会糊成一团
+            texture.filterMode = FilterMode.Point;
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.anisoLevel = 0;
+
+            _textures.Add(texture);
+            return texture;
+        }
+
+        private static Material CreateMissingMaterial(Shader shader)
+        {
+            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, mipChain: false);
+            texture.SetPixels(new[] { Color.magenta, Color.black, Color.black, Color.magenta });
+            texture.Apply();
+            texture.filterMode = FilterMode.Point;
+            texture.wrapMode = TextureWrapMode.Repeat;
+
+            return new Material(shader) { name = "缺失贴图", mainTexture = texture };
+        }
+
+        /// <summary>编辑器里 Destroy 要到帧末才生效，非播放态下必须用 DestroyImmediate。</summary>
+        private static void DestroyObject(UnityEngine.Object target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                UnityEngine.Object.Destroy(target);
+            }
+            else
+            {
+                UnityEngine.Object.DestroyImmediate(target);
+            }
+        }
+
+        public void Dispose()
+        {
+            foreach (Material material in _materials)
+            {
+                // 缺贴图的槽位共用 _missing，别重复销毁
+                if (material != null && material != _missing)
+                {
+                    DestroyObject(material);
+                }
+            }
+
+            if (_missing != null)
+            {
+                DestroyObject(_missing.mainTexture);
+                DestroyObject(_missing);
+            }
+
+            foreach (Texture2D texture in _textures)
+            {
+                DestroyObject(texture);
+            }
+
+            _textures.Clear();
+        }
+    }
+}
+```
+
+- [ ] **Step 2: 提交**
+
+```bash
+git add Assets/Scripts/Unity/Rendering/BlockMaterialLibrary.cs
+git commit -m "渲染层: 方块材质库"
+```
+
+---
+
+## Task 9: MeshBuffer 上传到 Unity Mesh
+
+**Files:**
+- Create: `Assets/Scripts/Unity/Rendering/ChunkMeshBuilder.cs`
+
+- [ ] **Step 1: 写上传器**
+
+创建 `Assets/Scripts/Unity/Rendering/ChunkMeshBuilder.cs`：
+
+```csharp
+using System.Collections.Generic;
+using MyWorld.Core.Math;
+using MyWorld.Core.Meshing;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace MyWorld.Unity.Rendering
+{
+    /// <summary>
+    /// 把 Core 层的 <see cref="MeshBuffer"/> 拷进 Unity 的 Mesh。
+    /// 静态缓存只在主线程用——本里程碑的网格生成是同步的，多线程化时这里要一起改。
+    /// </summary>
+    public static class ChunkMeshBuilder
+    {
+        private static readonly List<Vector3> ScratchPositions = new List<Vector3>();
+        private static readonly List<Vector3> ScratchNormals = new List<Vector3>();
+        private static readonly List<Vector2> ScratchUvs = new List<Vector2>();
+        private static int[] _scratchIndices = new int[0];
+
+        public static void Apply(MeshBuffer buffer, IReadOnlyList<Submesh> submeshes, Mesh mesh)
+        {
+            mesh.Clear();
+
+            if (buffer.VertexCount == 0 || submeshes.Count == 0)
+            {
+                mesh.subMeshCount = 0;
+                return;
+            }
+
+            CopyPositions(buffer.Positions, ScratchPositions);
+            CopyPositions(buffer.Normals, ScratchNormals);
+            CopyUvs(buffer.Uvs, ScratchUvs);
+
+            if (_scratchIndices.Length < buffer.IndexCount)
+            {
+                _scratchIndices = new int[buffer.IndexCount];
+            }
+
+            buffer.Indices.CopyTo(_scratchIndices, 0);
+
+            // 一个 16³ 段最坏情况下的顶点数会超过 65535，索引格式统一用 32 位省得判断
+            mesh.indexFormat = IndexFormat.UInt32;
+            mesh.SetVertices(ScratchPositions);
+            mesh.SetNormals(ScratchNormals);
+            mesh.SetUVs(0, ScratchUvs);
+
+            mesh.subMeshCount = submeshes.Count;
+            for (var i = 0; i < submeshes.Count; i++)
+            {
+                Submesh submesh = submeshes[i];
+                mesh.SetIndices(_scratchIndices, submesh.IndexStart, submesh.IndexCount,
+                    MeshTopology.Triangles, i, calculateBounds: false);
+            }
+
+            mesh.RecalculateBounds();
+        }
+
+        private static void CopyPositions(List<Float3> source, List<Vector3> target)
+        {
+            target.Clear();
+            if (target.Capacity < source.Count)
+            {
+                target.Capacity = source.Count;
+            }
+
+            for (var i = 0; i < source.Count; i++)
+            {
+                Float3 value = source[i];
+                target.Add(new Vector3(value.X, value.Y, value.Z));
+            }
+        }
+
+        private static void CopyUvs(List<Float2> source, List<Vector2> target)
+        {
+            target.Clear();
+            if (target.Capacity < source.Count)
+            {
+                target.Capacity = source.Count;
+            }
+
+            for (var i = 0; i < source.Count; i++)
+            {
+                Float2 value = source[i];
+                target.Add(new Vector2(value.X, value.Y));
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 2: 提交**
+
+```bash
+git add Assets/Scripts/Unity/Rendering/ChunkMeshBuilder.cs
+git commit -m "渲染层: MeshBuffer 上传到 Unity Mesh"
+```
+
+---
+
+## Task 10: 区块段视图
+
+**Files:**
+- Create: `Assets/Scripts/Unity/Rendering/ChunkSectionView.cs`
+
+- [ ] **Step 1: 写视图组件**
+
+创建 `Assets/Scripts/Unity/Rendering/ChunkSectionView.cs`：
+
+```csharp
+using System.Collections.Generic;
+using MyWorld.Core.Blocks;
+using MyWorld.Core.Meshing;
+using MyWorld.Core.Voxel;
+using UnityEngine;
+
+namespace MyWorld.Unity.Rendering
+{
+    /// <summary>
+    /// 一个 16³ 区块段的渲染体：一个 GameObject + 一份 Mesh + 每张贴图一个材质槽。
+    /// 网格顶点用段内局部坐标 [0, 16]，世界位置交给 Transform，这样同一份网格数据与位置解耦。
+    /// </summary>
+    [RequireComponent(typeof(MeshFilter))]
+    [RequireComponent(typeof(MeshRenderer))]
+    public sealed class ChunkSectionView : MonoBehaviour
+    {
+        private static readonly MeshBuffer SharedBuffer = new MeshBuffer();
+        private static readonly List<Submesh> SharedSubmeshes = new List<Submesh>();
+
+        private Mesh _mesh;
+        private MeshRenderer _renderer;
+        private ChunkPos _chunk;
+        private int _sectionIndex;
+
+        public static ChunkSectionView Create(Transform parent, ChunkPos chunk, int sectionIndex)
+        {
+            var gameObject = new GameObject($"区块段 {chunk.X},{chunk.Z} #{sectionIndex}");
+            gameObject.transform.SetParent(parent, worldPositionStays: false);
+            gameObject.transform.localPosition = new Vector3(
+                chunk.X * VoxelCoords.ChunkSize,
+                VoxelCoords.MinY + sectionIndex * VoxelCoords.ChunkSize,
+                chunk.Z * VoxelCoords.ChunkSize);
+
+            var view = gameObject.AddComponent<ChunkSectionView>();
+            view._chunk = chunk;
+            view._sectionIndex = sectionIndex;
+            view._mesh = new Mesh { name = gameObject.name };
+            view.GetComponent<MeshFilter>().sharedMesh = view._mesh;
+            view._renderer = view.GetComponent<MeshRenderer>();
+
+            return view;
+        }
+
+        /// <summary>
+        /// 重建网格。返回是否有可见几何——被完全包裹的段一个面都没有，调用方可以直接把它销毁。
+        /// </summary>
+        public bool Rebuild(World world, BlockRegistry registry, BlockMaterialLibrary materials)
+        {
+            int sectionBaseY = VoxelCoords.MinY + _sectionIndex * VoxelCoords.ChunkSize;
+            var source = new ChunkMeshSource(world, registry, _chunk, sectionBaseY);
+
+            GreedyMesher.Build(source, SharedBuffer);
+            SharedBuffer.SplitByTexture(SharedSubmeshes);
+            ChunkMeshBuilder.Apply(SharedBuffer, SharedSubmeshes, _mesh);
+
+            var slots = new Material[SharedSubmeshes.Count];
+            for (var i = 0; i < SharedSubmeshes.Count; i++)
+            {
+                slots[i] = materials.Get(SharedSubmeshes[i].TextureIndex);
+            }
+
+            _renderer.sharedMaterials = slots;
+
+            return SharedSubmeshes.Count > 0;
+        }
+
+        private void OnDestroy()
+        {
+            if (_mesh == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_mesh);
+            }
+            else
+            {
+                DestroyImmediate(_mesh);
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 2: 提交**
+
+```bash
+git add Assets/Scripts/Unity/Rendering/ChunkSectionView.cs
+git commit -m "渲染层: 区块段视图"
+```
+
+---
+
+## Task 11: 自由飞行相机
+
+`ProjectSettings/ProjectSettings.asset` 里 `activeInputHandler: 0`，即旧版 Input Manager，
+所以用 `Input.GetKey` / `Input.GetAxis` 是可用的。
+
+**Files:**
+- Create: `Assets/Scripts/Unity/Bootstrap/FreeFlyCamera.cs`
+
+- [ ] **Step 1: 写相机组件**
+
+创建 `Assets/Scripts/Unity/Bootstrap/FreeFlyCamera.cs`：
+
+```csharp
+using UnityEngine;
+
+namespace MyWorld.Unity.Bootstrap
+{
+    /// <summary>
+    /// 里程碑 1 的验收工具：WASD 平移、QE 升降、按住右键转视角、Shift 加速。
+    /// 玩家控制器是里程碑 2 的内容，这个组件到时候会被替换掉。
+    /// </summary>
+    public sealed class FreeFlyCamera : MonoBehaviour
+    {
+        [SerializeField] private float moveSpeed = 12f;
+        [SerializeField] private float sprintMultiplier = 4f;
+        [SerializeField] private float lookSensitivity = 2.5f;
+
+        private float _yaw;
+        private float _pitch;
+
+        private void Start()
+        {
+            Vector3 angles = transform.eulerAngles;
+            _yaw = angles.y;
+            _pitch = angles.x;
+        }
+
+        private void Update()
+        {
+            if (Input.GetMouseButton(1))
+            {
+                _yaw += Input.GetAxis("Mouse X") * lookSensitivity;
+                _pitch = Mathf.Clamp(_pitch - Input.GetAxis("Mouse Y") * lookSensitivity, -89f, 89f);
+                transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+            }
+
+            float right = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
+            float up = (Input.GetKey(KeyCode.E) ? 1f : 0f) - (Input.GetKey(KeyCode.Q) ? 1f : 0f);
+            float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
+
+            // 升降走世界的上方向而不是相机的上方向，低头飞行时手感才不会打架
+            Vector3 direction = transform.right * right + Vector3.up * up + transform.forward * forward;
+            float speed = moveSpeed * (Input.GetKey(KeyCode.LeftShift) ? sprintMultiplier : 1f);
+
+            transform.position += direction * (speed * Time.deltaTime);
+        }
+    }
+}
+```
+
+- [ ] **Step 2: 提交**
+
+```bash
+git add Assets/Scripts/Unity/Bootstrap/FreeFlyCamera.cs
+git commit -m "渲染层: 验收用自由飞行相机"
+```
+
+---
+
+## Task 12: 世界启动器
+
+**Files:**
+- Create: `Assets/Scripts/Unity/Bootstrap/WorldBootstrap.cs`
+
+- [ ] **Step 1: 写启动器**
+
+创建 `Assets/Scripts/Unity/Bootstrap/WorldBootstrap.cs`：
+
+```csharp
+using System.Diagnostics;
+using MyWorld.Core.Blocks;
+using MyWorld.Core.Voxel;
+using MyWorld.Core.WorldGen;
+using MyWorld.Unity.Rendering;
+using UnityEngine;
+using Debug = UnityEngine.Debug;
+
+namespace MyWorld.Unity.Bootstrap
+{
+    /// <summary>
+    /// 里程碑 1 的验收场景：生成固定范围的区块并一次性全部建成网格。
+    /// 跟随玩家的动态加载/卸载是后续里程碑的事，这里刻意不做。
+    /// </summary>
+    public sealed class WorldBootstrap : MonoBehaviour
+    {
+        [SerializeField] private int seed = 12345;
+
+        [Tooltip("以原点为中心，向四周各生成多少个区块。3 表示 7×7 共 49 根区块列。")]
+        [SerializeField] private int chunkRadius = 3;
+
+        private BlockMaterialLibrary _materials;
+
+        private void Start()
+        {
+            var stopwatch = Stopwatch.StartNew();
+
+            BlockRegistry registry = BlockRegistryLoader.Load();
+            _materials = BlockMaterialLibrary.Load(registry, BlockRegistryLoader.TextureDirectory);
+
+            var world = new World();
+            var generator = new WorldGenerator(seed);
+
+            // 必须先把全部区块灌进 World 再建网格：建网格要采样邻区块才能剔除接缝面，
+            // 边生成边建网格会让先建的那几根在接缝处多出一整面
+            for (int x = -chunkRadius; x <= chunkRadius; x++)
+            {
+                for (int z = -chunkRadius; z <= chunkRadius; z++)
+                {
+                    var pos = new ChunkPos(x, z);
+                    world.AddChunk(pos, generator.Generate(pos));
+                }
+            }
+
+            long generateMs = stopwatch.ElapsedMilliseconds;
+            int visible = BuildAllMeshes(world, registry);
+
+            Debug.Log($"世界就绪：{world.LoadedChunkCount} 根区块列（生成 {generateMs} ms），" +
+                      $"{visible} 个可见区块段（建网格 {stopwatch.ElapsedMilliseconds - generateMs} ms），" +
+                      $"{registry.TextureNames.Count} 种贴图。");
+        }
+
+        private int BuildAllMeshes(World world, BlockRegistry registry)
+        {
+            var visible = 0;
+
+            for (int x = -chunkRadius; x <= chunkRadius; x++)
+            {
+                for (int z = -chunkRadius; z <= chunkRadius; z++)
+                {
+                    var pos = new ChunkPos(x, z);
+                    if (!world.TryGetChunk(pos, out ChunkColumn column))
+                    {
+                        continue;
+                    }
+
+                    for (var section = 0; section < VoxelCoords.SectionCount; section++)
+                    {
+                        if (!column.HasSection(section))
+                        {
+                            continue;
+                        }
+
+                        ChunkSectionView view = ChunkSectionView.Create(transform, pos, section);
+                        if (view.Rebuild(world, registry, _materials))
+                        {
+                            visible++;
+                        }
+                        else
+                        {
+                            // 完全被包裹的段一个面都没有，留着只是白占一个 GameObject
+                            Destroy(view.gameObject);
+                        }
+                    }
+                }
+            }
+
+            return visible;
+        }
+
+        private void OnDestroy()
+        {
+            _materials?.Dispose();
+            _materials = null;
+        }
+    }
+}
+```
+
+- [ ] **Step 2: 提交**
+
+```bash
+git add Assets/Scripts/Unity/Bootstrap/WorldBootstrap.cs
+git commit -m "渲染层: 世界启动器"
+```
+
+---
