@@ -14,17 +14,17 @@ Core 层（`Assets/Scripts/Core`）已完成：体素坐标、区块存储、贪
 
 ## 范围（本里程碑只做这些）
 
-- 添加 URP 14.x package（`Packages/manifest.json` 现在还没装，`CLAUDE.md` 里已经预留了这一步）
 - `MyWorld.Unity` asmdef：引用 `MyWorld.Core`，允许 `UnityEngine.*`
 - 从 `Assets/StreamingAssets/blocks/textures/*.png` 为每张贴图生成一个 `Material`
   （Repeat 环绕 + Point 过滤，贴合 32×32 像素风格，禁用 mipmap 防止远处模糊融混）
-- 扩展 Core 的 `MeshBuffer`：贪心合并输出的每个 quad 额外记录一个"贴图名"，
-  按此分组导出多个 submesh（保持 Core 不引用 Unity 类型——记录的是字符串/int 索引，
+- 扩展 Core 的 `MeshBuffer`：贪心合并输出的每个 quad 额外记录一个"贴图索引"，
+  按此把索引缓冲重排成多个 submesh（保持 Core 不引用 Unity 类型——记录的是 int 索引，
   不是 `Material`/`Texture` 对象）
 - `ChunkSectionView`：每个非空 `ChunkSection`（16×16×16）对应一个 GameObject，
-  `MeshFilter` + `MeshRenderer`，网格用 `Mesh.AllocateWritableMeshData` 上传，
-  `sharedMaterials` 关联对应贴图的 Material（同一份 Material 资源被所有区块复用，
-  以便 URP 的 SRP Batching）
+  `MeshFilter` + `MeshRenderer`，`sharedMaterials` 关联对应贴图的 Material
+  （同一份 Material 资源被所有区块复用，以便 SRP Batching）
+- URP 14.x 作为**最后一步、可回滚**地接入。渲染代码按"有 URP 用 URP Lit，没有就退回内置
+  管线的 Standard"编写，因此包解析若失败，回滚这一个提交即可，前面所有工作照常可用
 - `WorldBootstrap`：测试场景，固定生成 N×N 区块列（比如 12×12）+ 自由飞行相机，
   用于肉眼验收
 
@@ -32,6 +32,8 @@ Core 层（`Assets/Scripts/Core`）已完成：体素坐标、区块存储、贪
 
 - 动态加载/卸载（跟随玩家位置增删区块）——这是"打磨"里程碑的性能工作，不阻塞"看见世界"
 - Burst/Job 多线程网格生成——现在用主线程同步生成，正确性优先
+- `Mesh.AllocateWritableMeshData` 零拷贝上传——本里程碑先用 `SetVertices`/`SetIndices`
+  逐个拷贝，代码量小得多。等 drawcall 与上传耗时真的成为瓶颈了再换
 - 光照渲染（`Lighting` 层数据已存在，但顶点光照/AO 接入放到后面，本里程碑先出无光照或
   URP 默认方向光下的贴图效果）
 - 任何玩家交互（挖掘、放置）——里程碑 2 的内容
@@ -58,19 +60,22 @@ Texture2DArray 构建流程，复杂度高出一截，且这个项目目前没�
 ## 数据流
 
 ```
-BlockRegistry (贴图名解析)
+BlockRegistry (贴图名 → 贴图索引表)
         │
         ▼
-ChunkMeshSource (IBlockSource, 已存在)
+ChunkMeshSource (IBlockSource, 已存在)   ← 扩展：GetTextureIndex(blockId, face)
         │
         ▼
-GreedyMesher.Build<TSource>          ← 扩展：quad 增加贴图名/索引
+GreedyMesher.Build<TSource>              ← 扩展：每个 quad 记一个贴图索引
         │
         ▼
-MeshBuffer (Positions/Normals/Uvs/Indices + 新增贴图分组信息)
+MeshBuffer (Positions/Normals/Uvs/Indices + QuadTextures)
+        │
+        ▼
+MeshBuffer.SplitByTexture → Submesh[]    ← 按贴图重排索引，使同贴图三角形连续
         │
         ▼ (Unity 层，新增)
-ChunkMeshUpload: MeshBuffer → Unity Mesh (多 submesh)
+ChunkMeshBuilder: MeshBuffer + Submesh[] → Unity Mesh (多 submesh)
         │
         ▼
 ChunkSectionView: GameObject + MeshFilter + MeshRenderer(sharedMaterials)
