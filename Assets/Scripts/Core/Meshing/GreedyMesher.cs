@@ -1,3 +1,4 @@
+using MyWorld.Core.Blocks;
 using MyWorld.Core.Math;
 using MyWorld.Core.Voxel;
 
@@ -33,7 +34,7 @@ namespace MyWorld.Core.Meshing
                 {
                     BuildMask(source, mask, cursor, step, axis, u, v);
                     cursor[axis]++;
-                    EmitQuads(output, mask, cursor, spanU, spanV, axis, u, v);
+                    EmitQuads(source, output, mask, cursor, spanU, spanV, axis, u, v);
                 }
             }
         }
@@ -69,7 +70,8 @@ namespace MyWorld.Core.Meshing
             }
         }
 
-        private static void EmitQuads(MeshBuffer output, int[] mask, int[] cursor, int[] spanU, int[] spanV, int axis, int u, int v)
+        private static void EmitQuads<TSource>(TSource source, MeshBuffer output, int[] mask, int[] cursor, int[] spanU, int[] spanV, int axis, int u, int v)
+            where TSource : IBlockSource
         {
             var n = 0;
             for (var j = 0; j < Size; j++)
@@ -116,7 +118,13 @@ namespace MyWorld.Core.Meshing
                     spanV[0] = spanV[1] = spanV[2] = 0;
                     spanV[v] = height;
 
-                    AddQuad(output, cursor, spanU, spanV, axis, face > 0, width, height);
+                    // mask 的正负同时编码了朝向与归属方块：正数表示面朝 +axis 且属于 near，
+                    // 负数表示面朝 -axis 且属于 far。因此一个合并出来的 quad 内贴图必然一致
+                    bool facingPositive = face > 0;
+                    var owner = (ushort)(facingPositive ? face : -face);
+                    int textureIndex = source.GetTextureIndex(owner, BlockFaces.FromAxis(axis, facingPositive));
+
+                    AddQuad(output, cursor, spanU, spanV, axis, facingPositive, width, height, textureIndex);
 
                     for (var l = 0; l < height; l++)
                     {
@@ -132,9 +140,11 @@ namespace MyWorld.Core.Meshing
             }
         }
 
-        private static void AddQuad(MeshBuffer output, int[] origin, int[] spanU, int[] spanV, int axis, bool facingPositive, int width, int height)
+        private static void AddQuad(MeshBuffer output, int[] origin, int[] spanU, int[] spanV, int axis, bool facingPositive, int width, int height, int textureIndex)
         {
             int baseVertex = output.Positions.Count;
+
+            output.QuadTextures.Add(textureIndex);
 
             output.Positions.Add(new Float3(origin[0], origin[1], origin[2]));
             output.Positions.Add(new Float3(origin[0] + spanU[0], origin[1] + spanU[1], origin[2] + spanU[2]));

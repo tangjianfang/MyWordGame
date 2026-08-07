@@ -11,6 +11,9 @@ namespace MyWorld.Core.Meshing
         public readonly List<Float2> Uvs = new List<Float2>();
         public readonly List<int> Indices = new List<int>();
 
+        /// <summary>每个 quad 一个贴图索引，下标与 quad 序号对应（顶点下标 / 4）。</summary>
+        public readonly List<int> QuadTextures = new List<int>();
+
         public int VertexCount => Positions.Count;
 
         public int IndexCount => Indices.Count;
@@ -23,6 +26,7 @@ namespace MyWorld.Core.Meshing
             Normals.Clear();
             Uvs.Clear();
             Indices.Clear();
+            QuadTextures.Clear();
         }
     }
 }
