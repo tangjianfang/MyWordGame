@@ -67,7 +67,8 @@ namespace MyWorld.Unity.EditorTools
                         $"{filter.name} 的贴图过滤不是 Point，像素风会糊掉");
                 }
 
-                Debug.Log($"冒烟检查完成：{filters.Length} 个区块段，第 0 号 submesh 合计 {totalTriangles} 个三角形。");
+                Debug.Log($"冒烟检查完成：{filters.Length} 个区块段，第 0 号 submesh 合计 {totalTriangles} 个三角形，" +
+                          $"材质 shader 为 {ShaderNameOf(renderers)}。");
             }
             finally
             {
@@ -83,6 +84,19 @@ namespace MyWorld.Unity.EditorTools
             {
                 Debug.Log("冒烟检查通过。注意：贴图接缝与区块对齐仍需人工在 Play 模式下确认。");
             }
+        }
+
+        /// <summary>
+        /// 报告实际用到的 shader。装了 URP 应当是 <c>Universal Render Pipeline/Lit</c>，
+        /// 没装则是内置的 <c>Standard</c>——这行日志是判断 URP 到底有没有生效的唯一无头手段。
+        /// </summary>
+        private static string ShaderNameOf(MeshRenderer[] renderers)
+        {
+            Material material = renderers
+                .SelectMany(r => r.sharedMaterials)
+                .FirstOrDefault(m => m != null);
+
+            return material == null ? "（没有材质）" : material.shader.name;
         }
 
         private static int Check(bool condition, string message)

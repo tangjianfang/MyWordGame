@@ -2013,7 +2013,7 @@ git commit -m "渲染层: 预览场景生成脚本"
 - Create: `Assets/Settings/UniversalRenderPipelineAsset.asset`（由编辑器生成）
 - Modify: `ProjectSettings/GraphicsSettings.asset`
 
-- [ ] **Step 1: 加包**
+- [x] **Step 1: 加包**
 
 在 `Packages/manifest.json` 的 `dependencies` 里加一行（保持字母序）：
 
@@ -2023,7 +2023,7 @@ git commit -m "渲染层: 预览场景生成脚本"
 
 **版本必须是 14.x**——URP 17.x 是 Unity 6 的，2022.3 上不存在，会把包解析卡死。
 
-- [ ] **Step 2: 让 Unity 解析包**
+- [x] **Step 2: 让 Unity 解析包**
 
 ```powershell
 & "C:\Program Files\Unity\Hub\Editor\2022.3.62f3c1\Editor\Unity.exe" `
@@ -2040,16 +2040,34 @@ grep -n "error\|Failed to resolve\|universal" urp-import.log | head -20
 在计划末尾如实记下「URP 未接入，当前使用内置管线」，然后结束——内置管线下画面照样是对的，
 URP 的收益（更好的光照与后处理）属于后续里程碑。
 
-- [ ] **Step 3: 建管线资产并挂上**
+> **实际结果**：一次通过。URP 在 2022.3 里是 `source: "builtin"`（随编辑器分发），
+> 解析根本不走网络，所以计划里担心的那个风险不存在。实际落到 `14.0.12`
+> （`packages-lock.json` 里请求版本仍记 `14.0.11`），连带引入
+> `render-pipelines.core@14.0.12`、`shadergraph@14.0.12`、`universal-config@14.0.10`。
 
-在编辑器里：`Assets` 右键 → `Create` → `Rendering` → `URP Asset (with Universal Renderer)`，
-存到 `Assets/Settings/UniversalRenderPipelineAsset.asset`；
-然后 `Edit` → `Project Settings` → `Graphics` → `Scriptable Render Pipeline Settings` 指到该资产。
+- [x] **Step 3: 建管线资产并挂上**
 
-`Project Settings` → `Quality` 下每个质量档位的 `Render Pipeline Asset` 也指同一个资产，
-否则切换质量档时会掉回内置管线。
+计划原本写的是在编辑器里右键 `Create → Rendering → URP Asset`，再去 Project Settings
+点两处。**改成了脚本**：`Assets/Scripts/Unity/Editor/UrpSetup.cs`，菜单
+`MyWorld/接入 URP 管线`，也可 `-executeMethod MyWorld.Unity.EditorTools.UrpSetup.Apply`。
 
-- [ ] **Step 4: 确认材质走的是 URP**
+改的原因是这两处设置存在 `ProjectSettings/GraphicsSettings.asset` 与
+`ProjectSettings/QualitySettings.asset` 里，手写 YAML 不现实，而批处理点不了右键菜单——
+固化成脚本之后人和无头验证走同一条路径，也不会漏掉某个质量档位。
+
+两个坑：
+
+- URP 内部的 `CreateRendererAsset` 是 `internal`，外部程序集用不了。只能自己
+  `CreateInstance<UniversalRendererData>()` → 手动挂 `PostProcessData` →
+  `AssetDatabase.CreateAsset` **先落盘**，再交给 `UniversalRenderPipelineAsset.Create`。
+  渲染器数据不先存成独立资产的话，管线资产存下来时那个引用就是空的
+- `ProjectSettings/` 下的对象改完**必须 `EditorUtility.SetDirty` 再 `SaveAssets`**，
+  否则批处理退出时改动静默丢失
+
+`MyWorld.Unity.Editor.asmdef` 因此多了两条引用：`Unity.RenderPipelines.Core.Runtime`、
+`Unity.RenderPipelines.Universal.Runtime`。这是本提交唯一的硬依赖，回滚时一起撤掉。
+
+- [x] **Step 4: 确认材质走的是 URP**
 
 `BlockMaterialLibrary.FindShader` 会优先找 `Universal Render Pipeline/Lit`。装了 URP 之后
 重新 Play，画面应当和内置管线下基本一致（可能整体亮度略有差异，这是正常的）。
@@ -2057,20 +2075,29 @@ URP 的收益（更好的光照与后处理）属于后续里程碑。
 **如果地形变成洋红**，说明材质用的还是内置 Standard shader 而 URP 不认——检查
 `Shader.Find("Universal Render Pipeline/Lit")` 是否返回了 null（URP 资产没挂上时会）。
 
-- [ ] **Step 5: 重跑测试与场景生成，确认没被 URP 破坏**
+> 为了在无头环境下也能判断这一条，`RenderSmokeCheck` 加了一行 shader 名日志。
+> 实测输出：`材质 shader 为 Universal Render Pipeline/Lit`，即 URP 确实生效了。
+
+- [x] **Step 5: 重跑测试与场景生成，确认没被 URP 破坏**
 
 ```bash
 dotnet test tools/dotnet/MyWorld.Tools.sln
 ```
 
-预期：186 个全部通过（Core 与渲染管线无关，这步是回归确认）
+实测：`dotnet test` 187 个全过；Unity EditMode `total="187" passed="187" failed="0"`；
+冒烟检查 260 个可见区块段、无占位材质。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add Packages/manifest.json Packages/packages-lock.json Assets/Settings ProjectSettings
 git commit -m "渲染层: 接入 URP 14.0.11"
 ```
+
+顺带入库的还有 URP 自己生成的两样东西：`Assets/UniversalRenderPipelineGlobalSettings.asset`
+（URP 14 的全局设置，首次创建管线实例时自动生成）和 `ProjectSettings/ShaderGraphSettings.asset`；
+`ProjectSettings/InputManager.asset` 被 core 包追加了一组 Rendering Debugger 的输入轴。
+这些都不是我们写的，但都属于项目设置，一并提交。
 
 ---
 

@@ -10,7 +10,7 @@ MyWordGame 是一个自研体素沙盒游戏（Unity 6 + 纯 C# Core 层），�
 全部在**仓库根目录**执行，**不需要安装 Unity**：
 
 ```bash
-dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 155 个）
+dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 187 个）
 dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTests"   # 单个测试类
 dotnet build tools/dotnet/MyWorld.Tools.sln              # 编译三个工程
 
@@ -50,7 +50,7 @@ Unity 侧跑同一批测试（EditMode）：
 | 层 | 位置 | 状态 |
 | --- | --- | --- |
 | `MyWorld.Core` | `Assets/Scripts/Core` | 已实现 |
-| `MyWorld.Unity` | `Assets/Scripts/Unity` | **尚未创建**（Burst Job 包装、Mesh 上传） |
+| `MyWorld.Unity` | `Assets/Scripts/Unity` | 已实现渲染层（材质库、Mesh 上传、区块段视图、启动器） |
 | `MyWorld.Gameplay` | `Assets/Scripts/Gameplay` | **尚未创建**（玩家控制、交互、物品栏） |
 
 Core 层的约束由编译器强制，不是约定：
@@ -127,12 +127,22 @@ ASCII 示意（由 `MyWorld.Preview` 从真实数据渲染，不手绘）、可�
 ## Unity 侧
 
 **实际使用 Unity 2022.3.62f3c1（中国版）**，不是最初规划的 Unity 6。已实机验证
-155 个测试在 EditMode 下全部通过。这对架构无实质影响：Core 是 `netstandard2.1` + C# 9，
+187 个测试在 EditMode 下全部通过。这对架构无实质影响：Core 是 `netstandard2.1` + C# 9，
 2022.3 完全支持；`Mesh.AllocateWritableMeshData`、Burst、Job System、URP Forward+ 也都具备。
 
 `Packages/manifest.json` 的版本已经实机解析验证，**不要改成 Unity 6 的版本号**（URP 17.x、
-Burst 1.8.30 在 2022.3 上不存在，会卡死包解析）。目前没有安装 URP，待开始做渲染层时
-再用 Package Manager 添加 14.x。
+Burst 1.8.30 在 2022.3 上不存在，会卡死包解析）。**URP 用 14.0.11**（编辑器内置，解析不走网络），
+管线资产在 `Assets/Settings/`，由 `MyWorld/接入 URP 管线` 菜单（`UrpSetup.Apply`）生成并挂到
+Graphics 与全部质量档位上——**不要手改那两个 ProjectSettings 的 YAML**。
 
 `ProjectSettings/` 与 `.meta` 文件**已纳入版本管理**，不要删——`.meta` 决定资源 GUID。
 Newtonsoft Json 包是必需的，缺了 Core 编译失败。
+
+编辑器菜单 `MyWorld/` 下有三个批处理入口，都能用 `-executeMethod` 无头跑：
+
+| 菜单项 | 方法 | 作用 |
+| --- | --- | --- |
+| 重建预览场景 | `PreviewSceneBuilder.Build` | 重新生成 `Assets/Scenes/Preview.unity` |
+| 渲染层冒烟检查 | `RenderSmokeCheck.Run` | 无头跑通「注册表 → 材质 → 世界 → 网格 → Mesh」整条链路 |
+| 接入 URP 管线 | `UrpSetup.Apply` | 建管线资产并挂到 Graphics 与质量档位 |
+

@@ -3,7 +3,9 @@
   "rootNamespace": "MyWorld.Unity.EditorTools",
   "references": [
     "MyWorld.Core",
-    "MyWorld.Unity"
+    "MyWorld.Unity",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
   ],
   "includePlatforms": [
     "Editor"
