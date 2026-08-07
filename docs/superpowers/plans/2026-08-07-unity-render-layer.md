@@ -949,67 +949,79 @@ using System;
 在 `Clear()` 方法之后追加：
 
 ```csharp
-        /// <summary>每个 quad 固定产出 4 个顶点 6 个索引，重排时据此定位某个 quad 的索引。</summary>
-        private const int IndicesPerQuad = 6;
+        /// <summary>一个 quad 固定 4 个顶点、6 个索引，SplitByTexture 依赖这个不变量。</summary>
+        public const int VerticesPerQuad = 4;
+
+        public const int IndicesPerQuad = 6;
+
+        // 复用的中间缓冲，避免每个区块段都产生一堆临时对象
+        private readonly SortedDictionary<int, int> _quadCountsByTexture = new SortedDictionary<int, int>();
+        private readonly Dictionary<int, int> _writeCursorByTexture = new Dictionary<int, int>();
+        private readonly List<int> _reorderedIndices = new List<int>();
 
         /// <summary>
-        /// 按贴图重排索引缓冲，使同一张贴图的三角形连续，并把每段的范围写进 <paramref name="output"/>。
-        /// 顶点缓冲保持不动——多个 submesh 共享同一份顶点，索引可以指向其中任意位置。
-        /// 段按贴图索引升序排列，与 quad 的产出顺序无关，便于断言与复现。
+        /// 把索引缓冲按贴图重排，使同一张贴图的三角形连续，并输出各段的范围。
+        /// <para>
+        /// 只动 <see cref="Indices"/>，不动顶点与 <see cref="QuadTextures"/>——
+        /// quad 序号是由顶点下标推出来的（<c>索引 / 4</c>），动了顶点侧的任何一个，对应关系就断了。
+        /// 重排是稳定的，因此对已排好的缓冲再调一次结果不变。
+        /// </para>
         /// </summary>
         public void SplitByTexture(List<Submesh> output)
         {
-            if (output == null)
-            {
-                throw new ArgumentNullException(nameof(output));
-            }
-
             output.Clear();
+            _quadCountsByTexture.Clear();
+            _writeCursorByTexture.Clear();
 
-            if (QuadTextures.Count == 0)
+            if (Indices.Count == 0)
             {
                 return;
             }
 
-            var buckets = new SortedDictionary<int, List<int>>();
-            for (var quad = 0; quad < QuadTextures.Count; quad++)
+            for (int i = 0; i < Indices.Count; i += IndicesPerQuad)
             {
-                if (!buckets.TryGetValue(QuadTextures[quad], out List<int> quads))
-                {
-                    quads = new List<int>();
-                    buckets[QuadTextures[quad]] = quads;
-                }
-
-                quads.Add(quad);
+                int texture = TextureOfTriangleGroupAt(i);
+                _quadCountsByTexture.TryGetValue(texture, out int count);
+                _quadCountsByTexture[texture] = count + 1;
             }
 
-            var reordered = new List<int>(Indices.Count);
-            var reorderedTextures = new List<int>(QuadTextures.Count);
-
-            foreach (KeyValuePair<int, List<int>> bucket in buckets)
+            // 前缀和定出每段起点；SortedDictionary 保证段按贴图索引升序，结果可预期
+            var start = 0;
+            foreach (KeyValuePair<int, int> pair in _quadCountsByTexture)
             {
-                int start = reordered.Count;
-                foreach (int quad in bucket.Value)
-                {
-                    int origin = quad * IndicesPerQuad;
-                    for (var k = 0; k < IndicesPerQuad; k++)
-                    {
-                        reordered.Add(Indices[origin + k]);
-                    }
-
-                    reorderedTextures.Add(bucket.Key);
-                }
-
-                output.Add(new Submesh(bucket.Key, start, reordered.Count - start));
+                int indexCount = pair.Value * IndicesPerQuad;
+                output.Add(new Submesh(pair.Key, start, indexCount));
+                _writeCursorByTexture[pair.Key] = start;
+                start += indexCount;
             }
 
-            Indices.Clear();
-            Indices.AddRange(reordered);
+            while (_reorderedIndices.Count < Indices.Count)
+            {
+                _reorderedIndices.Add(0);
+            }
 
-            // QuadTextures 跟着一起重排，保持「第 i 个 quad 的索引在 [i*6, i*6+6)」这个不变量
-            QuadTextures.Clear();
-            QuadTextures.AddRange(reorderedTextures);
+            for (int i = 0; i < Indices.Count; i += IndicesPerQuad)
+            {
+                int texture = TextureOfTriangleGroupAt(i);
+                int target = _writeCursorByTexture[texture];
+
+                for (var k = 0; k < IndicesPerQuad; k++)
+                {
+                    _reorderedIndices[target + k] = Indices[i + k];
+                }
+
+                _writeCursorByTexture[texture] = target + IndicesPerQuad;
+            }
+
+            for (var i = 0; i < Indices.Count; i++)
+            {
+                Indices[i] = _reorderedIndices[i];
+            }
         }
+
+        /// <summary>每组 6 个索引来自同一个 quad，取首个索引反推 quad 序号即可。</summary>
+        private int TextureOfTriangleGroupAt(int indexOffset)
+            => QuadTextures[Indices[indexOffset] / VerticesPerQuad];
 ```
 
 - [ ] **Step 5: 跑测试确认通过**
