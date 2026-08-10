@@ -4,7 +4,7 @@ using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Player;
 using MyWorld.Unity.Rendering;
-using MyWorld.Unity.World;
+using MyWorld.Unity.Streaming;
 using UnityEngine;
 
 namespace MyWorld.Unity.Bootstrap
