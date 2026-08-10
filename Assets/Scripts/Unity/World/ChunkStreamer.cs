@@ -78,6 +78,8 @@ namespace MyWorld.Unity.Streaming
                 {
                     _meshQueue.Enqueue(next);
                     _meshing.Add(next);
+                    // 消耗本次预算，避免外圈区块令当前帧无限自旋
+                    budget--;
                     continue;
                 }
 
@@ -109,9 +111,11 @@ namespace MyWorld.Unity.Streaming
 
         private void UnloadDistant(int centerCx, int centerCz)
         {
-            // 列出 _views 里所有已加载的 ChunkPos，超出 UnloadRadius 的卸载
+            // 遍历 _world 而非 _views：区块列可能在生成后、还没建网格之前就被玩家甩开，
+            // 走 _views.EnumerateKnownChunks 看不到这种列，会在 _world 里持续累积。先物化
+            // 成 List 再统一处理，避免迭代中修改集合本身。
             var toUnload = new List<ChunkPos>();
-            foreach (ChunkPos loaded in _views.EnumerateKnownChunks())
+            foreach (ChunkPos loaded in _world.ChunkPositions)
             {
                 int d = System.Math.Max(System.Math.Abs(loaded.X - centerCx),
                                         System.Math.Abs(loaded.Z - centerCz));
@@ -123,6 +127,39 @@ namespace MyWorld.Unity.Streaming
 
             foreach (ChunkPos chunk in toUnload)
             {
+                if (_meshing.Remove(chunk))
+                {
+                    // 仍在 _meshQueue 里；重建一个不含该列的临时队列避免 O(n^2) 全扫描
+                    var rebuilt = new Queue<ChunkPos>(_meshQueue.Count);
+                    while (_meshQueue.Count > 0)
+                    {
+                        var queued = _meshQueue.Dequeue();
+                        if (!queued.Equals(chunk))
+                        {
+                            rebuilt.Enqueue(queued);
+                        }
+                    }
+                    while (rebuilt.Count > 0)
+                    {
+                        _meshQueue.Enqueue(rebuilt.Dequeue());
+                    }
+                }
+                if (_generating.Remove(chunk))
+                {
+                    var rebuilt = new Queue<ChunkPos>(_generateQueue.Count);
+                    while (_generateQueue.Count > 0)
+                    {
+                        var queued = _generateQueue.Dequeue();
+                        if (!queued.Equals(chunk))
+                        {
+                            rebuilt.Enqueue(queued);
+                        }
+                    }
+                    while (rebuilt.Count > 0)
+                    {
+                        _generateQueue.Enqueue(rebuilt.Dequeue());
+                    }
+                }
                 _world.RemoveChunk(chunk);
                 _views.UnloadColumn(chunk);
             }
