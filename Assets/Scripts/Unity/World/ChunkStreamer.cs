@@ -90,6 +90,11 @@ namespace MyWorld.Unity.Streaming
 
         private void EnqueueMissing(int centerCx, int centerCz)
         {
+            // 收集范围内的待加载列，再按“距中心由近到远”排序，避免单帧涌入外围区块
+            // 而玩家所在的中心列迟迟得不到处理（玩家会落入未加载的“空气”，最后
+            // 撞进石头里被夹住）。主键 Chebyshev 与卸载逻辑保持一致；
+            // 同环内按平方距离再加 (dz, dx) 两级 tiebreaker，整套序完全确定性。
+            var candidates = new List<ChunkPos>();
             for (var dx = -LoadRadius; dx <= LoadRadius; dx++)
             for (var dz = -LoadRadius; dz <= LoadRadius; dz++)
             {
@@ -104,6 +109,31 @@ namespace MyWorld.Unity.Streaming
                     continue;
                 }
 
+                candidates.Add(pos);
+            }
+
+            candidates.Sort((a, b) =>
+            {
+                int da = System.Math.Max(System.Math.Abs(a.X - centerCx),
+                                         System.Math.Abs(a.Z - centerCz));
+                int db = System.Math.Max(System.Math.Abs(b.X - centerCx),
+                                         System.Math.Abs(b.Z - centerCz));
+                if (da != db) return da.CompareTo(db);
+
+                int sa = (a.X - centerCx) * (a.X - centerCx)
+                       + (a.Z - centerCz) * (a.Z - centerCz);
+                int sb = (b.X - centerCx) * (b.X - centerCx)
+                       + (b.Z - centerCz) * (b.Z - centerCz);
+                if (sa != sb) return sa.CompareTo(sb);
+
+                int dzA = a.Z - centerCz;
+                int dzB = b.Z - centerCz;
+                if (dzA != dzB) return dzA.CompareTo(dzB);
+                return (a.X - centerCx).CompareTo(b.X - centerCx);
+            });
+
+            foreach (var pos in candidates)
+            {
                 _generateQueue.Enqueue(pos);
                 _generating.Add(pos);
             }

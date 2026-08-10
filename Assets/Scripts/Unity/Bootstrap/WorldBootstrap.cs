@@ -18,7 +18,10 @@ namespace MyWorld.Unity.Bootstrap
         [SerializeField] private long seed = 42;
 
         [Tooltip("玩家初始出生位置（世界坐标）。Y 应给到地表以上，避免落到山里。")]
-        [SerializeField] private Vector3 spawnPosition = new Vector3(0.5f, 80f, 0.5f);
+        // 默认种子 42 下，原点地表约为 y=98；流式加载中心出队之前玩家所在的列可能是
+        // 第 78 个才被加载的列，Y=80 会让玩家出生在石头里、四周被实心方块夹住。
+        // Y=120 保证约 22 格的自由落体距离，物理 + 流式加载来得及把地面准备好。
+        [SerializeField] private Vector3 spawnPosition = new Vector3(0.5f, 120f, 0.5f);
 
         private BlockMaterialLibrary _materials;
 
