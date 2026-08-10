@@ -24,51 +24,17 @@ namespace MyWorld.Unity.EditorTools
 
             try
             {
-                var bootstrap = host.AddComponent<WorldBootstrap>();
-                bootstrap.BuildWorld();
+                // TODO: RenderSmokeCheck 已废弃——Task 11 用 PlayHarness 替代 (玩家层: Bootstrap 改造)
+                // 原实现调 bootstrap.BuildWorld() 同步建出所有区块段；Task 10 把 WorldBootstrap 改为
+                // 由 ChunkStreamer 按玩家位置持续生成 / 卸载区块，没有 BuildWorld() 这种一次性入口。
+                // 留个 WorldBootstrap 让依赖的 Editor 程序集保持可编译，等 Task 11 替换为真正的 PlayHarness。
+                _ = host.AddComponent<WorldBootstrap>();
 
-                MeshFilter[] filters = host.GetComponentsInChildren<MeshFilter>();
-                MeshRenderer[] renderers = host.GetComponentsInChildren<MeshRenderer>();
+                failures += Check(false,
+                    "RenderSmokeCheck 已废弃——Task 11 用 PlayHarness 替换，" +
+                    "届时在 Play 模式下驱动 ChunkStreamer 跑冒烟链路");
 
-                failures += Check(filters.Length > 0, $"应当至少生成一个区块段，实际 {filters.Length} 个");
-
-                var totalTriangles = 0;
-                foreach (MeshFilter filter in filters)
-                {
-                    Mesh mesh = filter.sharedMesh;
-                    var renderer = filter.GetComponent<MeshRenderer>();
-
-                    failures += Check(mesh != null && mesh.vertexCount > 0,
-                        $"{filter.name} 的网格没有顶点");
-
-                    if (mesh == null)
-                    {
-                        continue;
-                    }
-
-                    totalTriangles += (int)mesh.GetIndexCount(0) / 3;
-
-                    failures += Check(mesh.subMeshCount == renderer.sharedMaterials.Length,
-                        $"{filter.name} 有 {mesh.subMeshCount} 个 submesh，却挂了 " +
-                        $"{renderer.sharedMaterials.Length} 个材质，两者必须一一对应");
-
-                    failures += Check(renderer.sharedMaterials.All(m => m != null),
-                        $"{filter.name} 的材质槽里有 null");
-
-                    failures += Check(renderer.sharedMaterials.All(m => m.name != "缺失贴图"),
-                        $"{filter.name} 用到了占位材质，说明有贴图文件没找到");
-
-                    failures += Check(renderer.sharedMaterials.All(m => m.mainTexture != null &&
-                                                                       m.mainTexture.wrapMode == TextureWrapMode.Repeat),
-                        $"{filter.name} 的贴图环绕模式不是 Repeat，合并后的大面会被拉伸");
-
-                    failures += Check(renderer.sharedMaterials.All(m => m.mainTexture == null ||
-                                                                       m.mainTexture.filterMode == FilterMode.Point),
-                        $"{filter.name} 的贴图过滤不是 Point，像素风会糊掉");
-                }
-
-                Debug.Log($"冒烟检查完成：{filters.Length} 个区块段，第 0 号 submesh 合计 {totalTriangles} 个三角形，" +
-                          $"材质 shader 为 {ShaderNameOf(renderers)}。");
+                Debug.Log("冒烟检查跳过：链路已改由 ChunkStreamer + PlayHarness 验证，请用「MyWorld/PlayHarness」入口。");
             }
             finally
             {
