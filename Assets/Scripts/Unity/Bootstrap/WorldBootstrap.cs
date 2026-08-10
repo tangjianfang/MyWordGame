@@ -1,111 +1,66 @@
-using System.Diagnostics;
 using MyWorld.Core.Blocks;
+using MyWorld.Core.Math;
 using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
+using MyWorld.Unity.Player;
 using MyWorld.Unity.Rendering;
+using MyWorld.Unity.World;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
 
 namespace MyWorld.Unity.Bootstrap
 {
     /// <summary>
-    /// 里程碑 1 的验收场景：生成固定范围的区块并一次性全部建成网格。
-    /// 跟随玩家的动态加载/卸载是后续里程碑的事，这里刻意不做。
+    /// 把场景串成可玩：注册表 → 世界 + 生成器 → 区块视图索引 → 流式加载器 → 玩家 → 方块交互。
+    /// 一切靠 <see cref="ChunkStreamer"/> 驱动，按玩家位置持续生成 / 卸载区块列。
     /// </summary>
     public sealed class WorldBootstrap : MonoBehaviour
     {
-        [SerializeField] private int seed = 12345;
+        [SerializeField] private long seed = 42;
 
-        [Tooltip("以原点为中心，向四周各生成多少个区块。3 表示 7×7 共 49 根区块列。")]
-        [SerializeField] private int chunkRadius = 3;
+        [Tooltip("玩家初始出生位置（世界坐标）。Y 应给到地表以上，避免落到山里。")]
+        [SerializeField] private Vector3 spawnPosition = new Vector3(0.5f, 80f, 0.5f);
 
         private BlockMaterialLibrary _materials;
 
-        private void Start()
+        private World _world;
+        private BlockRegistry _registry;
+        private ChunkViewRegistry _views;
+        private ChunkStreamer _streamer;
+        private PlayerController _player;
+        private BlockInteraction _interaction;
+
+        private void Awake()
         {
-            BuildWorld();
+            // 1. 注册表
+            _registry = BlockRegistryLoader.Load();
+
+            // 2. 世界 + 生成器
+            _world = new World();
+            var generator = new WorldGenerator((int)seed);
+
+            // 3. 材质库（先建好，再让视图索引引用）
+            _materials = BlockMaterialLibrary.Load(_registry, BlockRegistryLoader.TextureDirectory);
+
+            // 4. 视图索引：所有新建 / 重建的 GameObject 都挂到本组件所在 transform 下
+            _views = new ChunkViewRegistry(transform, _world, _registry, _materials);
+
+            // 5. 流式加载器：每帧根据玩家位置决定生成 / 卸载哪些列
+            _streamer = new ChunkStreamer(_world, generator, _registry, _views, seed);
+
+            // 6. 玩家控制器：Bind 之前必须存在组件，但位置由 Bind 注入
+            _player = GetComponent<PlayerController>() ?? gameObject.AddComponent<PlayerController>();
+            _player.Bind(_world, _registry, new Float3(spawnPosition.x, spawnPosition.y, spawnPosition.z));
+
+            // 7. 方块交互：射线拾取 + 挖 / 放
+            _interaction = GetComponent<BlockInteraction>() ?? gameObject.AddComponent<BlockInteraction>();
+            _interaction.Bind(_world, _registry, _views, transform);
         }
 
-        /// <summary>
-        /// 生成世界并建好全部网格。独立成公开方法，使编辑器的无头冒烟检查能在非播放态下跑同一条路径。
-        /// </summary>
-        public void BuildWorld()
+        private void Update()
         {
-            var stopwatch = Stopwatch.StartNew();
-
-            BlockRegistry registry = BlockRegistryLoader.Load();
-            _materials = BlockMaterialLibrary.Load(registry, BlockRegistryLoader.TextureDirectory);
-
-            var world = new World();
-            var generator = new WorldGenerator(seed);
-
-            // 必须先把全部区块灌进 World 再建网格：建网格要采样邻区块才能剔除接缝面，
-            // 边生成边建网格会让先建的那几根在接缝处多出一整面
-            for (int x = -chunkRadius; x <= chunkRadius; x++)
+            if (_streamer != null && _player != null)
             {
-                for (int z = -chunkRadius; z <= chunkRadius; z++)
-                {
-                    var pos = new ChunkPos(x, z);
-                    world.AddChunk(pos, generator.Generate(pos));
-                }
-            }
-
-            long generateMs = stopwatch.ElapsedMilliseconds;
-            int visible = BuildAllMeshes(world, registry);
-
-            Debug.Log($"世界就绪：{world.LoadedChunkCount} 根区块列（生成 {generateMs} ms），" +
-                      $"{visible} 个可见区块段（建网格 {stopwatch.ElapsedMilliseconds - generateMs} ms），" +
-                      $"{registry.TextureNames.Count} 种贴图。");
-        }
-
-        private int BuildAllMeshes(World world, BlockRegistry registry)
-        {
-            var visible = 0;
-
-            for (int x = -chunkRadius; x <= chunkRadius; x++)
-            {
-                for (int z = -chunkRadius; z <= chunkRadius; z++)
-                {
-                    var pos = new ChunkPos(x, z);
-                    if (!world.TryGetChunk(pos, out ChunkColumn column))
-                    {
-                        continue;
-                    }
-
-                    for (var section = 0; section < VoxelCoords.SectionCount; section++)
-                    {
-                        if (!column.HasSection(section))
-                        {
-                            continue;
-                        }
-
-                        ChunkSectionView view = ChunkSectionView.Create(transform, pos, section);
-                        if (view.Rebuild(world, registry, _materials))
-                        {
-                            visible++;
-                        }
-                        else
-                        {
-                            // 完全被包裹的段一个面都没有，留着只是白占一个 GameObject
-                            DestroyObject(view.gameObject);
-                        }
-                    }
-                }
-            }
-
-            return visible;
-        }
-
-        /// <summary>编辑器非播放态下 Destroy 不生效，必须走 DestroyImmediate。</summary>
-        private static void DestroyObject(GameObject target)
-        {
-            if (Application.isPlaying)
-            {
-                Destroy(target);
-            }
-            else
-            {
-                DestroyImmediate(target);
+                _streamer.Tick(_player.State.Position);
             }
         }
 

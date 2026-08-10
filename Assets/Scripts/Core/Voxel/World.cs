@@ -47,5 +47,11 @@ namespace MyWorld.Core.Voxel
 
             _chunks[pos] = column;
         }
+
+        /// <summary>流式加载器在玩家走远时调用：移除该区块列，返回是否真的存在并被移除。</summary>
+        public bool RemoveChunk(ChunkPos pos) => _chunks.Remove(pos);
+
+        /// <summary>当前已加载区块位置集合。ChunkStreamer 用来判断哪些列还在视野内。</summary>
+        public IEnumerable<ChunkPos> ChunkPositions => _chunks.Keys;
     }
 }

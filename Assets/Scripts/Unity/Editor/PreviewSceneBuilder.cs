@@ -21,10 +21,11 @@ namespace MyWorld.Unity.EditorTools
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             CreateLight();
-            CreateCamera();
 
-            var world = new GameObject("世界");
-            world.AddComponent<WorldBootstrap>();
+            var player = new GameObject("玩家");
+            player.AddComponent<WorldBootstrap>();
+
+            CreateCamera(player.transform);
 
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -43,7 +44,11 @@ namespace MyWorld.Unity.EditorTools
             gameObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
         }
 
-        private static void CreateCamera()
+        /// <summary>
+        /// 相机挂在玩家根下作为眼睛。高度取 <see cref="MyWorld.Core.Player.PlayerMotorSettings.EyeHeight"/>
+        /// 的默认值，让玩家抬头 / 低头时相机跟随旋转（FreeFlyCamera 已退役）。
+        /// </summary>
+        private static void CreateCamera(Transform player)
         {
             var gameObject = new GameObject("相机")
             {
@@ -57,11 +62,11 @@ namespace MyWorld.Unity.EditorTools
             camera.farClipPlane = 500f;
 
             gameObject.AddComponent<AudioListener>();
-            gameObject.AddComponent<FreeFlyCamera>();
 
-            // 站在地表之上、稍微退开一点，Play 之后立刻能看到地形而不是卡在土里
-            gameObject.transform.position = new Vector3(0f, 95f, -40f);
-            gameObject.transform.rotation = Quaternion.Euler(20f, 0f, 0f);
+            // 出生点: WorldBootstrap 默认 (0.5, 80, 0.5),把相机挂到玩家身上,相对坐标 = 眼高
+            gameObject.transform.SetParent(player, worldPositionStays: false);
+            gameObject.transform.localPosition = new Vector3(0f, 1.62f, 0f);
+            gameObject.transform.localRotation = Quaternion.Euler(20f, 0f, 0f);
         }
     }
 }

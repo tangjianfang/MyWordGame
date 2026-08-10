@@ -18,6 +18,9 @@ namespace MyWorld.Unity.Rendering
         private readonly Dictionary<SectionRef, ChunkSectionView> _views =
             new Dictionary<SectionRef, ChunkSectionView>();
 
+        /// <summary>已有可见段的区块位置集合，去重。ChunkStreamer 用它做"已知区块"判别。</summary>
+        private readonly HashSet<ChunkPos> _knownChunks = new HashSet<ChunkPos>();
+
         private readonly Transform _parent;
         private readonly World _world;
         private readonly BlockRegistry _registry;
@@ -77,6 +80,7 @@ namespace MyWorld.Unity.Rendering
 
             if (view.Rebuild(_world, _registry, _materials))
             {
+                _knownChunks.Add(section.Chunk);
                 return true;
             }
 
@@ -92,7 +96,12 @@ namespace MyWorld.Unity.Rendering
             {
                 Destroy(new SectionRef(chunk, section));
             }
+
+            _knownChunks.Remove(chunk);
         }
+
+        /// <summary>已经至少建过一次（且没被卸载）的区块位置。ChunkStreamer 用它避免重复入队。</summary>
+        public IEnumerable<ChunkPos> EnumerateKnownChunks() => _knownChunks;
 
         private void Destroy(SectionRef section)
         {
