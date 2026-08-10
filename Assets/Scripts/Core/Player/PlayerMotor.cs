@@ -12,25 +12,53 @@ namespace MyWorld.Core.Player
         public static PlayerState Step<TSource>(TSource source, PlayerState state, PlayerInput input,
             PlayerMotorSettings settings, float dt) where TSource : ISolidBlockSource
         {
-            float velocityY = StepVertical(state, input, settings, dt);
+            Float3 velocity = StepHorizontal(state, input, settings, dt);
+            velocity = new Float3(velocity.X, StepVertical(state, input, settings, dt), velocity.Z);
 
-            var velocity = new Float3(0f, velocityY, 0f);
             Aabb box = Aabb.FromBottomCenter(state.Position, settings.Width, settings.Height);
-            MoveResult result = VoxelCollision.Move(source, box, new Float3(
-                velocity.X * dt, velocity.Y * dt, velocity.Z * dt));
+            MoveResult result = VoxelCollision.Move(source, box,
+                new Float3(velocity.X * dt, velocity.Y * dt, velocity.Z * dt));
 
             var position = new Float3(
                 state.Position.X + result.Delta.X,
                 state.Position.Y + result.Delta.Y,
                 state.Position.Z + result.Delta.Z);
 
-            // 被挡的轴速度必须归零：继续攒速度的话，一旦障碍消失会瞬间弹出去
-            if (result.HitY)
-            {
-                velocity = new Float3(velocity.X, 0f, velocity.Z);
-            }
+            // 被挡的轴速度归零。逐轴判断而不是整体归零——沿墙滑动靠的就是“只死一个轴”
+            velocity = new Float3(
+                result.HitX ? 0f : velocity.X,
+                result.HitY ? 0f : velocity.Y,
+                result.HitZ ? 0f : velocity.Z);
 
             return new PlayerState(position, velocity, result.IsGrounded);
+        }
+
+        /// <summary>
+        /// 水平速度朝目标速度收敛。地面上响应快、空中打折，没有输入时按摩擦衰减到零。
+        /// 用“朝目标线性逼近”而不是直接赋值，起步和松手才不会是硬切换。
+        /// </summary>
+        private static Float3 StepHorizontal(PlayerState state, PlayerInput input,
+            PlayerMotorSettings settings, float dt)
+        {
+            float speedLimit = settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f);
+            float targetX = input.MoveX * speedLimit;
+            float targetZ = input.MoveZ * speedLimit;
+
+            bool hasInput = input.MoveX != 0f || input.MoveZ != 0f;
+            float rate = hasInput
+                ? (state.IsGrounded ? settings.GroundFriction : settings.GroundFriction * settings.AirControl)
+                : (state.IsGrounded ? settings.GroundFriction : settings.AirFriction);
+
+            float t = rate * dt;
+            if (t > 1f)
+            {
+                t = 1f;
+            }
+
+            return new Float3(
+                state.Velocity.X + (targetX - state.Velocity.X) * t,
+                state.Velocity.Y,
+                state.Velocity.Z + (targetZ - state.Velocity.Z) * t);
         }
 
         private static float StepVertical(PlayerState state, PlayerInput input,
