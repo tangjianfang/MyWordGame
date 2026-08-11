@@ -1,10 +1,16 @@
-using MyWorld.Core.Blocks;
+using MyWorld.Core.Entities;
+using MyWorld.Core.Items;
 using MyWorld.Core.Math;
+using MyWorld.Core.Player;
+using MyWorld.Core.Time;
 using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
+using MyWorld.Unity.Combat;
+using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Player;
 using MyWorld.Unity.Rendering;
 using MyWorld.Unity.Streaming;
+using MyWorld.Unity.UI;
 using UnityEngine;
 
 namespace MyWorld.Unity.Bootstrap
@@ -15,6 +21,9 @@ namespace MyWorld.Unity.Bootstrap
     /// </summary>
     public sealed class WorldBootstrap : MonoBehaviour
     {
+        /// <summary>其他系统（<see cref="MobManager"/> 等）从这里拿 World，避免 FindObjectOfType。</summary>
+        public static World CurrentWorld { get; private set; }
+
         [SerializeField] private long seed = 42;
 
         [Tooltip("玩家初始出生位置（世界坐标）。Y 应给到地表以上，避免落到山里。")]
@@ -31,36 +40,72 @@ namespace MyWorld.Unity.Bootstrap
         private ChunkStreamer _streamer;
         private PlayerController _player;
         private BlockInteraction _interaction;
+        private PlayerContext _playerContext;
+        private MobManager _mobManager;
+        private HandController _hand;
+        private CombatController _combat;
 
         private void Awake()
         {
-            // 1. 注册表
+            // 1. 方块注册表
             _registry = BlockRegistryLoader.Load();
 
-            // 2. 世界 + 生成器
+            // 2. 物品 + 配方
+            var items = ItemDatabaseLoader.Load();
+            var recipes = ItemDatabaseLoader.LoadRecipes(items);
+
+            // 3. 世界 + 生成器
             _world = new World();
+            CurrentWorld = _world;
             var generator = new WorldGenerator((int)seed);
 
-            // 3. 材质库（先建好，再让视图索引引用）
+            // 4. 材质库
             _materials = BlockMaterialLibrary.Load(_registry, BlockRegistryLoader.TextureDirectory);
 
-            // 4. 视图索引：所有新建 / 重建的 GameObject 挂在静态的 "世界" 根下，
-            //    不要挂到本组件（也就是玩家根）——PlayerController 会把玩家 transform
-            //    抬到 (0.5, 120, 0.5)，用玩家当父节点会让所有区块整体上抬 120 单位，
-            //    相机朝下看地表（y≈98）就什么都没有。详见 PreviewSceneBuilder.CreateWorld 的注释。
+            // 5. 区块视图索引
             Transform worldRoot = ResolveWorldRoot();
             _views = new ChunkViewRegistry(worldRoot, _world, _registry, _materials);
 
-            // 5. 流式加载器：每帧根据玩家位置决定生成 / 卸载哪些列
+            // 6. 流式加载器
             _streamer = new ChunkStreamer(_world, generator, _registry, _views, seed);
 
-            // 6. 玩家控制器：Bind 之前必须存在组件，但位置由 Bind 注入
+            // 7. 玩家上下文（背包 / 生命 / 时间 / 物品）
+            _playerContext = gameObject.AddComponent<PlayerContext>();
+            _playerContext.Items = items;
+            _playerContext.Recipes = recipes;
+            _playerContext.Inventory = new PlayerInventory();
+            _playerContext.Health = new Health(20);
+            _playerContext.Time = new TimeOfDay();
+            _playerContext.Inventory.SetMaxStackLookup(id => items.TryGetByNumericId(id, out var d) ? d.MaxStack : 64);
+
+            // 8. 玩家控制器
             _player = GetComponent<PlayerController>() ?? gameObject.AddComponent<PlayerController>();
             _player.Bind(_world, _registry, new Float3(spawnPosition.x, spawnPosition.y, spawnPosition.z));
 
-            // 7. 方块交互：射线拾取 + 挖 / 放
+            // 9. 方块交互
             _interaction = GetComponent<BlockInteraction>() ?? gameObject.AddComponent<BlockInteraction>();
             _interaction.Bind(_world, _registry, _views, transform);
+
+            // 10. 手部
+            _hand = gameObject.AddComponent<HandController>();
+
+            // 11. 战斗
+            _combat = gameObject.AddComponent<CombatController>();
+            _combat.Player = _player;
+            _combat.Hand = _hand;
+
+            // 12. 动物系统
+            _mobManager = gameObject.AddComponent<MobManager>();
+            _mobManager.Bind(_world, _playerContext.Time, transform);
+
+            // 13. 时间 + 水
+            var sun = GameObject.Find("方向光");
+            if (sun != null)
+            {
+                var cycle = gameObject.AddComponent<MyWorld.Unity.World.DayNightCycle>();
+                cycle.SunLight = sun.GetComponent<Light>();
+            }
+            gameObject.AddComponent<MyWorld.Unity.World.WaterRenderer>();
         }
 
         private void Update()
@@ -75,25 +120,14 @@ namespace MyWorld.Unity.Bootstrap
         {
             _materials?.Dispose();
             _materials = null;
+            if (CurrentWorld == _world) CurrentWorld = null;
         }
 
-        /// <summary>
-        /// 拿到区块 GameObject 的父节点。由 <see cref="MyWorld.Unity.EditorTools.PreviewSceneBuilder"/>
-        /// 在场景里建一个名为 <c>世界</c> 的空 GameObject，这里按名查找。
-        /// <para>
-        /// 找不到时兜底再新建一个——保证运行时（不是 Editor 重建场景流程）也能跑；
-        /// 但 <c>BuildSetup.Apply</c> 在打包前一定先调过 <c>PreviewSceneBuilder.Build()</c>，
-        /// 所以正常路径下 <c>世界</c> 一定存在。
-        /// </para>
-        /// </summary>
+        /// <summary>拿到区块 GameObject 的父节点。由 <see cref="MyWorld.Unity.EditorTools.PreviewSceneBuilder"/> 在场景里建一个名为 <c>世界</c> 的空 GameObject，这里按名查找。</summary>
         private static Transform ResolveWorldRoot()
         {
             GameObject world = GameObject.Find("世界");
-            if (world != null)
-            {
-                return world.transform;
-            }
-
+            if (world != null) return world.transform;
             Debug.LogWarning("[WorldBootstrap] 场景里没找到名为 '世界' 的 GameObject，运行时新建一个（玩家位置仍可能偏离预期）。");
             return new GameObject("世界").transform;
         }
