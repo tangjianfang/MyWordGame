@@ -61,9 +61,27 @@ namespace MyWorld.Unity.Rendering
             return library;
         }
 
-        /// <summary>装了 URP 就用 URP 的 Lit，没装则退回内置管线的 Standard，两条路都能跑。</summary>
+        /// <summary>
+        /// 装了 URP 就用 URP 的 Lit，没装则退回内置管线的 Standard，两条路都能跑。
+        /// <para>
+        /// 优先走 Resources 哑材质：URP/Lit 不被任何场景材质引用时，Build 会按
+        /// 「未引用资源」剔除，<c>Shader.Find</c> 在 standalone build 里就返回 null。
+        /// <c>Assets/Resources/BlockLitMaterial.mat</c>（由 <c>UrpSetup.Apply</c> 建）
+        /// 引用 URP/Lit 把它拽进 build，<c>Resources.Load</c> 加载哑材质后再读
+        /// <c>.shader</c> 引用——这条路径是 shader 变体编译最小化（只编哑材质需要的
+        /// 几种，不是 alwaysIncludedShaders 触发的 29 万全量）。
+        /// </para>
+        /// </summary>
         private static Shader FindShader()
         {
+            // 主路径：Resources 哑材质
+            var resourceMat = Resources.Load<Material>("BlockLitMaterial");
+            if (resourceMat != null && resourceMat.shader != null)
+            {
+                return resourceMat.shader;
+            }
+
+            // 回退：直接 Shader.Find（编辑器或哑材质缺失时）
             Shader shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
             {
@@ -72,7 +90,7 @@ namespace MyWorld.Unity.Rendering
 
             if (shader == null)
             {
-                throw new InvalidOperationException("URP Lit 与内置 Standard 都找不到，无法建立方块材质。");
+                throw new InvalidOperationException("URP Lit 与内置 Standard 都找不到，无法建立方块材质。先跑 MyWorld/接入 URP 管线。");
             }
 
             return shader;

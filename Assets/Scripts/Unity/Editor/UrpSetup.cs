@@ -13,12 +13,25 @@ namespace MyWorld.Unity.EditorTools
     /// 但那两处设置存在 <c>ProjectSettings/*.asset</c> 里，手写 YAML 不现实，
     /// 批处理也点不了右键菜单——所以整套流程固化成这段脚本，人和 CI 走同一条路径。
     /// </para>
+    /// <para>
+    /// 顺带在 <c>Assets/Resources/</c> 里建一个引用 URP/Lit 的哑材质（<c>BlockLitMaterial.mat</c>）。
+    /// URP 包没被任何材质引用时，Build 会按「未引用资源」剔除 URP/Lit，运行时
+    /// <c>Shader.Find("Universal Render Pipeline/Lit")</c> 返回 null，
+    /// <see cref="MyWorld.Unity.Rendering.BlockMaterialLibrary.FindShader"/> 抛
+    /// <c>InvalidOperationException</c>，<see cref="MyWorld.Unity.Bootstrap.WorldBootstrap.Awake"/>
+    /// 失败，画面只剩 skybox。哑材质引用 URP/Lit 让 shader 进 build（且只编需要的变体
+    /// ——alwaysIncludedShaders 会强制编全部 29 万变体，30 分钟跑不完；哑材质只编默认值
+    /// 对应的几十种）。
+    /// </para>
     /// </summary>
     public static class UrpSetup
     {
         private const string SettingsDirectory = "Assets/Settings";
         private const string PipelineAssetPath = SettingsDirectory + "/UniversalRenderPipelineAsset.asset";
         private const string RendererAssetPath = SettingsDirectory + "/UniversalRenderPipelineAsset_Renderer.asset";
+        private const string UrpLitShaderPath = "Packages/com.unity.render-pipelines.universal/Shaders/Lit.shader";
+        private const string BlockLitMaterialDirectory = "Assets/Resources";
+        private const string BlockLitMaterialPath = BlockLitMaterialDirectory + "/BlockLitMaterial.mat";
 
         [MenuItem("MyWorld/接入 URP 管线")]
         public static void Apply()
@@ -37,6 +50,8 @@ namespace MyWorld.Unity.EditorTools
             }
 
             QualitySettings.SetQualityLevel(previousLevel, applyExpensiveChanges: false);
+
+            EnsureBlockLitMaterial();
 
             SaveProjectSettings();
 
@@ -67,6 +82,44 @@ namespace MyWorld.Unity.EditorTools
             AssetDatabase.SaveAssets();
 
             return pipeline;
+        }
+
+        /// <summary>
+        /// 在 <c>Assets/Resources/BlockLitMaterial.mat</c> 建一个引用 URP/Lit 的哑材质。
+        /// BlockMaterialLibrary.FindShader 通过 <c>Resources.Load&lt;Material&gt;</c> 加载它，
+        /// 用它的 <c>.shader</c> 引用——这条路径把 URP/Lit 拽进 build，且只编哑材质需要的变体。
+        /// 已存在则跳过（幂等）。Resources 是运行时可寻址的特殊目录，URP shader 通过材质
+        /// 间接进 build 避免 alwaysIncludedShaders 触发 29 万变体编译。
+        /// </summary>
+        private static void EnsureBlockLitMaterial()
+        {
+            Shader lit = AssetDatabase.LoadAssetAtPath<Shader>(UrpLitShaderPath);
+            if (lit == null)
+            {
+                Debug.LogWarning($"[UrpSetup] 找不到 {UrpLitShaderPath}（URP 包可能没装），跳过 BlockLitMaterial 创建");
+                return;
+            }
+
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(BlockLitMaterialPath);
+            if (existing != null)
+            {
+                if (existing.shader == lit)
+                {
+                    Debug.Log("[UrpSetup] BlockLitMaterial 已存在且引用 URP/Lit，跳过");
+                    return;
+                }
+                existing.shader = lit;
+                EditorUtility.SetDirty(existing);
+                AssetDatabase.SaveAssets();
+                Debug.Log("[UrpSetup] BlockLitMaterial 已更新为 URP/Lit");
+                return;
+            }
+
+            Directory.CreateDirectory(BlockLitMaterialDirectory);
+            var mat = new Material(lit) { name = "BlockLitMaterial" };
+            AssetDatabase.CreateAsset(mat, BlockLitMaterialPath);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[UrpSetup] 创建 {BlockLitMaterialPath}（shader = URP/Lit）");
         }
 
         /// <summary>
