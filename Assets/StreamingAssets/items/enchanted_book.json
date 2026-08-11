@@ -1,0 +1,7 @@
+{
+  "id": "enchanted_book",
+  "displayName": "附魔书",
+  "numericId": 1602,
+  "maxStack": 1,
+  "texture": "enchanted_book"
+}

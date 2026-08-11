@@ -75,6 +75,29 @@ namespace MyWorld.Core.Player
             return true;
         }
 
+        /// <summary>从任意槽扣指定物品数量（合并计数）。不够返回 false。</summary>
+        public bool TryRemoveCount(int itemId, int count)
+        {
+            if (itemId == 0 || count <= 0) return false;
+            int have = 0;
+            for (int i = 0; i < TotalSize; i++)
+            {
+                if (_slots[i].ItemId == itemId) have += _slots[i].Count;
+            }
+            if (have < count) return false;
+
+            int remaining = count;
+            for (int i = 0; i < TotalSize && remaining > 0; i++)
+            {
+                if (_slots[i].ItemId != itemId) continue;
+                int take = System.Math.Min(_slots[i].Count, remaining);
+                var s = _slots[i];
+                _slots[i] = take >= s.Count ? ItemStack.Empty : s.WithCount(s.Count - take);
+                remaining -= take;
+            }
+            return true;
+        }
+
         /// <summary>从一格移整个 stack 到另一格（合并同类）。</summary>
         public void MoveSlot(int from, int to)
         {

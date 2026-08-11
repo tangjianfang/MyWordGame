@@ -124,6 +124,14 @@ namespace MyWorld.Unity.Bootstrap
             // 17. 经验条 + 死亡画面（plan-3c）
             gameObject.AddComponent<MyWorld.Unity.UI.ExperienceBarUi>();
             gameObject.AddComponent<MyWorld.Unity.UI.DeathScreenUi>();
+
+            // 18. 村民 + 交易 UI（plan-3d）
+            var villagerMgr = gameObject.AddComponent<MyWorld.Unity.Combat.VillagerManager>();
+            villagerMgr.Bind(_world, _playerContext.Time, transform);
+            gameObject.AddComponent<MyWorld.Unity.UI.TradeUi>();
+
+            // 19. 附魔 UI（plan-3d）
+            gameObject.AddComponent<MyWorld.Unity.UI.EnchantingUi>();
         }
 
         private void Update()

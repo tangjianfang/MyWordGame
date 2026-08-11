@@ -1,0 +1,7 @@
+{
+  "id": "book",
+  "displayName": "书",
+  "numericId": 1601,
+  "maxStack": 64,
+  "texture": "book"
+}

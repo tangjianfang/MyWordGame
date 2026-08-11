@@ -1,0 +1,7 @@
+{
+  "id": "emerald",
+  "displayName": "绿宝石",
+  "numericId": 1600,
+  "maxStack": 64,
+  "texture": "emerald"
+}

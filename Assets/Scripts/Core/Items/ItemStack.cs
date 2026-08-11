@@ -3,9 +3,16 @@ namespace MyWorld.Core.Items
     /// <summary>
     /// 不可变物品栈。ItemId = 0 表示空气（<see cref="IsEmpty"/>），Count = 0 也视为空。
     /// 用 <see cref="WithCount"/> 改 count 而保持其他字段。
+    /// <para>
+    /// Metadata 编码（耐久 + 附魔 placeholder）：bits 0-7 = 当前耐久（0=全新），bits 8-15 = 最大耐久。
+    /// 非工具物品保持 0，由 <see cref="HasDurability"/> 判断。
+    /// </para>
     /// </summary>
     public readonly struct ItemStack
     {
+        public const ushort MaxDurabilityMask = 0xFF00;
+        public const ushort CurDurabilityMask = 0x00FF;
+
         public readonly int ItemId;
         public readonly int Count;
         public readonly ushort Metadata;
@@ -29,6 +36,32 @@ namespace MyWorld.Core.Items
         public ItemStack WithCount(int newCount) => new ItemStack(ItemId, newCount, Metadata);
 
         public ItemStack WithMetadata(ushort newMetadata) => new ItemStack(ItemId, Count, newMetadata);
+
+        public bool HasDurability => (Metadata & MaxDurabilityMask) != 0;
+
+        public int CurrentDurability => Metadata & CurDurabilityMask;
+
+        public int MaxDurability => (Metadata & MaxDurabilityMask) >> 8;
+
+        /// <summary>给一个全新工具设置耐久（cur=max）。</summary>
+        public ItemStack WithMaxDurability(int max)
+        {
+            if (max < 0) max = 0;
+            if (max > 255) max = 255;
+            ushort md = (ushort)((max << 8) | max);
+            return WithMetadata(md);
+        }
+
+        /// <summary>消耗 1 点耐久，返回新 ItemStack；cur=0 时把物品变空（已损坏）。</summary>
+        public ItemStack DamageOnce()
+        {
+            if (!HasDurability) return this;
+            int cur = CurrentDurability - 1;
+            if (cur < 0) cur = 0;
+            ushort md = (ushort)((MaxDurability << 8) | cur);
+            if (cur == 0) return new ItemStack(0, 0);   // 损坏：变空
+            return WithMetadata(md);
+        }
 
         public override string ToString() => IsEmpty ? "空" : $"ItemStack(id={ItemId}, count={Count}, meta={Metadata})";
     }

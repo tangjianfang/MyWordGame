@@ -138,6 +138,12 @@ ITEMS = [
     ("gunpowder",        "火药",       1502, 64, None, None, "gunpowder"),
     ("bone",             "骨头",       1503, 64, None, None, "bone"),
     ("skull",            "骷髅头颅",   1504, 64, None, None, "skull"),
+
+    # 交易 / 附魔（plan-3c）
+    ("emerald",          "绿宝石",     1600, 64, None, None, "emerald"),
+    ("book",             "书",         1601, 64, None, None, "book"),
+    ("enchanted_book",   "附魔书",     1602, 1,  None, None, "enchanted_book"),
+    ("lapis",            "青金石",     1603, 64, None, None, "lapis"),
 ]
 
 
