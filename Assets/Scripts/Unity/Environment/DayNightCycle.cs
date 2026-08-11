@@ -1,7 +1,7 @@
 using MyWorld.Unity.Gameplay;
 using UnityEngine;
 
-namespace MyWorld.Unity.World
+namespace MyWorld.Unity.Environment
 {
     /// <summary>
     /// 每帧推 TimeOfDay，根据 phase 调方向光颜色 / 强度 / ambient。

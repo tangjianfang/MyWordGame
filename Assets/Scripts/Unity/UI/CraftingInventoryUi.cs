@@ -1,4 +1,5 @@
 using MyWorld.Core.Items;
+using MyWorld.Core.Player;
 using MyWorld.Unity.Gameplay;
 using UnityEngine;
 

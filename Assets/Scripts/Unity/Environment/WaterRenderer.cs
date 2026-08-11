@@ -1,7 +1,7 @@
 using MyWorld.Core.Voxel;
 using UnityEngine;
 
-namespace MyWorld.Unity.World
+namespace MyWorld.Unity.Environment
 {
     /// <summary>
     /// 透明水面 mesh 简单实现：每帧扫世界 [0..63] × [0..63] 范围，

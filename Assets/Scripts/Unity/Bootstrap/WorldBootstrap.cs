@@ -1,3 +1,4 @@
+using MyWorld.Core.Blocks;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Items;
 using MyWorld.Core.Math;
@@ -102,10 +103,10 @@ namespace MyWorld.Unity.Bootstrap
             var sun = GameObject.Find("方向光");
             if (sun != null)
             {
-                var cycle = gameObject.AddComponent<MyWorld.Unity.World.DayNightCycle>();
+                var cycle = gameObject.AddComponent<MyWorld.Unity.Environment.DayNightCycle>();
                 cycle.SunLight = sun.GetComponent<Light>();
             }
-            gameObject.AddComponent<MyWorld.Unity.World.WaterRenderer>();
+            gameObject.AddComponent<MyWorld.Unity.Environment.WaterRenderer>();
         }
 
         private void Update()

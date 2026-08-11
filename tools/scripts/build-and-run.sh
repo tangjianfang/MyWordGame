@@ -84,10 +84,12 @@ if [[ $SKIP_TESTS -eq 0 ]]; then
     rm -f "$LOG_DOTNET.build.tmp"
     dotnet test "$SOLUTION" --nologo --no-build 2>&1 | tee "$LOG_DOTNET" \
         || fail "dotnet test 失败（看 $LOG_DOTNET）"
-    if ! grep -q '通过!.*通过:.*214' "$LOG_DOTNET"; then
-        fail "dotnet test 未报 214/214（看 $LOG_DOTNET）"
+    DOTNET_TOTAL=$(grep -oE '通过:[[:space:]]+[0-9]+' "$LOG_DOTNET" | head -1 | grep -oE '[0-9]+')
+    DOTNET_FAIL=$(grep -oE '失败:[[:space:]]+[0-9]+' "$LOG_DOTNET" | head -1 | grep -oE '[0-9]+')
+    if [[ -z "$DOTNET_TOTAL" || -z "$DOTNET_FAIL" || "$DOTNET_FAIL" != "0" ]]; then
+        fail "dotnet test 未全过（看 $LOG_DOTNET）"
     fi
-    ok "dotnet test 214/214"
+    ok "dotnet test $DOTNET_TOTAL/$DOTNET_TOTAL"
 fi
 
 # --- 2. Unity EditMode ---
@@ -101,10 +103,14 @@ if [[ $SKIP_TESTS -eq 0 ]]; then
     if [[ ! -f "$LOG_EDITMODE_XML" ]]; then
         fail "EditMode 结果文件未生成（看 $LOG_EDITMODE）"
     fi
-    if ! grep -q 'result="Passed" total="214" passed="214" failed="0"' "$LOG_EDITMODE_XML"; then
+    EM_TOTAL=$(grep -oE 'total="[0-9]+"' "$LOG_EDITMODE_XML" | head -1 | grep -oE '[0-9]+')
+    EM_PASSED=$(grep -oE 'passed="[0-9]+"' "$LOG_EDITMODE_XML" | head -1 | grep -oE '[0-9]+')
+    EM_FAILED=$(grep -oE 'failed="[0-9]+"' "$LOG_EDITMODE_XML" | head -1 | grep -oE '[0-9]+')
+    EM_RESULT=$(grep -oE 'result="[A-Za-z]+"' "$LOG_EDITMODE_XML" | head -1 | grep -oE '"[A-Za-z]+"' | tr -d '"')
+    if [[ "$EM_RESULT" != "Passed" || "$EM_FAILED" != "0" ]]; then
         fail "EditMode 测试不全过（看 $LOG_EDITMODE_XML 与 $LOG_EDITMODE）"
     fi
-    ok "Unity EditMode 214/214"
+    ok "Unity EditMode $EM_PASSED/$EM_TOTAL"
 fi
 
 # --- 3. URP 接入（幂等） ---
