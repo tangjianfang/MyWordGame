@@ -65,6 +65,9 @@ urp-import.log
 urp-setup.log
 unity-tests.log
 unity-test-results.xml
+unity-build.log
+unity-buildsetup.log
 smoke.log
 compile.log
 harness.log
+launch.log
