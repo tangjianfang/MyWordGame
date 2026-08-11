@@ -22,9 +22,7 @@ namespace MyWorld.Unity.Streaming
     {
         private readonly World _world;
         private readonly WorldGenerator _generator;
-        private readonly BlockRegistry _registry;
         private readonly ChunkViewRegistry _views;
-        private readonly long _seed;
 
         private readonly Queue<ChunkPos> _generateQueue = new Queue<ChunkPos>();
         private readonly Queue<ChunkPos> _meshQueue = new Queue<ChunkPos>();
@@ -35,20 +33,25 @@ namespace MyWorld.Unity.Streaming
         public int UnloadRadius { get; set; } = 8;
         public int ChunksPerFrame { get; set; } = 2;
 
+        // registry 与 seed 由 WorldGenerator 与 ChunkViewRegistry 各自持有，
+        // 此处仅保留构造参数以维持 WorldBootstrap.Awake() 的调用契约。
         public ChunkStreamer(World world, WorldGenerator generator, BlockRegistry registry,
             ChunkViewRegistry views, long seed)
         {
+            _ = registry;
+            _ = seed;
             _world = world;
             _generator = generator;
-            _registry = registry;
             _views = views;
-            _seed = seed;
         }
 
         public void Tick(Float3 playerPosition)
         {
-            int cx = VoxelCoords.WorldToChunk((int)playerPosition.X);
-            int cz = VoxelCoords.WorldToChunk((int)playerPosition.Z);
+            // 必须用 Mathf.FloorToInt：玩家在 (-1, 0) 段时 (int) 向零取整会落到 0，
+            // 整个 LoadRadius 窗口相对正确位置偏移一格。(VoxelCoords.WorldToChunk 本身
+            // 用 >> 处理负坐标没问题——这是输入端的事。)
+            int cx = VoxelCoords.WorldToChunk(Mathf.FloorToInt(playerPosition.X));
+            int cz = VoxelCoords.WorldToChunk(Mathf.FloorToInt(playerPosition.Z));
 
             // 1. 卸载：超出 UnloadRadius 的列
             UnloadDistant(cx, cz);

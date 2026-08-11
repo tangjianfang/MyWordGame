@@ -13,7 +13,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace MyWorld.Unity.Editor
+namespace MyWorld.Unity.EditorTools
 {
     /// <summary>
     /// 无头验证玩家层：手动驱动若干帧，断言下落、前进、挖/放、流式加载。
@@ -88,6 +88,7 @@ namespace MyWorld.Unity.Editor
                 failures += RunAssertion3_DigAndReplace(world, views, controller);
                 failures += RunAssertion4_StillGrounded(controller);
                 failures += RunAssertion5_StreamingLoadsFar(controller, streamer, world);
+                failures += RunAssertion6_NegativeCoordinates(controller, streamer, world);
             }
             catch (AssertionException ex)
             {
@@ -193,9 +194,9 @@ namespace MyWorld.Unity.Editor
         }
 
         // --- 断言 3：挖一格再放回去，该段重建结果应变化 ---
-        // 目标选在玩家前方、y=20 的实心石头里——y=20 始终位于"地表以下的纯石头段"
-        // （最小地表 BaseHeight-HeightAmplitude=28，y=20 < 28-4=24 必然是石头）。
-        // 整段完全被实心石头包住，原本 Rebuild 返回 false（无可见几何）；
+        // 目标选在玩家前方、y=20 的实心石头里——y=20 位于 section 5（y∈[16,32)）。
+        // 该段在 spawn 周围（默认种子 42，地表~98，远高于 32）必然全埋；
+        // 再用 SetBlock 强制写入石头，确保整段被实心石头包住，原本 Rebuild 返回 false。
         // 挖成空气后段内多 6 个洞面 → 返回 true；放回石头 → 返回 false。
         // 两种状态的返回值必然相反，断言可硬性检验。
         // brief 原选 (tx, ty-1, tz)（地表块），但那块四周仍是实心草方块，
@@ -287,6 +288,48 @@ namespace MyWorld.Unity.Editor
                 Assert.That(world.TryGetChunk(farChunk, out _), Is.True,
                     $"流式加载应当已经生成 ({farChunk.X}, {farChunk.Z})");
                 Debug.Log($"[PlayHarness] {tag} 通过");
+                return 0;
+            }
+            catch (AssertionException ex)
+            {
+                Debug.LogError($"[PlayHarness] {tag} 失败: {ex.Message}");
+                return 1;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PlayHarness] {tag} 意外异常: {ex}");
+                return 1;
+            }
+        }
+
+        // --- 断言 6：负坐标下 ChunkStreamer 仍能正确算出流式中心 ---
+        // 回归 ChunkStreamer.cs 的 (int) 截断 bug：玩家在 X ∈ (-1, 0) 时 (int) 给出 0，
+        // 整个 LoadRadius 窗口相对正确位置向右偏移一格。
+        // 这里把 LoadRadius 收到 1，把玩家放在 (-0.5, 120, -0.5)：
+        //   修复后 streaming 中心是 chunk (-1, -1)，窗口是 {-2,-1,0}^2
+        //   修复前 streaming 中心是 chunk (0, 0)，窗口是 {-1,0,1}^2
+        // 差异 = chunk (-2, -2)。只有修复版会加载它，所以断言这一根就够。
+        // 帧数 200 远超 3×3 窗口加载所需的预算（每帧 2 块，~5 帧就够）。
+        private static int RunAssertion6_NegativeCoordinates(PlayerController controller, ChunkStreamer streamer, World world)
+        {
+            const string tag = "断言6(负坐标流式中心)";
+            try
+            {
+                streamer.LoadRadius = 1;
+                streamer.UnloadRadius = 2;
+                controller.Bind(world, null, new Float3(-0.5f, 120f, -0.5f));
+
+                for (var i = 0; i < 200; i++)
+                {
+                    streamer.Tick(controller.State.Position);
+                }
+
+                ChunkPos target = new ChunkPos(-2, -2);
+                Assert.That(world.TryGetChunk(target, out _), Is.True,
+                    $"玩家位于 (-0.5, _, -0.5) 时流式中心应在 chunk (-1, -1)，" +
+                    $"chunk (-2, -2) 在 LoadRadius=1 内必被加载；" +
+                    $"当前 ChunkPositions=[{string.Join(",", world.ChunkPositions)}]");
+                Debug.Log($"[PlayHarness] {tag} 通过 (chunk (-2,-2) 已加载)");
                 return 0;
             }
             catch (AssertionException ex)
