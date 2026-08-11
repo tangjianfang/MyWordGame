@@ -1,0 +1,19 @@
+{
+  "id": "stone_axe_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "cobblestone",
+    "cobblestone",
+    "cobblestone",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "stone_axe",
+    "count": 1
+  }
+}

@@ -104,9 +104,15 @@ namespace MyWorld.Unity.Combat
 
             bool isNight = _time != null && _time.IsNight;
             int type;
-            if (isNight) type = 3; // 夜晚只生成僵尸
+            if (isNight)
+            {
+                // 夜晚：50% 僵尸 / 30% 骷髅 / 20% 苦力怕
+                float r = Random.value;
+                type = r < 0.5f ? 3 : (r < 0.8f ? 4 : 5);
+            }
             else
             {
+                // 白天：50% 猪 / 35% 羊 / 15% 僵尸
                 float r = Random.value;
                 type = r < 0.5f ? 1 : (r < 0.85f ? 2 : 3);
             }
@@ -117,7 +123,8 @@ namespace MyWorld.Unity.Combat
             // 创建 GameObject（简单 cube）
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = $"Mob_{type}_{mob.EntityId}";
-            go.transform.localScale = type == 3
+            // 敌对 mob 用细高一些的体型（人型），友好 mob 用胖短体型
+            go.transform.localScale = (type == 3 || type == 4 || type == 5)
                 ? new Vector3(0.6f, 1.8f, 0.6f)
                 : new Vector3(0.8f, 1.0f, 1.2f);
             // 移除 BoxCollider 之外不需要的东西

@@ -1,0 +1,19 @@
+{
+  "id": "stone_pickaxe_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "cobblestone",
+    "cobblestone",
+    "cobblestone",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "stone_pickaxe",
+    "count": 1
+  }
+}

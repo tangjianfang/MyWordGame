@@ -1,0 +1,19 @@
+{
+  "id": "diamond_pickaxe_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "diamond",
+    "diamond",
+    "diamond",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "diamond_pickaxe",
+    "count": 1
+  }
+}

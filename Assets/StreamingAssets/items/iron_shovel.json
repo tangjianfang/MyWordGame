@@ -1,0 +1,10 @@
+{
+  "id": "iron_shovel",
+  "displayName": "铁锹",
+  "numericId": 1422,
+  "maxStack": 1,
+  "texture": "iron_shovel",
+  "attackDamage": 4,
+  "isTool": true,
+  "miningLevel": 3
+}

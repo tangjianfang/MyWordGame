@@ -117,6 +117,27 @@ ITEMS = [
 
     # 战斗
     ("arrow",       "箭",             1300, 64, None, None, "arrow"),
+
+    # 镐 / 斧 / 锹（plan-3b）
+    ("wooden_pickaxe",  "木镐",      1400, 1, 2, None, "wooden_pickaxe", True, 1),
+    ("stone_pickaxe",   "石镐",      1401, 1, 3, None, "stone_pickaxe", True, 2),
+    ("iron_pickaxe",    "铁镐",      1402, 1, 4, None, "iron_pickaxe", True, 3),
+    ("diamond_pickaxe", "钻石镐",    1403, 1, 5, None, "diamond_pickaxe", True, 4),
+    ("netherite_pickaxe", "下界合金镐", 1404, 1, 6, None, "netherite_pickaxe", True, 5),
+    ("bedrock_pickaxe", "基岩镐",    1405, 1, 99, None, "bedrock_pickaxe", True, 99),
+    ("wooden_axe",  "木斧",          1410, 1, 7, None, "wooden_axe", True, 1),
+    ("stone_axe",   "石斧",          1411, 1, 9, None, "stone_axe", True, 2),
+    ("iron_axe",    "铁斧",          1412, 1, 9, None, "iron_axe", True, 3),
+    ("wooden_shovel", "木锹",        1420, 1, 2, None, "wooden_shovel", True, 1),
+    ("stone_shovel",  "石锹",        1421, 1, 3, None, "stone_shovel", True, 2),
+    ("iron_shovel",   "铁锹",        1422, 1, 4, None, "iron_shovel", True, 3),
+
+    # 红石 / 杂项（plan-3b）
+    ("redstone",         "红石",       1500, 64, None, None, "redstone"),
+    ("string_",          "线",         1501, 64, None, None, "string"),    # id 避免与 C# 关键字冲突
+    ("gunpowder",        "火药",       1502, 64, None, None, "gunpowder"),
+    ("bone",             "骨头",       1503, 64, None, None, "bone"),
+    ("skull",            "骷髅头颅",   1504, 64, None, None, "skull"),
 ]
 
 
@@ -176,6 +197,38 @@ RECIPES = [
      {"item": "beet_soup", "count": 1}, False),
     ("mung_bean_soup_recipe", "inventory", 2, 2, ["mung_bean", "bowl"],
      {"item": "mung_bean_soup", "count": 1}, False),
+
+    # 镐 / 斧 / 锹（plan-3b）：1x3 pattern
+    ("wooden_pickaxe_recipe",  "workbench", 1, 3, ["plank", "plank", "plank", "stick", "_", "stick"],
+     {"item": "wooden_pickaxe", "count": 1}, True),
+    ("stone_pickaxe_recipe",   "workbench", 1, 3, ["cobblestone", "cobblestone", "cobblestone", "stick", "_", "stick"],
+     {"item": "stone_pickaxe", "count": 1}, True),
+    ("iron_pickaxe_recipe",    "workbench", 1, 3, ["iron_ingot", "iron_ingot", "iron_ingot", "stick", "_", "stick"],
+     {"item": "iron_pickaxe", "count": 1}, True),
+    ("diamond_pickaxe_recipe", "workbench", 1, 3, ["diamond", "diamond", "diamond", "stick", "_", "stick"],
+     {"item": "diamond_pickaxe", "count": 1}, True),
+    ("netherite_pickaxe_recipe", "workbench", 1, 3, ["netherite_ingot", "netherite_ingot", "netherite_ingot", "stick", "_", "stick"],
+     {"item": "netherite_pickaxe", "count": 1}, True),
+    ("bedrock_pickaxe_recipe", "workbench", 1, 3, ["bedrock", "bedrock", "bedrock", "stick", "_", "stick"],
+     {"item": "bedrock_pickaxe", "count": 1}, True),
+
+    ("wooden_axe_recipe",  "workbench", 1, 3, ["plank", "plank", "plank", "stick", "_", "stick"],
+     {"item": "wooden_axe", "count": 1}, False),
+    ("stone_axe_recipe",   "workbench", 1, 3, ["cobblestone", "cobblestone", "cobblestone", "stick", "_", "stick"],
+     {"item": "stone_axe", "count": 1}, False),
+    ("iron_axe_recipe",    "workbench", 1, 3, ["iron_ingot", "iron_ingot", "iron_ingot", "stick", "_", "stick"],
+     {"item": "iron_axe", "count": 1}, False),
+
+    ("wooden_shovel_recipe", "workbench", 1, 3, ["plank", "_", "stick"],
+     {"item": "wooden_shovel", "count": 1}, True),
+    ("stone_shovel_recipe",  "workbench", 1, 3, ["cobblestone", "_", "stick"],
+     {"item": "stone_shovel", "count": 1}, True),
+    ("iron_shovel_recipe",   "workbench", 1, 3, ["iron_ingot", "_", "stick"],
+     {"item": "iron_shovel", "count": 1}, True),
+
+    # 红石基础合成
+    ("redstone_dust_to_redstone", "pocket", 1, 1, ["redstone_dust"],
+     {"item": "redstone", "count": 1}, False),
 ]
 
 for entry in RECIPES:

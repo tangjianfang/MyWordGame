@@ -1,0 +1,19 @@
+{
+  "id": "wooden_axe_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "plank",
+    "plank",
+    "plank",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "wooden_axe",
+    "count": 1
+  }
+}

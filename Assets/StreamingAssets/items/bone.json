@@ -1,0 +1,7 @@
+{
+  "id": "bone",
+  "displayName": "骨头",
+  "numericId": 1503,
+  "maxStack": 64,
+  "texture": "bone"
+}

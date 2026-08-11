@@ -107,6 +107,14 @@ namespace MyWorld.Unity.Bootstrap
                 cycle.SunLight = sun.GetComponent<Light>();
             }
             gameObject.AddComponent<MyWorld.Unity.Environment.WaterRenderer>();
+
+            // 14. 树苗右键长成树（plan-3b）
+            var sapling = gameObject.AddComponent<MyWorld.Unity.Environment.SaplingGrowth>();
+            sapling.Bind(_world, _registry, _views);
+
+            // 15. 红石系统（plan-3b）
+            var redstone = gameObject.AddComponent<MyWorld.Unity.Environment.RedstoneSystem>();
+            redstone.Bind(_world, _views, _player);
         }
 
         private void Update()

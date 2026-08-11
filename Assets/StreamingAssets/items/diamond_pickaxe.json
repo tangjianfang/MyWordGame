@@ -1,0 +1,10 @@
+{
+  "id": "diamond_pickaxe",
+  "displayName": "钻石镐",
+  "numericId": 1403,
+  "maxStack": 1,
+  "texture": "diamond_pickaxe",
+  "attackDamage": 5,
+  "isTool": true,
+  "miningLevel": 4
+}

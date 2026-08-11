@@ -1,0 +1,10 @@
+{
+  "id": "netherite_pickaxe",
+  "displayName": "下界合金镐",
+  "numericId": 1404,
+  "maxStack": 1,
+  "texture": "netherite_pickaxe",
+  "attackDamage": 6,
+  "isTool": true,
+  "miningLevel": 5
+}

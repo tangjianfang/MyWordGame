@@ -1,0 +1,19 @@
+{
+  "id": "iron_axe_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "iron_ingot",
+    "iron_ingot",
+    "iron_ingot",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "iron_axe",
+    "count": 1
+  }
+}

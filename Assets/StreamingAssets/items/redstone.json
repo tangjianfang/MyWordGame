@@ -1,0 +1,7 @@
+{
+  "id": "redstone",
+  "displayName": "红石",
+  "numericId": 1500,
+  "maxStack": 64,
+  "texture": "redstone"
+}

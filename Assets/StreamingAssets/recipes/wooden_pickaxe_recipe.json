@@ -1,0 +1,19 @@
+{
+  "id": "wooden_pickaxe_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "plank",
+    "plank",
+    "plank",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "wooden_pickaxe",
+    "count": 1
+  }
+}

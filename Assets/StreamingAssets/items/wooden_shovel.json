@@ -1,0 +1,10 @@
+{
+  "id": "wooden_shovel",
+  "displayName": "木锹",
+  "numericId": 1420,
+  "maxStack": 1,
+  "texture": "wooden_shovel",
+  "attackDamage": 2,
+  "isTool": true,
+  "miningLevel": 1
+}

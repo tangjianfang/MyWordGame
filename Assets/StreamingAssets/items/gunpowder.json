@@ -1,0 +1,7 @@
+{
+  "id": "gunpowder",
+  "displayName": "火药",
+  "numericId": 1502,
+  "maxStack": 64,
+  "texture": "gunpowder"
+}

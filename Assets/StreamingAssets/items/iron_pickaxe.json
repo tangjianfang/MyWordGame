@@ -1,0 +1,10 @@
+{
+  "id": "iron_pickaxe",
+  "displayName": "铁镐",
+  "numericId": 1402,
+  "maxStack": 1,
+  "texture": "iron_pickaxe",
+  "attackDamage": 4,
+  "isTool": true,
+  "miningLevel": 3
+}

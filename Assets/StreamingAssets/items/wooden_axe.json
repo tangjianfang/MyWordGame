@@ -1,0 +1,10 @@
+{
+  "id": "wooden_axe",
+  "displayName": "木斧",
+  "numericId": 1410,
+  "maxStack": 1,
+  "texture": "wooden_axe",
+  "attackDamage": 7,
+  "isTool": true,
+  "miningLevel": 1
+}

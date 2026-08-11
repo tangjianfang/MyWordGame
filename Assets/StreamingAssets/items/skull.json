@@ -1,0 +1,7 @@
+{
+  "id": "skull",
+  "displayName": "骷髅头颅",
+  "numericId": 1504,
+  "maxStack": 64,
+  "texture": "skull"
+}

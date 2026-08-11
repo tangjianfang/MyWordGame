@@ -31,6 +31,8 @@ namespace MyWorld.Unity.Combat
                 1 => new Color(0.95f, 0.7f, 0.7f),   // pig
                 2 => new Color(0.95f, 0.95f, 0.95f), // sheep
                 3 => new Color(0.4f, 0.7f, 0.3f),    // zombie
+                4 => new Color(0.93f, 0.93f, 0.85f), // skeleton（白骨）
+                5 => new Color(0.4f, 0.85f, 0.4f),   // creeper（草绿）
                 _ => Color.gray,
             };
             view.ApplyColor(view.BaseColor);
@@ -52,6 +54,12 @@ namespace MyWorld.Unity.Combat
             if (Mob.HitFlashTimer > 0)
             {
                 ApplyColor(Color.red);
+            }
+            else if (Mob.IsCreeper && Mob.FuseTimer > 0f)
+            {
+                // 苦力怕引信中：颜色随剩余时间变白闪烁
+                float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 16f);
+                ApplyColor(Color.Lerp(BaseColor, Color.white, pulse * 0.7f));
             }
             else
             {

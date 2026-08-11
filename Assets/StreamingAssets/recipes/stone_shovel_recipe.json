@@ -1,0 +1,16 @@
+{
+  "id": "stone_shovel_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "cobblestone",
+    "_",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "stone_shovel",
+    "count": 1
+  }
+}

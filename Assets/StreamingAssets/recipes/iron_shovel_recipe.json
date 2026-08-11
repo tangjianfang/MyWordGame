@@ -1,0 +1,16 @@
+{
+  "id": "iron_shovel_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "iron_ingot",
+    "_",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "iron_shovel",
+    "count": 1
+  }
+}

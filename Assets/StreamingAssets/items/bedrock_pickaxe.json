@@ -1,0 +1,10 @@
+{
+  "id": "bedrock_pickaxe",
+  "displayName": "基岩镐",
+  "numericId": 1405,
+  "maxStack": 1,
+  "texture": "bedrock_pickaxe",
+  "attackDamage": 99,
+  "isTool": true,
+  "miningLevel": 99
+}

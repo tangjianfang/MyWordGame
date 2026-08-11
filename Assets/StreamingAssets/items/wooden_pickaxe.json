@@ -1,0 +1,10 @@
+{
+  "id": "wooden_pickaxe",
+  "displayName": "木镐",
+  "numericId": 1400,
+  "maxStack": 1,
+  "texture": "wooden_pickaxe",
+  "attackDamage": 2,
+  "isTool": true,
+  "miningLevel": 1
+}

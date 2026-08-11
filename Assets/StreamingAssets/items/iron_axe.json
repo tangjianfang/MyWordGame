@@ -1,0 +1,10 @@
+{
+  "id": "iron_axe",
+  "displayName": "铁斧",
+  "numericId": 1412,
+  "maxStack": 1,
+  "texture": "iron_axe",
+  "attackDamage": 9,
+  "isTool": true,
+  "miningLevel": 3
+}

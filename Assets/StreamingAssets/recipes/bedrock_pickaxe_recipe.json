@@ -1,0 +1,19 @@
+{
+  "id": "bedrock_pickaxe_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "bedrock",
+    "bedrock",
+    "bedrock",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "bedrock_pickaxe",
+    "count": 1
+  }
+}
