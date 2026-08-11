@@ -21,6 +21,8 @@ namespace MyWorld.Unity.Gameplay
         public TimeOfDay Time;
         public ItemDatabase Items;
         public RecipeDatabase Recipes;
+        public Experience Experience;
+        public DeathSystem Death;
 
         private void Awake()
         {

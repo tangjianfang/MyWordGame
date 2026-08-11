@@ -29,6 +29,37 @@ namespace MyWorld.Unity.Combat
         private TimeOfDay _time;
         private Transform _player;
 
+        private void OnEnable()
+        {
+            CombatEvents.OnDamageTaken += HandleDamageTaken;
+        }
+
+        private void OnDisable()
+        {
+            CombatEvents.OnDamageTaken -= HandleDamageTaken;
+        }
+
+        private void HandleDamageTaken(DamageEvent ev)
+        {
+            // victim=0 表示玩家受伤
+            if (ev.VictimEntityId != 0) return;
+            var ctx = PlayerContext.Instance;
+            if (ctx == null) return;
+            ctx.Health.Damage(ev.Amount);
+            // 经验：被击中也算 1 点（可选）
+            ctx.Experience.Add(1);
+
+            // 触发死亡
+            if (ctx.Health.IsDead && ctx.Death.IsAlive)
+            {
+                ctx.Death.OnDeath(new MyWorld.Core.Math.Float3(
+                    _player != null ? _player.position.x : 0,
+                    _player != null ? _player.position.y : 0,
+                    _player != null ? _player.position.z : 0));
+                ctx.Health.ResetToFull();
+            }
+        }
+
         private void Start()
         {
             // 由 Bootstrap 注入；找不到就退化为全局
@@ -77,6 +108,12 @@ namespace MyWorld.Unity.Combat
             {
                 var m = _mobs[i];
                 MobAI.Tick(m, Float3_From(_player.position), _world, _time, dt);
+            }
+
+            // 推进玩家死亡状态
+            if (PlayerContext.Instance != null)
+            {
+                PlayerContext.Instance.Death.Tick(dt);
             }
 
             // 3) spawn

@@ -70,13 +70,15 @@ namespace MyWorld.Unity.Bootstrap
             // 6. 流式加载器
             _streamer = new ChunkStreamer(_world, generator, _registry, _views, seed);
 
-            // 7. 玩家上下文（背包 / 生命 / 时间 / 物品）
+            // 7. 玩家上下文（背包 / 生命 / 时间 / 物品 / 经验 / 死亡）
             _playerContext = gameObject.AddComponent<PlayerContext>();
             _playerContext.Items = items;
             _playerContext.Recipes = recipes;
             _playerContext.Inventory = new PlayerInventory();
             _playerContext.Health = new Health(20);
             _playerContext.Time = new TimeOfDay();
+            _playerContext.Experience = new Experience();
+            _playerContext.Death = new DeathSystem();
             _playerContext.Inventory.SetMaxStackLookup(id => items.TryGetByNumericId(id, out var d) ? d.MaxStack : 64);
 
             // 8. 玩家控制器
@@ -115,6 +117,13 @@ namespace MyWorld.Unity.Bootstrap
             // 15. 红石系统（plan-3b）
             var redstone = gameObject.AddComponent<MyWorld.Unity.Environment.RedstoneSystem>();
             redstone.Bind(_world, _views, _player);
+
+            // 16. 第三人称相机（plan-3c）
+            gameObject.AddComponent<MyWorld.Unity.Player.CameraThirdPerson>();
+
+            // 17. 经验条 + 死亡画面（plan-3c）
+            gameObject.AddComponent<MyWorld.Unity.UI.ExperienceBarUi>();
+            gameObject.AddComponent<MyWorld.Unity.UI.DeathScreenUi>();
         }
 
         private void Update()
