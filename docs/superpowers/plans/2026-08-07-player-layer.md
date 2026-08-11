@@ -209,6 +209,9 @@ git commit -m "玩家层: 玩家状态、输入与运动参数"
 测试用的世界：`World` 里在 `y = 63` 铺一层石头（`SetBlock` 会自动建区块列），
 玩家从 `y = 70` 开始下落。所有测试共用一个 `WorldSolidSource`。
 
+注册表按仓库里既有测试的写法**内联 JSON 构造**（见 `WorldSourceTests`），
+不去读 `StreamingAssets`——测试不该依赖磁盘上的数据文件。
+
 ```csharp
 using MyWorld.Core.Blocks;
 using MyWorld.Core.Math;
@@ -216,10 +219,11 @@ using MyWorld.Core.Player;
 using MyWorld.Core.Voxel;
 using NUnit.Framework;
 
-namespace MyWorld.Tests.Player
+namespace MyWorld.Core.Tests.Player
 {
     /// <summary>竖直方向：重力累积、终端速度、落地、撞头。</summary>
-    public sealed class PlayerMotorGravityTests
+    [TestFixture]
+    public class PlayerMotorGravityTests
     {
         private const float Dt = 1f / 60f;
         private const float GroundTop = 64f;
@@ -241,11 +245,15 @@ namespace MyWorld.Tests.Player
                 _world.SetBlock(x, 63, z, BlockIds.Stone);
             }
 
-            _source = new WorldSolidSource(_world, BlockRegistry.CreateBuiltIn());
+            _source = new WorldSolidSource(_world, BlockRegistry.FromJson(new[]
+            {
+                @"{ ""id"": ""air"", ""numericId"": 0, ""solid"": false, ""opaque"": false }",
+                @"{ ""id"": ""stone"", ""numericId"": 1, ""textures"": { ""all"": ""stone"" }, ""solid"": true, ""opaque"": true }"
+            }));
         }
 
         [Test]
-        public void 空中一帧后速度等于重力乘时间()
+        public void Step_InAir_AppliesGravityForOneFrame()
         {
             var state = PlayerState.AtRest(new Float3(0f, 70f, 0f));
 
@@ -257,7 +265,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 长时间下落速度被终端速度夹住()
+        public void Step_FallingLong_ClampsToTerminalVelocity()
         {
             var state = PlayerState.AtRest(new Float3(0f, 300f, 0f));
 
@@ -271,7 +279,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 下落最终停在地面顶上()
+        public void Step_Falling_LandsOnGroundSurface()
         {
             var state = PlayerState.AtRest(new Float3(0f, 70f, 0f));
 
@@ -286,7 +294,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 站在地面上竖直速度不会持续累积()
+        public void Step_StandingOnGround_DoesNotAccumulateFallSpeed()
         {
             var state = PlayerState.AtRest(new Float3(0f, 64f, 0f));
 
@@ -300,9 +308,9 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 撞到天花板竖直速度归零()
+        public void Step_HittingCeiling_ZeroesUpwardVelocity()
         {
-            // 头顶加一层石头：玩家高 1.8，站在 y=64 时头在 66.8 之下，把方块放到 y = 66
+            // 头顶加一层石头：玩家高 1.8，站在 y=64 时头在 65.8，把方块放到 y = 66
             for (var x = -8; x < 8; x++)
             for (var z = -8; z < 8; z++)
             {
@@ -414,10 +422,11 @@ using MyWorld.Core.Player;
 using MyWorld.Core.Voxel;
 using NUnit.Framework;
 
-namespace MyWorld.Tests.Player
+namespace MyWorld.Core.Tests.Player
 {
     /// <summary>水平移动、疾跑、撞墙与跳跃。</summary>
-    public sealed class PlayerMotorMoveTests
+    [TestFixture]
+    public class PlayerMotorMoveTests
     {
         private const float Dt = 1f / 60f;
 
@@ -437,7 +446,11 @@ namespace MyWorld.Tests.Player
                 _world.SetBlock(x, 63, z, BlockIds.Stone);
             }
 
-            _source = new WorldSolidSource(_world, BlockRegistry.CreateBuiltIn());
+            _source = new WorldSolidSource(_world, BlockRegistry.FromJson(new[]
+            {
+                @"{ ""id"": ""air"", ""numericId"": 0, ""solid"": false, ""opaque"": false }",
+                @"{ ""id"": ""stone"", ""numericId"": 1, ""textures"": { ""all"": ""stone"" }, ""solid"": true, ""opaque"": true }"
+            }));
         }
 
         private PlayerState Run(PlayerState state, PlayerInput input, int frames)
@@ -450,15 +463,15 @@ namespace MyWorld.Tests.Player
             return state;
         }
 
-        private PlayerState OnGround(float x = 0f, float z = 0f)
+        private static PlayerState OnGround(float x = 0f, float z = 0f)
             => new PlayerState(new Float3(x, 64f, z), default, true);
 
         [Test]
-        public void 地面上持续前推会以行走速度移动()
+        public void Step_HoldingForward_MovesAtWalkSpeed()
         {
             PlayerState state = Run(OnGround(), new PlayerInput(0f, 1f, false, false), 60);
 
-            // 有一帧的加速过程，所以断言"接近但不超过"一秒的行程
+            // 有一段加速过程，所以断言"接近但不超过"一秒的行程
             Assert.That(state.Position.Z, Is.GreaterThan(_settings.WalkSpeed * 0.9f),
                 "推满一秒应当走出接近 WalkSpeed 格");
             Assert.That(state.Position.Z, Is.LessThanOrEqualTo(_settings.WalkSpeed + 0.1f),
@@ -466,7 +479,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 疾跑比行走走得远()
+        public void Step_Sprinting_TravelsFartherThanWalking()
         {
             PlayerState walk = Run(OnGround(), new PlayerInput(0f, 1f, false, false), 60);
             PlayerState sprint = Run(OnGround(), new PlayerInput(0f, 1f, false, true), 60);
@@ -476,7 +489,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 松开方向键后水平速度衰减到零()
+        public void Step_ReleasingInput_DecaysHorizontalVelocity()
         {
             PlayerState state = Run(OnGround(), new PlayerInput(0f, 1f, false, false), 30);
             state = Run(state, PlayerInput.None, 60);
@@ -486,7 +499,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 撞墙后停下且速度归零()
+        public void Step_IntoWall_StopsAndZeroesVelocity()
         {
             // z = 3 处砌一堵两格高的墙
             for (var x = -16; x < 16; x++)
@@ -504,7 +517,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 贴墙斜推能沿墙滑动()
+        public void Step_DiagonalIntoWall_SlidesAlongIt()
         {
             for (var x = -16; x < 16; x++)
             {
@@ -520,7 +533,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 地面上跳跃会离地并升高()
+        public void Step_JumpOnGround_LeavesGround()
         {
             PlayerState state = PlayerMotor.Step(_source, OnGround(), new PlayerInput(0f, 0f, true, false),
                 _settings, Dt);
@@ -530,7 +543,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 空中按跳无效()
+        public void Step_JumpInAir_Ignored()
         {
             var air = new PlayerState(new Float3(0f, 80f, 0f), default, false);
 
@@ -542,7 +555,7 @@ namespace MyWorld.Tests.Player
         }
 
         [Test]
-        public void 跳跃高度约为一格多()
+        public void Step_JumpArc_ClearsOneBlockButNotTwo()
         {
             PlayerState state = OnGround();
             var peak = 64f;
