@@ -21,6 +21,7 @@ namespace MyWorld.Unity.EditorTools
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             CreateLight();
+            CreateWorld();
 
             var player = new GameObject("玩家");
             player.AddComponent<WorldBootstrap>();
@@ -32,6 +33,26 @@ namespace MyWorld.Unity.EditorTools
             AssetDatabase.Refresh();
 
             Debug.Log($"预览场景已生成：{ScenePath}");
+        }
+
+        /// <summary>
+        /// 建一个空的 <c>世界</c> GameObject，专门用作区块 GameObject 的父节点。
+        /// <para>
+        /// 之前用 <c>WorldBootstrap.transform</c>（也就是 <c>玩家</c>）当父节点——
+        /// <see cref="MyWorld.Unity.Rendering.ChunkSectionView.Create"/> 把
+        /// <c>chunkX*16</c> 等世界坐标当作 localPosition 写进玩家根下，配合
+        /// <c>SetParent(parent, worldPositionStays:false)</c>，每个区块整体被玩家 Y
+        /// 平移 120 单位，玩家从 (0.5, 120, 0.5) 出生、相机 (0.5, 121.62, 0.5) 朝下看，
+        /// 地表方块全在 y≈216，相机抬头才能看到，画面只剩天空蓝。建一个静态的
+        /// <c>世界</c> 节点，<see cref="MyWorld.Unity.Bootstrap.WorldBootstrap.Awake"/>
+        /// 用 <c>GameObject.Find("世界")</c> 拿到它的 transform 传给
+        /// <see cref="MyWorld.Unity.Rendering.ChunkViewRegistry"/>，让区块 GameObject
+        /// 的世界坐标不再跟随玩家移动。
+        /// </para>
+        /// </summary>
+        private static void CreateWorld()
+        {
+            new GameObject("世界");
         }
 
         private static void CreateLight()
