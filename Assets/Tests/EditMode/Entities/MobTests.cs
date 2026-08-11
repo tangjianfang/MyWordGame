@@ -80,5 +80,60 @@ namespace MyWorld.Core.Tests.Entities
             Assert.That(hitCount, Is.GreaterThan(0));
             CombatEvents.Reset();
         }
+
+        [Test]
+        public void Skeleton_HasRangedAttackRange()
+        {
+            var sk = Mob.Create(4, default);
+            Assert.That(sk.Kind, Is.EqualTo(MobKind.Hostile));
+            Assert.That(sk.AttackRange, Is.GreaterThan(MobAI.AttackRange),
+                "骷髅应在更远距离开火");
+            Assert.That(sk.AttackDamage, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void Creeper_HasNoAttackDamage_ButStartsFuseOnPlayerClose()
+        {
+            var c = Mob.Create(5, new Float3(0, 64, 0));
+            Assert.That(c.IsCreeper, Is.True);
+            Assert.That(c.AttackDamage, Is.EqualTo(0f));
+            Assert.That(c.FuseTimer, Is.EqualTo(0f));
+
+            var night = new TimeOfDay { CurrentTick = 15000 };
+            // 玩家在 2 格内：应进入 fuse
+            MobAI.Tick(c, new Float3(2, 64, 0), null, night, 0.1f);
+            Assert.That(c.FuseTimer, Is.GreaterThan(0f), "苦力怕进入 3 格内应起 fuse");
+        }
+
+        [Test]
+        public void Creeper_FuseComplete_ExplodesAndDies()
+        {
+            var c = Mob.Create(5, new Float3(0, 64, 0));
+            var night = new TimeOfDay { CurrentTick = 15000 };
+            int hits = 0;
+            CombatEvents.OnDamageTaken += _ => hits++;
+
+            // 30 帧 × 0.1f = 3 秒，应足够让 fuse 烧完
+            for (int i = 0; i < 30; i++)
+                MobAI.Tick(c, new Float3(2, 64, 0), null, night, 0.1f);
+
+            Assert.That(hits, Is.GreaterThan(0), "自爆应触发伤害事件");
+            Assert.That(c.State, Is.EqualTo(MobState.Dying));
+            Assert.That(c.Health.Current, Is.EqualTo(0));
+            CombatEvents.Reset();
+        }
+
+        [Test]
+        public void Creeper_FuseAborts_WhenPlayerRunsFar()
+        {
+            var c = Mob.Create(5, new Float3(0, 64, 0));
+            var night = new TimeOfDay { CurrentTick = 15000 };
+            MobAI.Tick(c, new Float3(2, 64, 0), null, night, 0.1f);
+            Assert.That(c.FuseTimer, Is.GreaterThan(0f));
+
+            // 玩家跑出 5 格
+            MobAI.Tick(c, new Float3(20, 64, 0), null, night, 0.1f);
+            Assert.That(c.FuseTimer, Is.EqualTo(0f), "玩家跑远应取消 fuse");
+        }
     }
 }

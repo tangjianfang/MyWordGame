@@ -109,6 +109,12 @@ namespace MyWorld.Core.Entities
 
         private static void TickHostile(Mob mob, Float3 playerPos, float distSq, float dt, World world)
         {
+            if (mob.IsCreeper)
+            {
+                TickCreeper(mob, playerPos, distSq, dt, world);
+                return;
+            }
+
             if (distSq < HostileChaseRadiusSq)
             {
                 mob.State = MobState.Chasing;
@@ -120,7 +126,9 @@ namespace MyWorld.Core.Entities
 
             if (mob.State == MobState.Chasing)
             {
-                if (distSq < AttackRangeSq)
+                float range = mob.AttackRange;
+                float rangeSq = range * range;
+                if (distSq < rangeSq)
                 {
                     mob.Velocity = default;
                     // 攻击
@@ -146,6 +154,64 @@ namespace MyWorld.Core.Entities
             else
             {
                 mob.Velocity = default;
+            }
+
+            mob.Position = new Float3(
+                mob.Position.X + mob.Velocity.X * dt,
+                mob.Position.Y,
+                mob.Position.Z + mob.Velocity.Z * dt);
+        }
+
+        /// <summary>
+        /// 苦力怕：进入 3 格内开始 2 秒自爆倒计时，倒计时结束自爆（Explosive 源，10 伤害）。
+        /// 玩家跑出 5 格则取消引爆。倒计时 = 0 时把自己设为 Dying。
+        /// </summary>
+        private const float CreeperTriggerRadius = 3f;
+        private const float CreeperTriggerRadiusSq = CreeperTriggerRadius * CreeperTriggerRadius;
+        private const float CreeperAbortRadius = 5f;
+        private const float CreeperAbortRadiusSq = CreeperAbortRadius * CreeperAbortRadius;
+        private const float CreeperFuseDuration = 2f;
+        private const float CreeperExplosionDamage = 10f;
+
+        private static void TickCreeper(Mob mob, Float3 playerPos, float distSq, float dt, World world)
+        {
+            if (distSq < CreeperTriggerRadiusSq)
+            {
+                if (mob.FuseTimer <= 0)
+                {
+                    mob.FuseTimer = CreeperFuseDuration;
+                }
+            }
+            else if (distSq > CreeperAbortRadiusSq && mob.FuseTimer > 0)
+            {
+                mob.FuseTimer = 0;
+            }
+
+            if (mob.FuseTimer > 0)
+            {
+                mob.FuseTimer -= dt;
+                mob.Velocity = default;
+                if (mob.FuseTimer <= 0)
+                {
+                    // 自爆：发一个 Explosion 伤害事件，把自身转 Dying
+                    CombatEvents.RaiseTaken(new DamageEvent(
+                        DamageSource.Environmental, CreeperExplosionDamage,
+                        attacker: mob.EntityId, victim: 0, hit: mob.Position));
+                    mob.Health = new Health(0);
+                    mob.State = MobState.Dying;
+                    mob.DeathTimer = 0.4f;
+                    return;
+                }
+            }
+            else
+            {
+                // 移动：朝玩家走
+                var to = playerPos - mob.Position;
+                float d = (float)System.Math.Sqrt(to.X * to.X + to.Z * to.Z);
+                if (d > 0.001f)
+                {
+                    mob.Velocity = new Float3(to.X / d * ChaseSpeed, 0, to.Z / d * ChaseSpeed);
+                }
             }
 
             mob.Position = new Float3(

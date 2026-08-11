@@ -14,9 +14,11 @@ namespace MyWorld.Core.WorldGen
         private const int DirtDepth = 4;
 
         private readonly ValueNoise2D _terrainNoise;
+        private readonly int _seed;
 
         public WorldGenerator(int seed)
         {
+            _seed = seed;
             _terrainNoise = new ValueNoise2D(seed);
         }
 
@@ -34,6 +36,15 @@ namespace MyWorld.Core.WorldGen
                     // 以世界坐标而非区块内坐标采样，接缝两侧自然对齐
                     int surfaceY = SurfaceHeightAt(originX + localX, originZ + localZ);
                     FillColumn(column, localX, localZ, surfaceY);
+                }
+            }
+
+            // 地表铺好后再长树：每格独立 hash，按概率放
+            for (var localZ = 0; localZ < VoxelCoords.ChunkSize; localZ++)
+            {
+                for (var localX = 0; localX < VoxelCoords.ChunkSize; localX++)
+                {
+                    TreeFeature.TryGenerate(column, _seed, originX + localX, originZ + localZ);
                 }
             }
 
