@@ -12,30 +12,9 @@ namespace MyWorld.Unity.Player
     [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
     public sealed class SelectionBox : MonoBehaviour
     {
-        private static readonly Vector3[] EdgeDirections =
-        {
-            // 底面 4 条
-            new Vector3(1, 0, 0), new Vector3(0, 0, 1),
-            new Vector3(1, 0, 0), new Vector3(0, 0, 1),
-            // 顶面 4 条
-            new Vector3(1, 0, 0), new Vector3(0, 0, 1),
-            new Vector3(1, 0, 0), new Vector3(0, 0, 1),
-            // 4 条立柱
-            new Vector3(0, 1, 0), new Vector3(0, 1, 0),
-            new Vector3(0, 1, 0), new Vector3(0, 1, 0),
-        };
-
-        private static readonly Vector3[] EdgeOrigins =
-        {
-            new Vector3(0, 0, 0), new Vector3(0, 0, 0),
-            new Vector3(1, 0, 0), new Vector3(0, 0, 1),
-            new Vector3(0, 1, 0), new Vector3(0, 1, 0),
-            new Vector3(1, 1, 0), new Vector3(0, 1, 1),
-            new Vector3(0, 0, 0), new Vector3(0, 0, 1),
-            new Vector3(1, 0, 0), new Vector3(1, 0, 1),
-        };
-
-        private const float EdgeThickness = 0.02f;
+        // 注释：本类用 CreatePrimitive(Cube) + scale=1.002 模拟"线框"，最简但视觉粗糙。
+        // 早期设计曾考虑 12 条细长方体合并 mesh（EdgeDirections / EdgeOrigins / EdgeThickness），
+        // 当前实现未使用——如需更精细的线框，可在此处重新引入。
 
         public static SelectionBox Create(Transform parent, Material material)
         {
