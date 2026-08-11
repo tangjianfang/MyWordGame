@@ -1,4 +1,6 @@
 using MyWorld.Core.Blocks;
+using MyWorld.Core.Math;
+using MyWorld.Core.Physics;
 using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Rendering;

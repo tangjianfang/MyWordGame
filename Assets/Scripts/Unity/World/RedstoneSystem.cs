@@ -1,4 +1,6 @@
 using MyWorld.Core.Entities;
+using MyWorld.Core.Math;
+using MyWorld.Core.Physics;
 using MyWorld.Core.Voxel;
 using MyWorld.Unity.Rendering;
 using UnityEngine;
@@ -44,9 +46,9 @@ namespace MyWorld.Unity.Environment
             if (Input.GetMouseButtonDown(1))
             {
                 var source = new WorldSolidSource(_world, null);
-                var origin = new MyWorld.Core.Math.Float3(
+                var origin = new Float3(
                     _player.Eye.position.x, _player.Eye.position.y, _player.Eye.position.z);
-                var dir = new MyWorld.Core.Math.Float3(
+                var dir = new Float3(
                     _player.Eye.forward.x, _player.Eye.forward.y, _player.Eye.forward.z);
                 var hit = VoxelRaycaster.Cast(source, origin, dir, _player.Settings.ReachDistance);
                 if (hit.Hit) HandleHit(hit.X, hit.Y, hit.Z);
