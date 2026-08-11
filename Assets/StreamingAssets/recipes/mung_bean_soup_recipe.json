@@ -5,7 +5,9 @@
   "height": 2,
   "pattern": [
     "mung_bean",
-    "bowl"
+    "bowl",
+    "_",
+    "_"
   ],
   "shaped": false,
   "output": {

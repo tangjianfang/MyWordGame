@@ -5,7 +5,9 @@
   "height": 2,
   "pattern": [
     "beet",
-    "bowl"
+    "bowl",
+    "_",
+    "_"
   ],
   "shaped": false,
   "output": {

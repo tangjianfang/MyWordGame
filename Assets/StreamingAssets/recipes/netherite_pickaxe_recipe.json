@@ -1,8 +1,8 @@
 {
   "id": "netherite_pickaxe_recipe",
   "tier": "workbench",
-  "width": 1,
-  "height": 3,
+  "width": 3,
+  "height": 2,
   "pattern": [
     "netherite_ingot",
     "netherite_ingot",

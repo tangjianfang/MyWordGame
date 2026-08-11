@@ -1,0 +1,7 @@
+{
+  "id": "redstone_dust",
+  "displayName": "红石粉",
+  "numericId": 1701,
+  "maxStack": 64,
+  "texture": "redstone_dust"
+}
