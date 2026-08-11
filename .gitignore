@@ -66,3 +66,5 @@ urp-setup.log
 unity-tests.log
 unity-test-results.xml
 smoke.log
+compile.log
+harness.log

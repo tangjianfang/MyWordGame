@@ -18,6 +18,10 @@ dotnet run --project tools/dotnet/MyWorld.Preview        # ASCII 世界预览（
 dotnet run --project tools/dotnet/MyWorld.Preview 12345  # 指定种子
 ```
 
+`global.json` 把 SDK 固定在 9.0.x（`rollForward: latestFeature`），保证构建可复现，
+不要改它。`.editorconfig` 强制 LF 行尾、C# 4 空格缩进、JSON/csproj 2 空格，
+新增文件请遵守，不要单独配本地格式覆盖。
+
 **解决方案必须显式指定路径**：Unity 每次导入都会在仓库根目录重新生成自己的 `.sln`/`.csproj`，
 因此我们的解决方案放在 `tools/dotnet/MyWorld.Tools.sln`，根目录的工程文件已入 `.gitignore`。
 
@@ -44,6 +48,17 @@ Unity 侧跑同一批测试（EditMode）：
 - **永远编辑 `Assets/Scripts/Core/**` 和 `Assets/Tests/EditMode/**`**，`tools/dotnet/` 下只有 csproj 和 Preview 的 Program.cs
 - 两个工程都设了 `EnableDefaultCompileItems=false`，新增 `.cs` 文件只要落在被链接的目录下即自动纳入，无需改 csproj
 - `Assets/Tests/EditMode` 用 NUnit，与 Unity Test Framework 一致，同一批测试将来可原样在 EditMode 下跑
+
+## 文档结构
+
+| 目录 | 内容 | 何时新增 |
+| --- | --- | --- |
+| `docs/specs/` | 视觉/玩法规范文本（参考 `visual-text-conventions.md`） | 需要用文字定画面或玩法时 |
+| `docs/superpowers/specs/` | 阶段性技术设计（如玩家层、渲染层的设计文档） | 开启一个新里程碑前 |
+| `docs/superpowers/plans/` | 实施计划（`<日期>-<主题>.md`，每完成一项 commit 一次） | 设计文档通过后落地 |
+
+设计（specs/）与实施计划（plans/）拆开存放：前者回答"做成什么样"，后者回答"按什么顺序改哪些文件"。
+两份都要能脱离上下文独立读懂。实施计划超过单文件长度时拆 `_part2.md` 等后缀继续追加。
 
 ## 分层与硬约束
 
@@ -143,6 +158,6 @@ Newtonsoft Json 包是必需的，缺了 Core 编译失败。
 | 菜单项 | 方法 | 作用 |
 | --- | --- | --- |
 | 重建预览场景 | `PreviewSceneBuilder.Build` | 重新生成 `Assets/Scenes/Preview.unity` |
-| 渲染层冒烟检查 | `RenderSmokeCheck.Run` | 无头跑通「注册表 → 材质 → 世界 → 网格 → Mesh」整条链路 |
+| 无头验证玩家层 | `PlayHarness.Run` | 无头跑通「玩家运动 + 挖/放 + 流式加载」整条链路（含 6 个 NUnit 断言） |
 | 接入 URP 管线 | `UrpSetup.Apply` | 建管线资产并挂到 Graphics 与质量档位 |
 
