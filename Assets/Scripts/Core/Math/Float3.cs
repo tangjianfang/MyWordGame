@@ -14,6 +14,11 @@ namespace MyWorld.Core.Math
             Z = z;
         }
 
+        public static Float3 operator +(Float3 a, Float3 b) => new Float3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+        public static Float3 operator -(Float3 a, Float3 b) => new Float3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+        public static Float3 operator *(Float3 a, float s) => new Float3(a.X * s, a.Y * s, a.Z * s);
+        public static Float3 operator /(Float3 a, float s) => new Float3(a.X / s, a.Y / s, a.Z / s);
+
         public override string ToString() => $"({X}, {Y}, {Z})";
     }
 }
