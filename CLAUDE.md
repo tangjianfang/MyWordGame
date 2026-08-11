@@ -36,6 +36,20 @@ Unity 侧跑同一批测试（EditMode）：
 跑之前必须确保没有其它 Unity 实例占用项目（否则报 `another Unity instance is running`）。
 **Unity 批处理的退出码不可信——崩溃时仍返回 0**，必须看日志和结果文件。
 
+**一键流水线**（测试 + Build + 启动）：
+
+```bash
+./tools/scripts/build-and-run.sh                       # 完整流水线
+./tools/scripts/build-and-run.sh --skip-tests         # 只 Build + 启动
+./tools/scripts/build-and-run.sh --no-launch --clean  # Build 但不启动，先清旧产物
+./tools/scripts/build-and-run.sh --skip-build         # 只跑测试
+```
+
+脚本自动 export Git Bash 下必需的 `ProgramFiles(x86)` / `APPDATA` / `LOCALAPPDATA` / `DOTNET_ROOT`，
+按顺序跑 dotnet test → Unity EditMode → URP 接入 → Scenes In Build 注册 → Windows Standalone Build →
+后台启动 `Builds/Windows/MyWordGame.exe`。每步都 grep 结果文件/log 确认通过，失败立刻 `exit 1`。
+Build 产物与日志在 `.gitignore` 内（`[Bb]uilds/` + `/unity-*.log`）。
+
 `MyWorld.Preview` 输出纵向剖面、俯视高度图、贪心网格压缩比，是本项目**验证世界生成效果的
 主要手段**——改了 `WorldGenerator` 参数后跑一次，对比前后两张图。字形约定见
 `docs/specs/visual-text-conventions.md`。
@@ -153,11 +167,13 @@ Graphics 与全部质量档位上——**不要手改那两个 ProjectSettings �
 `ProjectSettings/` 与 `.meta` 文件**已纳入版本管理**，不要删——`.meta` 决定资源 GUID。
 Newtonsoft Json 包是必需的，缺了 Core 编译失败。
 
-编辑器菜单 `MyWorld/` 下有三个批处理入口，都能用 `-executeMethod` 无头跑：
+编辑器菜单 `MyWorld/` 下有五个批处理入口，都能用 `-executeMethod` 无头跑：
 
 | 菜单项 | 方法 | 作用 |
 | --- | --- | --- |
 | 重建预览场景 | `PreviewSceneBuilder.Build` | 重新生成 `Assets/Scenes/Preview.unity` |
 | 无头验证玩家层 | `PlayHarness.Run` | 无头跑通「玩家运动 + 挖/放 + 流式加载」整条链路（含 6 个 NUnit 断言） |
 | 接入 URP 管线 | `UrpSetup.Apply` | 建管线资产并挂到 Graphics 与质量档位 |
+| Build 准备: 把 Preview.unity 加入 Scenes In Build | `BuildSetup.Apply` | 把场景注册到 `EditorBuildSettings.scenes`，build 前置 |
+| Build Windows | `BuildPlayer.Build` | 出 `Builds/Windows/MyWordGame.exe`（StandaloneWindows64） |
 
