@@ -1,0 +1,7 @@
+{
+  "id": "coal",
+  "displayName": "煤炭",
+  "numericId": 1007,
+  "maxStack": 64,
+  "texture": "coal"
+}

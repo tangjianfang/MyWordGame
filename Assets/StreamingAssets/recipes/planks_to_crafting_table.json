@@ -1,0 +1,22 @@
+{
+  "id": "planks_to_crafting_table",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "plank",
+    "plank",
+    "_",
+    "plank",
+    "plank",
+    "_",
+    "_",
+    "_",
+    "_"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "crafting_table",
+    "count": 1
+  }
+}

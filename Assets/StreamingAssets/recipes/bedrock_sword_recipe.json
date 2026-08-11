@@ -1,0 +1,16 @@
+{
+  "id": "bedrock_sword_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "bedrock",
+    "bedrock",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "bedrock_sword",
+    "count": 1
+  }
+}

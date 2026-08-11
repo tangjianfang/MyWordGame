@@ -1,0 +1,12 @@
+{
+  "id": "iron_door",
+  "displayName": "铁门",
+  "numericId": 1005,
+  "textures": {
+    "all": "iron_door"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

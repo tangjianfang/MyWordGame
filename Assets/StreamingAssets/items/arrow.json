@@ -1,0 +1,7 @@
+{
+  "id": "arrow",
+  "displayName": "箭",
+  "numericId": 1300,
+  "maxStack": 64,
+  "texture": "arrow"
+}

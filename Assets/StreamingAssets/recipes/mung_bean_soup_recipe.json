@@ -1,0 +1,15 @@
+{
+  "id": "mung_bean_soup_recipe",
+  "tier": "inventory",
+  "width": 2,
+  "height": 2,
+  "pattern": [
+    "mung_bean",
+    "bowl"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "mung_bean_soup",
+    "count": 1
+  }
+}

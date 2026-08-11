@@ -1,0 +1,10 @@
+{
+  "id": "iron_sword",
+  "displayName": "铁剑",
+  "numericId": 1102,
+  "maxStack": 1,
+  "texture": "iron_sword",
+  "attackDamage": 10,
+  "isTool": true,
+  "miningLevel": 3
+}

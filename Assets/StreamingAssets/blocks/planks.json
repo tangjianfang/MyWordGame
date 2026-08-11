@@ -1,0 +1,12 @@
+{
+  "id": "planks",
+  "displayName": "木板",
+  "numericId": 1000,
+  "textures": {
+    "all": "planks"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

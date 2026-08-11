@@ -1,0 +1,10 @@
+{
+  "id": "bedrock_sword",
+  "displayName": "基岩剑",
+  "numericId": 1105,
+  "maxStack": 1,
+  "texture": "bedrock_sword",
+  "attackDamage": 50,
+  "isTool": true,
+  "miningLevel": 6
+}

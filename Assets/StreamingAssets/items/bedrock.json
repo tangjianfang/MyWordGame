@@ -1,0 +1,7 @@
+{
+  "id": "bedrock",
+  "displayName": "基岩碎片",
+  "numericId": 1014,
+  "maxStack": 1,
+  "texture": "bedrock"
+}

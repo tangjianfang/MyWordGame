@@ -1,0 +1,16 @@
+{
+  "id": "wooden_sword_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "plank",
+    "plank",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "wooden_sword",
+    "count": 1
+  }
+}

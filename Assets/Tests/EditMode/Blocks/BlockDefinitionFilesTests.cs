@@ -32,7 +32,9 @@ namespace MyWorld.Core.Tests.Blocks
         [Test]
         public void AllDefinitionFiles_ParseAndValidate()
         {
-            Assert.That(_registry.Count, Is.EqualTo(7), "当前应有 7 个内置方块定义");
+            // 7 个内置方块（air/stone/dirt/grass/sand/water/bedrock）+ 里程碑-3 新增 8 个
+            // （planks/log/leaves/sapling/crafting_table/iron_door/lever/redstone_dust）= 15
+            Assert.That(_registry.Count, Is.EqualTo(15), "当前应有 7 个内置方块 + 8 个里程碑-3 新方块 = 15 个");
         }
 
         [TestCase("air", BlockIds.Air)]

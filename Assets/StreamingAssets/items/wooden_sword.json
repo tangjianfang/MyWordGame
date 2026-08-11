@@ -1,0 +1,10 @@
+{
+  "id": "wooden_sword",
+  "displayName": "木剑",
+  "numericId": 1100,
+  "maxStack": 1,
+  "texture": "wooden_sword",
+  "attackDamage": 4,
+  "isTool": true,
+  "miningLevel": 1
+}

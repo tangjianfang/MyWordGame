@@ -1,0 +1,7 @@
+{
+  "id": "table",
+  "displayName": "桌子",
+  "numericId": 1200,
+  "maxStack": 64,
+  "texture": "table"
+}

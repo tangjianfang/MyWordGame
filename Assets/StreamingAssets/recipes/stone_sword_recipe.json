@@ -1,0 +1,16 @@
+{
+  "id": "stone_sword_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "cobblestone",
+    "cobblestone",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "stone_sword",
+    "count": 1
+  }
+}

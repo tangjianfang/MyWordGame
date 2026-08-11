@@ -1,0 +1,17 @@
+{
+  "id": "planks_to_bowl",
+  "tier": "inventory",
+  "width": 2,
+  "height": 2,
+  "pattern": [
+    "plank",
+    "plank",
+    "plank",
+    "_"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "bowl",
+    "count": 4
+  }
+}

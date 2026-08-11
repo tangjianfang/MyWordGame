@@ -1,0 +1,7 @@
+{
+  "id": "mouse",
+  "displayName": "鼠标",
+  "numericId": 1206,
+  "maxStack": 64,
+  "texture": "mouse"
+}

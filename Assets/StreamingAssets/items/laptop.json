@@ -1,0 +1,7 @@
+{
+  "id": "laptop",
+  "displayName": "笔记本电脑",
+  "numericId": 1203,
+  "maxStack": 1,
+  "texture": "laptop"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "redstone_dust",
+  "displayName": "红石粉",
+  "numericId": 1007,
+  "textures": {
+    "all": "redstone_dust"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

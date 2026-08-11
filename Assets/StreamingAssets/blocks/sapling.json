@@ -1,0 +1,12 @@
+{
+  "id": "sapling",
+  "displayName": "树苗",
+  "numericId": 1003,
+  "textures": {
+    "all": "sapling"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

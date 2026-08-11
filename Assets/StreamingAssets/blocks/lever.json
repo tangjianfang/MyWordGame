@@ -1,0 +1,12 @@
+{
+  "id": "lever",
+  "displayName": "拉杆",
+  "numericId": 1006,
+  "textures": {
+    "all": "lever"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

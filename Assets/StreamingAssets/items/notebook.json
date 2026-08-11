@@ -1,0 +1,7 @@
+{
+  "id": "notebook",
+  "displayName": "笔记本",
+  "numericId": 1204,
+  "maxStack": 64,
+  "texture": "notebook"
+}

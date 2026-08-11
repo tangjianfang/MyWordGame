@@ -1,0 +1,7 @@
+{
+  "id": "cobblestone",
+  "displayName": "圆石",
+  "numericId": 1003,
+  "maxStack": 64,
+  "texture": "cobblestone"
+}

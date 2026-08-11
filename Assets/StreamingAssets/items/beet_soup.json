@@ -1,0 +1,8 @@
+{
+  "id": "beet_soup",
+  "displayName": "甜菜汤",
+  "numericId": 1020,
+  "maxStack": 1,
+  "texture": "beet_soup",
+  "healAmount": 6
+}

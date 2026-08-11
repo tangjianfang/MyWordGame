@@ -1,0 +1,15 @@
+{
+  "id": "beet_soup_recipe",
+  "tier": "inventory",
+  "width": 2,
+  "height": 2,
+  "pattern": [
+    "beet",
+    "bowl"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "beet_soup",
+    "count": 1
+  }
+}

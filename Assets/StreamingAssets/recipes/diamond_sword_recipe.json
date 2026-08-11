@@ -1,0 +1,16 @@
+{
+  "id": "diamond_sword_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "diamond",
+    "diamond",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "diamond_sword",
+    "count": 1
+  }
+}

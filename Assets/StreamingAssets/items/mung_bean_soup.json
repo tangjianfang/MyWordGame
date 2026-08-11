@@ -1,0 +1,8 @@
+{
+  "id": "mung_bean_soup",
+  "displayName": "绿豆汤",
+  "numericId": 1021,
+  "maxStack": 1,
+  "texture": "mung_bean_soup",
+  "healAmount": 8
+}

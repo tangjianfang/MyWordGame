@@ -1,0 +1,7 @@
+{
+  "id": "bowl",
+  "displayName": "碗",
+  "numericId": 1013,
+  "maxStack": 64,
+  "texture": "bowl"
+}

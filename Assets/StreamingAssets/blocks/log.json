@@ -1,0 +1,14 @@
+{
+  "id": "log",
+  "displayName": "原木",
+  "numericId": 1001,
+  "textures": {
+    "top": "log-top",
+    "bottom": "log-side",
+    "side": "log-side"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

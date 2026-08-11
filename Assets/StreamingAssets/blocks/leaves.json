@@ -1,0 +1,12 @@
+{
+  "id": "leaves",
+  "displayName": "树叶",
+  "numericId": 1002,
+  "textures": {
+    "all": "leaves"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

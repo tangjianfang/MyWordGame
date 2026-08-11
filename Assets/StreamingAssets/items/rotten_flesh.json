@@ -1,0 +1,8 @@
+{
+  "id": "rotten_flesh",
+  "displayName": "腐肉",
+  "numericId": 1010,
+  "maxStack": 64,
+  "texture": "rotten_flesh",
+  "healAmount": 4
+}

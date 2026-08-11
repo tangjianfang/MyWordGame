@@ -1,0 +1,7 @@
+{
+  "id": "netherite_ingot",
+  "displayName": "下界合金锭",
+  "numericId": 1006,
+  "maxStack": 64,
+  "texture": "netherite_ingot"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "netherite_sword_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "netherite_ingot",
+    "netherite_ingot",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "netherite_sword",
+    "count": 1
+  }
+}

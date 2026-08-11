@@ -1,0 +1,10 @@
+{
+  "id": "netherite_sword",
+  "displayName": "下界合金剑",
+  "numericId": 1104,
+  "maxStack": 1,
+  "texture": "netherite_sword",
+  "attackDamage": 24,
+  "isTool": true,
+  "miningLevel": 5
+}

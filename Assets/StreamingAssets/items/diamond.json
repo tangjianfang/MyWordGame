@@ -1,0 +1,7 @@
+{
+  "id": "diamond",
+  "displayName": "钻石",
+  "numericId": 1005,
+  "maxStack": 64,
+  "texture": "diamond"
+}

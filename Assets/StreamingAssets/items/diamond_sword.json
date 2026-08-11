@@ -1,0 +1,10 @@
+{
+  "id": "diamond_sword",
+  "displayName": "钻石剑",
+  "numericId": 1103,
+  "maxStack": 1,
+  "texture": "diamond_sword",
+  "attackDamage": 19,
+  "isTool": true,
+  "miningLevel": 4
+}

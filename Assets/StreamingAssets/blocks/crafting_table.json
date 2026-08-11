@@ -1,0 +1,14 @@
+{
+  "id": "crafting_table",
+  "displayName": "工作台",
+  "numericId": 1004,
+  "textures": {
+    "top": "crafting_table-side",
+    "bottom": "crafting_table-top",
+    "side": "crafting_table-top"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

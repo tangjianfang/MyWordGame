@@ -1,0 +1,8 @@
+{
+  "id": "raw_porkchop",
+  "displayName": "生猪排",
+  "numericId": 1008,
+  "maxStack": 64,
+  "texture": "raw_porkchop",
+  "healAmount": 3
+}

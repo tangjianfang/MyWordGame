@@ -1,0 +1,17 @@
+{
+  "id": "planks_to_sticks",
+  "tier": "inventory",
+  "width": 2,
+  "height": 2,
+  "pattern": [
+    "plank",
+    "_",
+    "_",
+    "plank"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "stick",
+    "count": 4
+  }
+}

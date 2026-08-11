@@ -1,0 +1,7 @@
+{
+  "id": "keyboard",
+  "displayName": "键盘",
+  "numericId": 1205,
+  "maxStack": 64,
+  "texture": "keyboard"
+}

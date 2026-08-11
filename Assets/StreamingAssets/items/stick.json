@@ -1,0 +1,7 @@
+{
+  "id": "stick",
+  "displayName": "木棍",
+  "numericId": 1002,
+  "maxStack": 64,
+  "texture": "stick"
+}

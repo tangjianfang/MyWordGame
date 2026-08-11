@@ -1,0 +1,7 @@
+{
+  "id": "iron_ingot",
+  "displayName": "铁锭",
+  "numericId": 1004,
+  "maxStack": 64,
+  "texture": "iron_ingot"
+}

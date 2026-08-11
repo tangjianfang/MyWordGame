@@ -1,0 +1,7 @@
+{
+  "id": "plank",
+  "displayName": "木板",
+  "numericId": 1001,
+  "maxStack": 64,
+  "texture": "plank"
+}

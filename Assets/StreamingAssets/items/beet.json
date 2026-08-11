@@ -1,0 +1,8 @@
+{
+  "id": "beet",
+  "displayName": "甜菜",
+  "numericId": 1011,
+  "maxStack": 64,
+  "texture": "beet",
+  "healAmount": 1
+}

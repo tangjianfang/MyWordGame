@@ -1,0 +1,7 @@
+{
+  "id": "log",
+  "displayName": "原木",
+  "numericId": 1000,
+  "maxStack": 64,
+  "texture": "log"
+}

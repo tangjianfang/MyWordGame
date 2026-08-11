@@ -1,0 +1,7 @@
+{
+  "id": "office_desk",
+  "displayName": "办公桌",
+  "numericId": 1202,
+  "maxStack": 64,
+  "texture": "office_desk"
+}

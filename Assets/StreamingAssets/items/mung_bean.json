@@ -1,0 +1,8 @@
+{
+  "id": "mung_bean",
+  "displayName": "绿豆",
+  "numericId": 1012,
+  "maxStack": 64,
+  "texture": "mung_bean",
+  "healAmount": 1
+}

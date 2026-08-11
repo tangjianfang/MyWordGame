@@ -1,0 +1,10 @@
+{
+  "id": "stone_sword",
+  "displayName": "石剑",
+  "numericId": 1101,
+  "maxStack": 1,
+  "texture": "stone_sword",
+  "attackDamage": 5.5,
+  "isTool": true,
+  "miningLevel": 2
+}

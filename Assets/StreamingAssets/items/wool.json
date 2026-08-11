@@ -1,0 +1,7 @@
+{
+  "id": "wool",
+  "displayName": "羊毛",
+  "numericId": 1009,
+  "maxStack": 64,
+  "texture": "wool"
+}

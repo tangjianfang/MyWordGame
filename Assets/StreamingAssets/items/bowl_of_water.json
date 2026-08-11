@@ -1,0 +1,8 @@
+{
+  "id": "bowl_of_water",
+  "displayName": "水碗",
+  "numericId": 1022,
+  "maxStack": 1,
+  "texture": "bowl_of_water",
+  "healAmount": 0
+}
