@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Reflection;
 using MyWorld.Unity.Bootstrap;
+using MyWorld.Unity.Player;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -210,10 +211,21 @@ namespace MyWorld.Unity.EditorTools
         private static void DriveBootstrapForCapture()
         {
             const int warmupFrames = 240;
+
+            // EditMode -batchmode 下 Time.deltaTime = 0（captureDeltaTime 只影响 PlayMode 下的 deltaTime），
+            // 玩家出生在 (0.5, 120, 0.5) 后永远不下落，BlockInteraction 射线从 (0.5, 121.62, 0.5)
+            // 向 -0.5/-0.866 方向射出去后穿过空气层碰不到 y=98 的地形方块，SelectionBox 永远不显示。
+            // 临时设 captureDeltaTime = 1/60 让 PlayMode 行为不变（如果之后跑 PlayMode），同时
+            // 反射驱动 PlayerController.Tick(input, dt) 显式传 dt=1/60 让 EditMode 下玩家也能落到地面。
+            // 不动 PlayerController.cs（保持 PlayMode 行为不变）。
+            float prevCaptureDeltaTime = Time.captureDeltaTime;
+            Time.captureDeltaTime = 1f / 60f;
+
             var bootstrap = UnityEngine.Object.FindObjectOfType<WorldBootstrap>();
             if (bootstrap == null)
             {
                 Debug.LogWarning("[ScreenshotCapture] 场景里没有 WorldBootstrap；截图将只拍相机背景色。");
+                Time.captureDeltaTime = prevCaptureDeltaTime;
                 return;
             }
 
@@ -230,6 +242,7 @@ namespace MyWorld.Unity.EditorTools
             else
             {
                 Debug.LogWarning("[ScreenshotCapture] WorldBootstrap.Awake 未找到；无法初始化。");
+                Time.captureDeltaTime = prevCaptureDeltaTime;
                 return;
             }
 
@@ -249,7 +262,90 @@ namespace MyWorld.Unity.EditorTools
             // 运行时对象都能在 EditMode batchmode 截图里出现。
             // 已知不解决的限制：IMGUI 是事件驱动，OnGUI 不会在 Camera.Render 里渲染
             // （HotbarUI / HandController 仍拍不到）。
-            DriveAllMonoBehaviours(warmupFrames);
+            // 同时显式 dt=1/60 反射调 PlayerController.Tick 走完重力步进（Time.deltaTime
+            // 在 EditMode 是 0，PlayerController.Update 内部 Tick(dt=0) 不会动）。
+            DriveAllMonoBehavioursWithPhysics(warmupFrames);
+
+            Time.captureDeltaTime = prevCaptureDeltaTime;
+        }
+
+        /// <summary>
+        /// 编辑器非播放态下逐帧驱动场景里所有 MonoBehaviour.Update，同时显式 dt=1/60
+        /// 反射调 <see cref="PlayerController.Tick"/> 让玩家在 EditMode batchmode 下也能
+        /// 落到地面（<see cref="Time.deltaTime"/> 在 EditMode 是 0，PlayerController.Update
+        /// 内部 Tick(dt=0) 不会动）。不动 PlayerController.cs。BlockInteraction.Update 在
+        /// 玩家落地后能拿到正确的 eye.position，VoxelRaycaster 命中方块 → SelectionBox 显示。
+        /// </summary>
+        private static void DriveAllMonoBehavioursWithPhysics(int frames)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            var components = UnityEngine.Object.FindObjectsOfType<MonoBehaviour>(includeInactive: true);
+            // 缓存 Update MethodInfo（避免每帧反射查）。排除 PlayerController，
+            // 它的物理由 DrivePlayerPhysics 显式 dt=1/60 驱动。
+            var updates = new System.Collections.Generic.List<(MonoBehaviour mb, MethodInfo update)>();
+            foreach (var mb in components)
+            {
+                if (mb == null) continue;
+                if (mb is PlayerController) continue;
+                var update = mb.GetType().GetMethod("Update", flags);
+                if (update == null) continue;
+                updates.Add((mb, update));
+            }
+
+            var player = UnityEngine.Object.FindObjectOfType<PlayerController>();
+            var tick = player != null ? typeof(PlayerController).GetMethod("Tick", flags) : null;
+
+            // EditMode 下 AddComponent 不自动回调 Awake，PlayerController.Awake（自动找子 Camera 当 eye）
+            // 不会跑；BlockInteraction.Update 看到 _player.Eye == null 就早退，SelectionBox 永不出来。
+            // 反射手动调一次 Awake，让 eye 字段在 EditMode 也能正确指向子 Camera。
+            if (player != null)
+            {
+                var playerAwake = typeof(PlayerController).GetMethod("Awake", flags);
+                if (playerAwake != null)
+                {
+                    try { playerAwake.Invoke(player, null); }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[ScreenshotCapture] PlayerController.Awake 失败: {ex.InnerException?.Message ?? ex.Message}");
+                    }
+                }
+            }
+
+            object noneInput = null;
+            if (tick != null)
+            {
+                var inputType = Type.GetType("MyWorld.Core.Player.PlayerInput, MyWorld.Core");
+                if (inputType != null)
+                {
+                    var noneField = inputType.GetField("None", BindingFlags.Public | BindingFlags.Static);
+                    if (noneField != null) noneInput = noneField.GetValue(null);
+                }
+            }
+
+            const float dt = 1f / 60f;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                // 先让玩家走一步物理（落地），再让其它 MonoBehaviour.Update 拿到最新的 eye.position。
+                // BlockInteraction.Update 在玩家落到底以后从新的 eye 位置发射射线才能命中方块。
+                if (tick != null && noneInput != null)
+                {
+                    try { tick.Invoke(player, new[] { noneInput, dt }); }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[ScreenshotCapture] PlayerController.Tick 失败: {ex.InnerException?.Message ?? ex.Message}");
+                    }
+                }
+
+                foreach (var (mb, update) in updates)
+                {
+                    if (mb == null) continue;
+                    try { update.Invoke(mb, null); }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[ScreenshotCapture] {mb.GetType().Name}.Update 失败: {ex.InnerException?.Message ?? ex.Message}");
+                    }
+                }
+            }
         }
 
         /// <summary>
