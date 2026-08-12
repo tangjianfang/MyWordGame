@@ -149,6 +149,22 @@ namespace MyWorld.Unity.Rendering
             }
         }
 
+        /// <summary>检测材质主纹理是否含 #FF00FF 像素。视觉测试用，让缺贴图方块一眼可见。</summary>
+        public static bool HasMagentaPixels(Material material)
+        {
+            if (material == null || material.mainTexture == null) return false;
+            var tex = material.mainTexture as Texture2D;
+            if (tex == null || !tex.isReadable) return false;
+            var pixels = tex.GetPixels();
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                var c = pixels[i];
+                // #FF00FF == (1, 0, 1)，允许 ±2/255 抖动
+                if (c.r > 0.98f && c.g < 0.02f && c.b > 0.98f) return true;
+            }
+            return false;
+        }
+
         public void Dispose()
         {
             foreach (Material material in _materials)
