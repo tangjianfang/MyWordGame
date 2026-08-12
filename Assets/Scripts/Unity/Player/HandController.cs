@@ -10,8 +10,8 @@ namespace MyWorld.Unity.Player
     /// </summary>
     public sealed class HandController : MonoBehaviour
     {
-        public float SwingDuration = 0.3f;
-        public float SwingDownAngle = -30f;
+        public float SwingDuration = 0.25f;
+        public float SwingDownAngle = -45f;
 
         private float _swingTime;
         private bool _swinging;
