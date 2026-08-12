@@ -54,17 +54,19 @@ namespace MyWorld.Core.Tests.Visual
             // 材质机制——缺贴图是预期路径，不能让这些 expected error 把测试判 fail。
             // 用 LogAssert.Expect 把 10 条已知缺失贴图逐一登记；以后若新增缺失贴图而测试
             // 报错，按这条路径再加一行 expect 即可。
-            string[] expectedMissing =
+            // Task A2 已补齐所有方块贴图，expectedMissing 列表已清空。
+            // 历史背景：早期 milestone-3 阶段基础方块贴图尚未生成，BlockMaterialLibrary
+            // 对每个缺失贴图会 Debug.LogError（哨兵），本测试用 LogAssert.Expect 登记这些
+            // 预期错误，避免把哨兵判成 fail。A2 把所有 10 个贴图补完后，不再有缺失哨兵，
+            // expectedMissing 维持空数组 + 不再调用 LogAssert.Expect。
+            string[] expectedMissing = { };
+            if (expectedMissing.Length > 0)
             {
-                "crafting_table-side", "crafting_table-top",
-                "iron_door", "leaves", "lever",
-                "log-side", "log-top", "planks",
-                "redstone_dust", "sapling",
-            };
-            foreach (var name in expectedMissing)
-            {
-                UnityEngine.TestTools.LogAssert.Expect(LogType.Error,
-                    new System.Text.RegularExpressions.Regex($".*{name}.*"));
+                foreach (var name in expectedMissing)
+                {
+                    UnityEngine.TestTools.LogAssert.Expect(LogType.Error,
+                        new System.Text.RegularExpressions.Regex($".*{name}.*"));
+                }
             }
 
             var registry = BlockRegistryLoader.Load();
