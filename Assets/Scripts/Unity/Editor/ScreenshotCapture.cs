@@ -241,6 +241,49 @@ namespace MyWorld.Unity.EditorTools
                     catch (Exception ex) { Debug.LogWarning($"[ScreenshotCapture] bootstrap.Update 失败: {ex.InnerException?.Message ?? ex.Message}"); break; }
                 }
             }
+
+            // C-tooling：WorldBootstrap.Update × warmupFrames 只驱动了 bootstrap 自己。
+            // 额外反射遍历场景里所有 MonoBehaviour 并调各自的 Update，让
+            // BlockInteraction.Update（VoxelRaycaster → SelectionBox.ShowAt）、
+            // PlayerVisual.Update（走路摆动）、PlayerController.Update（位置/物理）等
+            // 运行时对象都能在 EditMode batchmode 截图里出现。
+            // 已知不解决的限制：IMGUI 是事件驱动，OnGUI 不会在 Camera.Render 里渲染
+            // （HotbarUI / HandController 仍拍不到）。
+            DriveAllMonoBehaviours(warmupFrames);
+        }
+
+        /// <summary>
+        /// 编辑器非播放态下逐帧驱动场景里所有 MonoBehaviour.Update。
+        /// 让 BlockInteraction.Update（VoxelRaycaster → SelectionBox.ShowAt）、
+        /// PlayerVisual.Update（走路摆动）、PlayerController.Update（位置/物理）等运行时对象
+        /// 都能在 EditMode batchmode 截图里出现。
+        /// 异常隔离：单个组件抛错不影响其它组件；用 WorldBootstrap.Update 的同一帧步进。
+        /// </summary>
+        private static void DriveAllMonoBehaviours(int frames)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            var components = UnityEngine.Object.FindObjectsOfType<MonoBehaviour>(includeInactive: true);
+            // 缓存 Update MethodInfo（避免每帧反射查）
+            var updates = new System.Collections.Generic.List<(MonoBehaviour mb, MethodInfo update)>();
+            foreach (var mb in components)
+            {
+                if (mb == null) continue;
+                var update = mb.GetType().GetMethod("Update", flags);
+                if (update == null) continue;
+                updates.Add((mb, update));
+            }
+            for (int frame = 0; frame < frames; frame++)
+            {
+                foreach (var (mb, update) in updates)
+                {
+                    if (mb == null) continue;
+                    try { update.Invoke(mb, null); }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[ScreenshotCapture] {mb.GetType().Name}.Update 失败: {ex.InnerException?.Message ?? ex.Message}");
+                    }
+                }
+            }
         }
     }
 }
