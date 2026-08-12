@@ -45,6 +45,71 @@ namespace MyWorld.Core.Tests.Visual
             }
         }
 
+        /// <summary>
+        /// 验证 6 个 Cube 都挂在 PlayerVisual 自己下面（不是场景根的孤儿）。
+        /// 挂载关系正确是 PlayerController 移动 transform 时身体跟随的前提。
+        /// </summary>
+        [Test]
+        public void Awake_ParentsBodyPartsToSelf()
+        {
+            var host = new GameObject("PlayerVisualTestHost");
+            try
+            {
+                host.AddComponent<PlayerController>();
+                var visual = host.AddComponent<PlayerVisual>();
+                InvokeAwake(visual);
+                foreach (var name in new[] { "_head", "_torso", "_armL", "_armR", "_legL", "_legR" })
+                {
+                    var t = ReadTransform(visual, name);
+                    Assert.That(t, Is.Not.Null, $"{name} 子物体未创建");
+                    Assert.That(t.parent, Is.SameAs(host.transform),
+                        $"{name} 没有挂在 PlayerVisual 自身下面（parent={t.parent}），" +
+                        $"是场景根孤儿——PlayerController 移动时身体不会跟随");
+                }
+                // 同时确认 localPosition/localScale 在 parent 本地坐标系下被正确设置
+                var head = ReadTransform(visual, "_head");
+                Assert.That(head.localPosition, Is.EqualTo(new Vector3(0f, 1.65f, 0f)),
+                    "Head localPosition 应为 (0, 1.65, 0)，偏移说明 SetParent/localPosition 顺序错了");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        /// <summary>
+        /// 验证 OnDestroy 清理 6 个 Cube GameObject，避免 EditMode 测试间泄漏到场景根。
+        /// DestroyImmediate(host) 会触发 PlayerVisual.OnDestroy，进而清理子 Cube。
+        /// </summary>
+        [Test]
+        public void OnDestroy_CleansUpBodyParts()
+        {
+            var host = new GameObject("PlayerVisualTestHost");
+            host.AddComponent<PlayerController>();
+            var visual = host.AddComponent<PlayerVisual>();
+            InvokeAwake(visual);
+
+            // 收集子 Cube 引用（销毁后用于断言）
+            var partRefs = new Transform[6];
+            var partNames = new[] { "_head", "_torso", "_armL", "_armR", "_legL", "_legR" };
+            for (int i = 0; i < partNames.Length; i++)
+            {
+                partRefs[i] = ReadTransform(visual, partNames[i]);
+                Assert.That(partRefs[i], Is.Not.Null, $"{partNames[i]} 未创建");
+            }
+
+            // 销毁 host，触发 PlayerVisual.OnDestroy
+            Object.DestroyImmediate(host);
+
+            // OnDestroy 后 6 个 Cube GameObject 都不应存活
+            for (int i = 0; i < partRefs.Length; i++)
+            {
+                // Unity 的"fake null"——== null 返回 true 表示已被销毁
+                Assert.That(partRefs[i] == null, Is.True,
+                    $"{partNames[i]} 在 PlayerVisual.OnDestroy 后未被清理，泄漏到场景根");
+            }
+        }
+
         private static void InvokeAwake(PlayerVisual visual)
         {
             var awake = typeof(PlayerVisual).GetMethod("Awake",

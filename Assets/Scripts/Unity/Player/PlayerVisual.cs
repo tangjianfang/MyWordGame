@@ -22,18 +22,37 @@ namespace MyWorld.Unity.Player
 
         private void Awake()
         {
-            _torso = MakePart("Torso", new Vector3(0.6f, 0.7f, 0.3f), new Vector3(0f, 0.85f, 0f), JacketColor);
-            _head  = MakePart("Head",  new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0f, 1.65f, 0f), SkinColor);
-            _armL  = MakePart("ArmL",  new Vector3(0.2f, 0.7f, 0.2f), new Vector3(-0.4f, 0.9f, 0f), JacketColor);
-            _armR  = MakePart("ArmR",  new Vector3(0.2f, 0.7f, 0.2f), new Vector3(+0.4f, 0.9f, 0f), JacketColor);
-            _legL  = MakePart("LegL",  new Vector3(0.25f, 0.85f, 0.25f), new Vector3(-0.15f, 0.4f, 0f), PantsColor);
-            _legR  = MakePart("LegR",  new Vector3(0.25f, 0.85f, 0.25f), new Vector3(+0.15f, 0.4f, 0f), PantsColor);
+            // 注意：先 SetParent 再设 localPosition/localScale——顺序反了会导致
+            // localPosition 在 SetParent 前被解释成世界坐标，reparent 后偏移。
+            _torso = MakePart("Torso", transform, new Vector3(0.6f, 0.7f, 0.3f), new Vector3(0f, 0.85f, 0f), JacketColor);
+            _head  = MakePart("Head",  transform, new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0f, 1.65f, 0f), SkinColor);
+            _armL  = MakePart("ArmL",  transform, new Vector3(0.2f, 0.7f, 0.2f), new Vector3(-0.4f, 0.9f, 0f), JacketColor);
+            _armR  = MakePart("ArmR",  transform, new Vector3(0.2f, 0.7f, 0.2f), new Vector3(+0.4f, 0.9f, 0f), JacketColor);
+            _legL  = MakePart("LegL",  transform, new Vector3(0.25f, 0.85f, 0.25f), new Vector3(-0.15f, 0.4f, 0f), PantsColor);
+            _legR  = MakePart("LegR",  transform, new Vector3(0.25f, 0.85f, 0.25f), new Vector3(+0.15f, 0.4f, 0f), PantsColor);
         }
 
-        private static Transform MakePart(string name, Vector3 scale, Vector3 localPos, Color color)
+        private void OnDestroy()
+        {
+            // 6 个 Cube 是 CreatePrimitive 创建的，Unity 不会随父节点销毁而自动销毁
+            // （因为它们是不同 GameObject）——必须显式清。否则 EditMode 测试间会泄漏，
+            // 场景根上残留孤儿子物体，污染后续 fixture。
+            // 用 Destroy 而非 DestroyImmediate：OnDestroy 是生产生命周期（PlayMode 由 Unity
+            // 引擎调用），Destroy 是合法且常规的清理方式。
+            foreach (var t in new[] { _head, _torso, _armL, _armR, _legL, _legR })
+            {
+                if (t != null) Object.Destroy(t.gameObject);
+            }
+        }
+
+        private static Transform MakePart(string name, Transform parent, Vector3 scale, Vector3 localPos, Color color)
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = name;
+            // worldPositionStays=false：避免 SetParent 期间临时 worldPosition 漂移导致
+            // 子物体在世界空间里瞬移。后续 localPosition / localScale 都在 parent 本地
+            // 坐标系里赋值，是 PlayerController 移动 transform 时身体跟随的关键。
+            go.transform.SetParent(parent, false);
             go.transform.localScale = scale;
             go.transform.localPosition = localPos;
             // 移除自带的 BoxCollider，避免和 ChunkStreamer 玩家位置冲突
