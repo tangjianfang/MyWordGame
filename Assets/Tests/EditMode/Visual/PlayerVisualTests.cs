@@ -110,6 +110,53 @@ namespace MyWorld.Core.Tests.Visual
             }
         }
 
+        /// <summary>
+        /// 验证走路动画：玩家位置变化时应推进 WalkPhase。
+        /// <para>
+        /// EditMode 下 <c>AddComponent</c> 不触发 <c>Awake</c> / <c>Start</c> / <c>Update</c>
+        /// （Unity 生命周期只在 PlayMode / 场景加载时跑），所以这里手动反射调一次 Start
+        /// 把 <c>_controller</c> 和 <c>_lastPos</c> 初始化好，再循环调 Update 模拟走路。
+        /// </para>
+        /// </summary>
+        [Test]
+        public void Walk_AdvancesPhase_WhenPositionChanges()
+        {
+            var host = new GameObject("PlayerVisualTestHost");
+            try
+            {
+                host.AddComponent<PlayerController>();  // [RequireComponent]
+                var visual = host.AddComponent<PlayerVisual>();
+                InvokeAwake(visual);
+                InvokeStart(visual);
+
+                var prevPhase = visual.WalkPhase;
+                var updateMethod = typeof(PlayerVisual).GetMethod("Update",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(updateMethod, Is.Not.Null, "PlayerVisual 没有 Update 方法");
+
+                // 模拟 60 帧：每帧手动移动 host.transform.position 并调一次 Update
+                for (int i = 0; i < 60; i++)
+                {
+                    host.transform.position += new Vector3(0.01f * i, 0f, 0.005f * i);
+                    updateMethod.Invoke(visual, null);
+                }
+
+                Assert.That(visual.WalkPhase, Is.GreaterThan(prevPhase),
+                    "走路动画：位置变化应推进 WalkPhase");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        private static void InvokeStart(PlayerVisual visual)
+        {
+            var start = typeof(PlayerVisual).GetMethod("Start",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            if (start != null) start.Invoke(visual, null);
+        }
+
         private static void InvokeAwake(PlayerVisual visual)
         {
             var awake = typeof(PlayerVisual).GetMethod("Awake",

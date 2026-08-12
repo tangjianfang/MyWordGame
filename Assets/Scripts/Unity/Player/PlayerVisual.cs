@@ -18,6 +18,10 @@ namespace MyWorld.Unity.Player
         private static readonly Color HairColor   = new Color(0x3B/255f, 0x2A/255f, 0x1C/255f);
 
         private Transform _head, _torso, _armL, _armR, _legL, _legR;
+        private PlayerController _controller;
+        private Vector3 _lastPos;
+        private float _headBaseY = 1.65f;
+
         public float WalkPhase { get; set; }
 
         private void Awake()
@@ -30,6 +34,36 @@ namespace MyWorld.Unity.Player
             _armR  = MakePart("ArmR",  transform, new Vector3(0.2f, 0.7f, 0.2f), new Vector3(+0.4f, 0.9f, 0f), JacketColor);
             _legL  = MakePart("LegL",  transform, new Vector3(0.25f, 0.85f, 0.25f), new Vector3(-0.15f, 0.4f, 0f), PantsColor);
             _legR  = MakePart("LegR",  transform, new Vector3(0.25f, 0.85f, 0.25f), new Vector3(+0.15f, 0.4f, 0f), PantsColor);
+        }
+
+        private void Start()
+        {
+            _controller = GetComponent<PlayerController>();
+            _lastPos = transform.position;
+        }
+
+        private void Update()
+        {
+            if (_controller == null) return;
+            Vector3 pos = transform.position;
+            Vector3 delta = pos - _lastPos;
+            _lastPos = pos;
+
+            float speed = new Vector2(delta.x, delta.z).magnitude / Mathf.Max(Time.deltaTime, 0.0001f);
+
+            if (speed > 0.1f)
+            {
+                WalkPhase += Time.deltaTime * speed * 8f;
+            }
+
+            float swing = Mathf.Sin(WalkPhase) * 30f;        // 度
+            float bob = Mathf.Abs(Mathf.Sin(WalkPhase * 2f)) * 0.08f;
+
+            if (_legL != null) _legL.localRotation = Quaternion.Euler(+swing, 0f, 0f);
+            if (_legR != null) _legR.localRotation = Quaternion.Euler(-swing, 0f, 0f);
+            if (_armL != null) _armL.localRotation = Quaternion.Euler(-swing, 0f, 0f);
+            if (_armR != null) _armR.localRotation = Quaternion.Euler(+swing, 0f, 0f);
+            if (_head != null) _head.localPosition = new Vector3(0f, _headBaseY + bob, 0f);
         }
 
         private void OnDestroy()
