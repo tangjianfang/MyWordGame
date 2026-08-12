@@ -378,7 +378,7 @@ def _blocks() -> list[Asset]:
         B("crafting_table-side", ["#6B4E2E", "#8A6741", "#9C7549", "#B98D57",
                                   "#1A1A1A"]),
         B("iron_door", ["#1A1A1A", "#5C5C5C", "#7A6042", "#8A6A4C", "#B9906B"],
-          transparent=True, alpha_range=(0.85, 0.95)),
+          transparent=True, alpha_range=(0.50, 0.70), tiling="none"),
         B("lever", ["#1A1A1A", "#5C5C5C", "#7E7E7E", "#8A8A8A", "#634C33",
                     "#8A6741"]),
         B("redstone_dust", ["#1A1A1A", "#5C5C5C", "#7E7E7E", "#A02020",
