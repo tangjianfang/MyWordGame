@@ -46,22 +46,129 @@ namespace MyWorld.Unity.EditorTools
             var prevTarget = cam.targetTexture;
             var prevActive = RenderTexture.active;
             cam.targetTexture = rt;
+            Texture2D tex = null;
             try
             {
                 cam.Render();
                 RenderTexture.active = rt;
-                var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
                 tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
                 tex.Apply();
                 File.WriteAllBytes(outputPath, tex.EncodeToPNG());
-                UnityEngine.Object.DestroyImmediate(tex);
             }
             finally
             {
+                if (tex != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(tex);
+                }
                 cam.targetTexture = prevTarget;
                 RenderTexture.active = prevActive;
                 rt.Release();
                 UnityEngine.Object.DestroyImmediate(rt);
+            }
+        }
+
+        [MenuItem("MyWorld/截图：第三人称玩家")]
+        public static void CaptureThirdPersonMenu()
+        {
+            string path = Path.Combine("Builds", "screenshots",
+                $"thirdperson-{DateTime.Now:HHmmss}.png");
+            CaptureThirdPerson(path);
+            Debug.Log($"[ScreenshotCapture] {path}");
+        }
+
+        public static void CaptureThirdPerson(string outputPath, int width = 1280, int height = 720)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+
+            // EditMode 下 AddComponent 不会触发 Awake——手动驱动 PlayerVisual（A 建 6 个 Cube）
+            // 和 CameraThirdPerson（A 建子相机），否则 GameObject.Find("ThirdPersonCamera") 找不到东西。
+            EditModeAwakeWorkaround();
+
+            var tpCam = GameObject.Find("ThirdPersonCamera");
+            if (tpCam == null)
+            {
+                Debug.LogError("[ScreenshotCapture] 场景里没有 ThirdPersonCamera（需要玩家先 Bootstrap 一次）");
+                return;
+            }
+            var cam = tpCam.GetComponent<Camera>();
+            if (cam == null)
+            {
+                Debug.LogError("[ScreenshotCapture] ThirdPersonCamera 上没有 Camera 组件");
+                return;
+            }
+
+            // EditMode 下 CameraThirdPerson.Update 不会跑。手动把第三人称相机放到玩家
+            // 身后 3 格 + 抬 1.5 格，让 Render 能看到 PlayerVisual 建出来的 6 个 Cube。
+            var player = GameObject.Find("玩家");
+            if (player != null)
+            {
+                var playerPos = player.transform.position;
+                tpCam.transform.position = playerPos + new Vector3(0f, 1.5f, -3f);
+                tpCam.transform.LookAt(playerPos + Vector3.up * 1f);
+            }
+
+            var rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+            rt.Create();
+            var prevTarget = cam.targetTexture;
+            var prevActive = RenderTexture.active;
+            cam.targetTexture = rt;
+            Texture2D tex = null;
+            try
+            {
+                cam.Render();
+                RenderTexture.active = rt;
+                tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                tex.Apply();
+                File.WriteAllBytes(outputPath, tex.EncodeToPNG());
+            }
+            finally
+            {
+                if (tex != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(tex);
+                }
+                cam.targetTexture = prevTarget;
+                RenderTexture.active = prevActive;
+                rt.Release();
+                UnityEngine.Object.DestroyImmediate(rt);
+            }
+        }
+
+        /// <summary>
+        /// EditMode 兜底：WorldBootstrap.Awake 里 AddComponent<PlayerVisual> 与
+        /// <see cref="MyWorld.Unity.Player.CameraThirdPerson"/> 不会触发各自 Awake，
+        /// 反射手动调一次。PlayerVisual.Awake 建 6 个身体 Cube，CameraThirdPerson.Awake
+        /// 建 ThirdPersonCamera 子相机。重复调用是安全的（第二次进 if 分支就 return）。
+        /// </summary>
+        private static void EditModeAwakeWorkaround()
+        {
+            var bootstrapGo = GameObject.Find("玩家");
+            if (bootstrapGo == null)
+            {
+                // 退回按组件找
+                var bootstrap = UnityEngine.Object.FindObjectOfType<MyWorld.Unity.Bootstrap.WorldBootstrap>();
+                if (bootstrap != null) bootstrapGo = bootstrap.gameObject;
+            }
+            if (bootstrapGo == null) return;
+
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            foreach (var component in bootstrapGo.GetComponents<Component>())
+            {
+                if (component == null) continue;
+                var name = component.GetType().Name;
+                if (name == "PlayerVisual" || name == "CameraThirdPerson")
+                {
+                    var awake = component.GetType().GetMethod("Awake", flags);
+                    if (awake == null) continue;
+                    try { awake.Invoke(component, null); }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[ScreenshotCapture] {name}.Awake 失败: {ex.InnerException?.Message ?? ex.Message}");
+                    }
+                }
             }
         }
 
@@ -74,7 +181,7 @@ namespace MyWorld.Unity.EditorTools
             // 拍出来的全是相机背景色，没有任何方块 / UI / 手部。
             DriveBootstrapForCapture();
             Capture(Path.Combine(outputDir, "overworld.png"));
-            // TODO（不在本任务范围，由后续任务在 ScreenshotCapture 加更多预设位）
+            CaptureThirdPerson(Path.Combine(outputDir, "third-person.png"));
         }
 
         /// <summary>
