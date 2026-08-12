@@ -37,9 +37,10 @@ namespace MyWorld.Unity.Player
 
             if (selectionMaterial == null)
             {
-                // 创建一个最简的不透明无光照材质
-                var shader = Shader.Find("Hidden/Internal-Colored");
-                selectionMaterial = new Material(shader) { color = Color.white };
+                // 优先 URP/Unlit（场景已接入 URP），fallback Hidden/Internal-Colored（默认包含）。
+                var shader = Shader.Find("Universal Render Pipeline/Unlit");
+                if (shader == null) shader = Shader.Find("Hidden/Internal-Colored");
+                selectionMaterial = new Material(shader) { color = new Color(1f, 1f, 1f, 1f) };
             }
 
             _selection = SelectionBox.Create(parent, selectionMaterial);
