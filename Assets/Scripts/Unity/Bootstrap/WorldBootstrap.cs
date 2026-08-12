@@ -81,6 +81,14 @@ namespace MyWorld.Unity.Bootstrap
             _playerContext.Death = new DeathSystem();
             _playerContext.Inventory.SetMaxStackLookup(id => items.TryGetByNumericId(id, out var d) ? d.MaxStack : 64);
 
+            // 默认热键栏第 0 格预填一个基础方块物品：让首次进游戏 hotbar 不空，能立刻看到挖到的方块。
+            // brief 要求 "dirt"，但物品库里只有 plank / cobblestone / coal 等基础物品，
+            // 没有单独的 dirt 物品（dirt 只是 block）。这里用 plank（numericId=1001）作为等价起点。
+            if (items.TryGetById("plank", out var starterDef))
+            {
+                _playerContext.Inventory.SetSlot(0, new ItemStack(starterDef.NumericId, 64));
+            }
+
             // 8. 玩家控制器
             _player = GetComponent<PlayerController>() ?? gameObject.AddComponent<PlayerController>();
             _player.Bind(_world, _registry, new Float3(spawnPosition.x, spawnPosition.y, spawnPosition.z));

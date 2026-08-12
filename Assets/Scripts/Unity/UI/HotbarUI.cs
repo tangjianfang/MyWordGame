@@ -22,15 +22,33 @@ namespace MyWorld.Unity.UI
         private void EnsureTextures()
         {
             if (_slotBg != null) return;
-            _slotBg = new Texture2D(1, 1);
-            _slotBg.SetPixel(0, 0, new Color(0, 0, 0, 0.6f));
-            _slotBg.Apply();
-            _selectBorder = new Texture2D(1, 1);
-            _selectBorder.SetPixel(0, 0, Color.white);
-            _selectBorder.Apply();
+            _slotBg = LoadTextureOrFallback("Assets/Art/UI/hotbar-slot.png",
+                new Color(0, 0, 0, 0.6f));
+            _selectBorder = LoadTextureOrFallback("Assets/Art/UI/hotbar-slot-selected.png",
+                Color.white);
             _missingTex = new Texture2D(1, 1);
             _missingTex.SetPixel(0, 0, new Color(0.6f, 0.2f, 0.9f, 1f));
             _missingTex.Apply();
+        }
+
+        /// <summary>
+        /// 从项目内相对路径加载 PNG，文件不存在时返回 1×1 占位纹理（保持形状大小合理，Point 采样）。
+        /// 应用运行时 <c>Application.dataPath</c> 指向 <c>Assets/</c>，所以用 <c>Path.Combine</c> 拼成绝对路径读盘。
+        /// </summary>
+        private static Texture2D LoadTextureOrFallback(string projectRelativePath, Color fallbackColor)
+        {
+            string full = System.IO.Path.Combine(Application.dataPath, "..", projectRelativePath);
+            if (System.IO.File.Exists(full))
+            {
+                var tex = new Texture2D(2, 2);
+                tex.LoadImage(System.IO.File.ReadAllBytes(full));
+                tex.filterMode = FilterMode.Point;
+                return tex;
+            }
+            var fb = new Texture2D(1, 1);
+            fb.SetPixel(0, 0, fallbackColor);
+            fb.Apply();
+            return fb;
         }
 
         private Texture2D GetItemTexture(ItemDefinition def)
@@ -81,8 +99,15 @@ namespace MyWorld.Unity.UI
                     GUI.DrawTexture(texRect, GetItemTexture(def));
                     if (stack.Count > 1)
                     {
-                        GUI.Label(new Rect(rect.x + SlotSize - 18, rect.y + SlotSize - 18, 16, 16),
-                            stack.Count.ToString());
+                        // 黑底白字：复用 selected 白边当白底（brief 简化方案），上方覆盖一层 16 号粗体白字。
+                        var bgRect = new Rect(rect.x + SlotSize - 22, rect.y + SlotSize - 20, 20, 18);
+                        GUI.DrawTexture(bgRect, _selectBorder);
+                        var style = new GUIStyle(GUI.skin.label);
+                        style.fontSize = 16;
+                        style.fontStyle = FontStyle.Bold;
+                        style.normal.textColor = Color.white;
+                        GUI.Label(new Rect(rect.x + SlotSize - 20, rect.y + SlotSize - 19, 18, 16),
+                            stack.Count.ToString(), style);
                     }
                 }
 
