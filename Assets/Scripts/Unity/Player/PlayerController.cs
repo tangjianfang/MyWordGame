@@ -72,6 +72,35 @@ namespace MyWorld.Unity.Player
             Tick(ReadInput(), Time.deltaTime);
         }
 
+        private void Awake()
+        {
+            // 自动找子物体作为 eye Transform。
+            // 优先级：tag=MainCamera 的 Camera transform > 名为"相机"的子物体 > 第一个子 transform。
+            // 找不到也不报错（无视觉模块场景，如纯逻辑测试，照常工作）。
+            if (eye == null)
+            {
+                eye = FindEyeInChildren(transform);
+            }
+        }
+
+        private static Transform FindEyeInChildren(Transform root)
+        {
+            // 优先：tag=MainCamera 的子 Camera
+            var mainCam = GameObject.FindGameObjectWithTag("MainCamera");
+            if (mainCam != null && mainCam.transform.IsChildOf(root))
+            {
+                return mainCam.transform;
+            }
+            // 次选：名为"相机"的子物体（与 PreviewSceneBuilder.CreateCamera 一致）
+            for (int i = 0; i < root.childCount; i++)
+            {
+                var child = root.GetChild(i);
+                if (child.name == "相机") return child;
+            }
+            // 最后：第一个子 transform（兜底）
+            return root.childCount > 0 ? root.GetChild(0) : null;
+        }
+
         private void UpdateLook()
         {
             if (Cursor.lockState != CursorLockMode.Locked)
