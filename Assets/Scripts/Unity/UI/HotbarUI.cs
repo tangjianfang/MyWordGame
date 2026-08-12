@@ -15,6 +15,7 @@ namespace MyWorld.Unity.UI
 
         private Texture2D _slotBg;
         private Texture2D _selectBorder;
+        private Texture2D _countBg;
         private Texture2D _missingTex;
         private readonly System.Collections.Generic.Dictionary<string, Texture2D> _texCache =
             new System.Collections.Generic.Dictionary<string, Texture2D>();
@@ -26,6 +27,9 @@ namespace MyWorld.Unity.UI
                 new Color(0, 0, 0, 0.6f));
             _selectBorder = LoadTextureOrFallback("Assets/Art/UI/hotbar-slot-selected.png",
                 Color.white);
+            _countBg = new Texture2D(1, 1);
+            _countBg.SetPixel(0, 0, new Color(0, 0, 0, 0.85f));
+            _countBg.Apply();
             _missingTex = new Texture2D(1, 1);
             _missingTex.SetPixel(0, 0, new Color(0.6f, 0.2f, 0.9f, 1f));
             _missingTex.Apply();
@@ -99,9 +103,9 @@ namespace MyWorld.Unity.UI
                     GUI.DrawTexture(texRect, GetItemTexture(def));
                     if (stack.Count > 1)
                     {
-                        // 黑底白字：复用 selected 白边当白底（brief 简化方案），上方覆盖一层 16 号粗体白字。
+                        // 黑底白字：1×1 独立黑底（85% 不透明）+ 上方 16 号粗体白字。
                         var bgRect = new Rect(rect.x + SlotSize - 22, rect.y + SlotSize - 20, 20, 18);
-                        GUI.DrawTexture(bgRect, _selectBorder);
+                        GUI.DrawTexture(bgRect, _countBg);
                         var style = new GUIStyle(GUI.skin.label);
                         style.fontSize = 16;
                         style.fontStyle = FontStyle.Bold;
