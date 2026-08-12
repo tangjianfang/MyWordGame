@@ -118,19 +118,22 @@ namespace MyWorld.Unity.Bootstrap
             var redstone = gameObject.AddComponent<MyWorld.Unity.Environment.RedstoneSystem>();
             redstone.Bind(_world, _views, _player);
 
-            // 16. 第三人称相机（plan-3c）
+            // 16. 玩家身体（part2 任务 B1）
+            gameObject.AddComponent<MyWorld.Unity.Player.PlayerVisual>();
+
+            // 17. 第三人称相机（plan-3c）
             gameObject.AddComponent<MyWorld.Unity.Player.CameraThirdPerson>();
 
-            // 17. 经验条 + 死亡画面（plan-3c）
+            // 18. 经验条 + 死亡画面（plan-3c）
             gameObject.AddComponent<MyWorld.Unity.UI.ExperienceBarUi>();
             gameObject.AddComponent<MyWorld.Unity.UI.DeathScreenUi>();
 
-            // 18. 村民 + 交易 UI（plan-3d）
+            // 19. 村民 + 交易 UI（plan-3d）
             var villagerMgr = gameObject.AddComponent<MyWorld.Unity.Combat.VillagerManager>();
             villagerMgr.Bind(_world, _playerContext.Time, transform);
             gameObject.AddComponent<MyWorld.Unity.UI.TradeUi>();
 
-            // 19. 附魔 UI（plan-3d）
+            // 20. 附魔 UI（plan-3d）
             gameObject.AddComponent<MyWorld.Unity.UI.EnchantingUi>();
         }
 
