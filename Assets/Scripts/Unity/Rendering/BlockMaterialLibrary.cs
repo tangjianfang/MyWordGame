@@ -28,6 +28,14 @@ namespace MyWorld.Unity.Rendering
         public Material Get(int textureIndex)
             => textureIndex >= 0 && textureIndex < _materials.Length ? _materials[textureIndex] : _missing;
 
+        /// <summary>
+        /// 指定槽位是否使用了 magenta 占位材质（贴图缺失哨兵）。
+        /// 视觉/角色测试遍历材质时会撞到这些槽位，调用方应显式跳过——magenta 是有意保留的视觉哨兵，
+        /// 不要在测试里把它当缺陷处理，否则会让真正的贴图缺失静默化。
+        /// </summary>
+        public bool IsMissing(int slot)
+            => slot >= 0 && slot < _materials.Length && ReferenceEquals(_materials[slot], _missing);
+
         public static BlockMaterialLibrary Load(BlockRegistry registry, string textureDirectory)
         {
             if (registry == null)
