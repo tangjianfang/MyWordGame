@@ -8,6 +8,7 @@
 #   --skip-build   跳过 URP setup + BuildSetup + BuildPlayer + 启动（只跑测试）
 #   --no-launch    build 完不启动 .exe
 #   --clean        build 前 rm -rf Builds/
+#   --with-visual  Build 之后跑 visual-smoke（拍截图 + EditMode 像素采样测试）
 
 set -euo pipefail
 
@@ -16,6 +17,7 @@ SKIP_TESTS=0
 SKIP_BUILD=0
 NO_LAUNCH=0
 CLEAN=0
+WITH_VISUAL=0
 
 # --- 路径常量（与 CLAUDE.md 一致） ---
 UNITY_EXE='C:\Program Files\Unity\Hub\Editor\2022.3.62f3c1\Editor\Unity.exe'
@@ -38,6 +40,7 @@ while [[ $# -gt 0 ]]; do
         --skip-build) SKIP_BUILD=1; shift;;
         --no-launch)  NO_LAUNCH=1; shift;;
         --clean)      CLEAN=1; shift;;
+        --with-visual) WITH_VISUAL=1; shift;;
         -h|--help)
             sed -n '2,15p' "$0"; exit 0;;
         *) echo "未知参数: $1（试试 --help）" >&2; exit 2;;
@@ -169,6 +172,14 @@ if [[ $SKIP_BUILD -eq 0 ]]; then
             printf "  ${BOLD}⚠ 进程未检测到，tail launch.log 看 stderr${OFF}\n"
         fi
     fi
+fi
+
+# --- 6. 视觉冒烟（可选；不依赖 launch，独立跑 Unity EditMode 视觉测试）---
+# 放在 SKIP_BUILD / NO_LAUNCH 的 `fi` 外面，所以 --skip-build / --no-launch 都不会短路它
+if [[ "${WITH_VISUAL:-0}" -eq 1 ]]; then
+    step "STEP 6/6: 视觉冒烟（截图 + 像素采样测试）"
+    bash tools/scripts/visual-smoke.sh || fail "视觉冒烟失败（看 Builds/logs/visual-smoke-*.log）"
+    ok "视觉冒烟通过"
 fi
 
 step "DONE"
