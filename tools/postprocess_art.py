@@ -370,6 +370,19 @@ def _blocks() -> list[Asset]:
           transparent=True, alpha_range=(0.70, 0.85)),
         B("bricks", ["#9A9086", "#6B3226", "#8B4433", "#A05242", "#B3634C"]),
         B("lava", ["#5C1400", "#8A2400", "#D64B0A", "#F79B22", "#FFD24A"]),
+        # 里程碑-3 新增 6 个方块贴图（planks / log-side / log-top / leaves 已在前面
+        # 的 lava 之前注册过了，这里只补任务 A2 真正新建的 6 个 ASSETS 条目）
+        B("sapling", ["#3F7A2E", "#634C33", "#5F4630", "#52963B", "#4E3826"],
+          tiling="none", transparent=True, alpha_range=(0.50, 0.70)),
+        B("crafting_table-top", ["#6B4E2E", "#8A6741", "#9C7549", "#1A1A1A"]),
+        B("crafting_table-side", ["#6B4E2E", "#8A6741", "#9C7549", "#B98D57",
+                                  "#1A1A1A"]),
+        B("iron_door", ["#1A1A1A", "#5C5C5C", "#7A6042", "#8A6A4C", "#B9906B"],
+          transparent=True, alpha_range=(0.85, 0.95)),
+        B("lever", ["#1A1A1A", "#5C5C5C", "#7E7E7E", "#8A8A8A", "#634C33",
+                    "#8A6741"]),
+        B("redstone_dust", ["#1A1A1A", "#5C5C5C", "#7E7E7E", "#A02020",
+                            "#D03030", "#E84040"]),
     ]
 
 

@@ -195,7 +195,9 @@ def parse_prompts() -> tuple[dict[str, str], list[str]]:
             continue
 
         for sub, body in blocks:
-            m = re.search(r"`([a-z0-9][a-z0-9-]*)`", sub or "")
+            # 允许下划线：方块名如 iron_door / redstone_dust / crafting_table-top
+            # 都会出现在反引号小标题里，正则必须容纳下划线
+            m = re.search(r"`([a-z0-9_][a-z0-9_-]*)`", sub or "")
             name = m.group(1) if m else FILE_DEFAULT.get(md.stem, md.stem)
             name = ALIASES.get(name, name)
             if name not in known:
