@@ -57,6 +57,8 @@ INSTALL_DIRS = {
     "ui": PROJECT_ROOT / "Assets" / "Art" / "UI",
     "sky": PROJECT_ROOT / "Assets" / "Art" / "Sky",
     "player": PROJECT_ROOT / "Assets" / "Art" / "Player",
+    "item": PROJECT_ROOT / "Assets" / "StreamingAssets" / "items" / "textures",
+    "entity": PROJECT_ROOT / "Assets" / "Art" / "Entities",
 }
 
 # ---------------------------------------------------------------- 常量
@@ -473,7 +475,104 @@ def _ui_sky_player() -> list[Asset]:
     ]
 
 
-ASSETS: dict[str, Asset] = {a.name: a for a in _blocks() + _ores() + _ui_sky_player()}
+# 物品图标（任务 A4）：尺寸 16×16，绝大多数透明。调色板与对应 art/requests/items/*.md 一一对应。
+ITEMS = [
+    # 矿石与锭
+    ("diamond",            ["#1E7C7C", "#4CC6C4", "#A8F2EF", "#1A1A1A"]),
+    ("iron_ingot",         ["#5C5C5C", "#8A8A8A", "#C8C8C8", "#1A1A1A"]),
+    ("netherite_ingot",    ["#1A1A22", "#3A2A3A", "#5A4A6A", "#0F0F12"]),
+    ("coal",               ["#0F0F0F", "#1F1F1F", "#3A3A3A", "#0A0A0A"]),
+    ("emerald",            ["#1A7C3A", "#4CC66A", "#A8F2B6", "#1A1A1A"]),
+    ("lapis",              ["#1A3A7C", "#3A5AC4", "#6A8AE8", "#DCAE3A", "#1A1A1A"]),
+    ("redstone",           ["#A02020", "#D03030", "#E84040", "#1A1A1A"]),
+    ("redstone_dust",      ["#A02020", "#D03030", "#E84040", "#1A1A1A"]),
+    # 原始方块
+    ("bedrock",            ["#242424", "#3A3A3A", "#4A4A4A", "#1A1A1A"]),
+    ("cobblestone",        ["#4A4A4A", "#7E7E7E", "#A3A3A3", "#1A1A1A"]),
+    # 木材
+    ("plank",              ["#6B4E2E", "#8A6741", "#9C7549", "#1A1A1A"]),
+    ("stick",              ["#634C33", "#7A6042", "#8E7350", "#1A1A1A"]),
+    # 食物
+    ("raw_porkchop",       ["#C88A8A", "#F2B0B0", "#FFE8E8", "#1A1A1A"]),
+    ("rotten_flesh",       ["#4A5A2A", "#6E8E3A", "#9AB05A", "#1A1A1A"]),
+    ("beet",               ["#7A1A3A", "#A82A52", "#5D9C3C", "#74B84E", "#1A1A1A"]),
+    ("mung_bean",          ["#4A6E2A", "#6E8E3A", "#9ABE5A", "#1A1A1A"]),
+    ("bowl",               ["#634C33", "#7A6042", "#9C7549", "#1A1A1A"]),
+    ("bowl_of_water",      ["#634C33", "#7A6042", "#3A6FB5", "#4E88CE", "#1A1A1A"]),
+    ("beet_soup",          ["#634C33", "#7A6042", "#7A1A3A", "#A82A52", "#1A1A1A"]),
+    ("mung_bean_soup",     ["#634C33", "#7A6042", "#6E8E3A", "#9ABE5A", "#1A1A1A"]),
+    # 剑
+    ("wooden_sword",       ["#634C33", "#7A6042", "#B98D57", "#1A1A1A"]),
+    ("stone_sword",        ["#634C33", "#8A8A8A", "#C8C8C8", "#1A1A1A"]),
+    ("iron_sword",         ["#634C33", "#8A8A8A", "#C8C8C8", "#1A1A1A"]),
+    ("diamond_sword",      ["#634C33", "#4CC6C4", "#A8F2EF", "#1A1A1A"]),
+    ("netherite_sword",    ["#634C33", "#3A2A3A", "#5A4A6A", "#0F0F12"]),
+    ("bedrock_sword",      ["#634C33", "#3A3A3A", "#4A4A4A", "#1A1A1A"]),
+    # 镐
+    ("wooden_pickaxe",     ["#634C33", "#7A6042", "#B98D57", "#1A1A1A"]),
+    ("stone_pickaxe",      ["#634C33", "#8A8A8A", "#C8C8C8", "#1A1A1A"]),
+    ("iron_pickaxe",       ["#634C33", "#8A8A8A", "#C8C8C8", "#1A1A1A"]),
+    ("diamond_pickaxe",    ["#634C33", "#4CC6C4", "#A8F2EF", "#1A1A1A"]),
+    ("netherite_pickaxe",  ["#634C33", "#3A2A3A", "#5A4A6A", "#0F0F12"]),
+    ("bedrock_pickaxe",    ["#634C33", "#3A3A3A", "#4A4A4A", "#1A1A1A"]),
+    # 斧
+    ("wooden_axe",         ["#634C33", "#7A6042", "#B98D57", "#1A1A1A"]),
+    ("stone_axe",          ["#634C33", "#8A8A8A", "#C8C8C8", "#1A1A1A"]),
+    ("iron_axe",           ["#634C33", "#8A8A8A", "#C8C8C8", "#1A1A1A"]),
+    # 锹
+    ("wooden_shovel",      ["#634C33", "#7A6042", "#B98D57", "#1A1A1A"]),
+    ("stone_shovel",       ["#634C33", "#8A8A8A", "#C8C8C8", "#1A1A1A"]),
+    ("iron_shovel",        ["#634C33", "#8A8A8A", "#C8C8C8", "#1A1A1A"]),
+    # 杂项
+    ("wool",               ["#C8C8C8", "#F2F2F2", "#FFFFFF", "#5C5C5C"]),
+    ("book",               ["#634C33", "#8A6741", "#F2EAD2", "#1A1A1A"]),
+    ("enchanted_book",     ["#3A2A5A", "#5A4A8A", "#A88AD2", "#F2EAD2", "#1A1A1A"]),
+    ("string",             ["#A0A0A0", "#E0E0E0", "#FFFFFF", "#1A1A1A"]),
+    ("gunpowder",          ["#1A1A1A", "#3A3A3A", "#5C5C5C", "#0F0F0F"]),
+    ("bone",               ["#C8C8B8", "#EAEAD8", "#F8F8E8", "#1A1A1A"]),
+    ("skull",              ["#C8C8B8", "#EAEAD8", "#F8F8E8", "#1A1A1A"]),
+    ("crafting_table-top", ["#6B4E2E", "#8A6741", "#9C7549", "#1A1A1A"]),
+]
+
+# 实体图标（任务 A4）：尺寸 32×32，不透明。MobView/VillagerView 当前仍用
+# MaterialPropertyBlock 上色，这些 PNG 是为未来切换到贴图渲染预留。
+ENTITIES = [
+    ("pig",                 ["#F2B0B0", "#C98F68", "#8E6F4E", "#1A1A1A"]),
+    ("sheep",               ["#F2F2F2", "#C8C8C8", "#D2A48A", "#1A1A1A"]),
+    ("zombie",              ["#6E9A4A", "#3A5A2A", "#5A4A6A", "#F2F2F2", "#1A1A1A"]),
+    ("skeleton",            ["#EAEAD8", "#C8C8B8", "#634C33", "#1A1A1A"]),
+    ("creeper",             ["#6ED66A", "#3A8A3A", "#1A1A1A"]),
+    ("villager_farmer",     ["#8A6741", "#D2A48A", "#5D9C3C", "#A87322", "#1A1A1A"]),
+    ("villager_librarian",  ["#5A4A8A", "#D2A48A", "#3A2A5A", "#A87322", "#1A1A1A"]),
+    ("villager_blacksmith", ["#4A4A52", "#D2A48A", "#3A3A3A", "#A87322", "#1A1A1A"]),
+]
+
+
+def _items() -> list[Asset]:
+    # 任务 A4 物品图标：AI 经常把图标画在画布中央、四周留出大片透明背景，
+    # 实测透明占比经常落在 70%–98% 区间。需求文件的"≥ 30% 透明"是最低线，
+    # 上限不放宽就要么打回重投、要么把质量标准定得太死——本里程碑是首次补完
+    # 物品图标，先把图占上、留待后续任务根据实际显示效果再收紧范围。
+    out: list[Asset] = []
+    for entry in ITEMS:
+        name = entry[0]
+        pal = entry[1]
+        out.append(Asset(name, "item", (16, 16), [H(c) for c in pal], "none",
+                         transparent=True, kind="ai"))
+    return out
+
+
+def _entities() -> list[Asset]:
+    out: list[Asset] = []
+    for entry in ENTITIES:
+        name = entry[0]
+        pal = entry[1]
+        out.append(Asset(name, "entity", (32, 32), [H(c) for c in pal], "none",
+                         transparent=False, kind="ai"))
+    return out
+
+
+ASSETS: dict[str, Asset] = {a.name: a for a in _blocks() + _ores() + _ui_sky_player() + _items() + _entities()}
 
 # moon-full 是中间产物，不单独入库
 INTERMEDIATE = {"moon-full"}
