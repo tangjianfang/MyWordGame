@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using MyWorld.Core.Blocks;
+using MyWorld.Unity.Bootstrap;
 using MyWorld.Unity.Rendering;
 using NUnit.Framework;
 using UnityEngine;

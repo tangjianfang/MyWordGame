@@ -3,6 +3,7 @@
   "rootNamespace": "MyWorld.Core.Tests",
   "references": [
     "MyWorld.Core",
+    "MyWorld.Unity",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner"
   ],
