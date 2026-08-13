@@ -14,7 +14,7 @@ namespace MyWorld.Unity.UI
         public const int Padding = 4;
 
         private Texture2D _slotBg;
-        private Texture2D _selectBorder;
+        private Texture2D _countBorder;
         private Texture2D _countBg;
         private Texture2D _missingTex;
         private readonly System.Collections.Generic.Dictionary<string, Texture2D> _texCache =
@@ -25,7 +25,7 @@ namespace MyWorld.Unity.UI
             if (_slotBg != null) return;
             _slotBg = LoadTextureOrFallback("Assets/Art/UI/hotbar-slot.png",
                 new Color(0, 0, 0, 0.6f));
-            _selectBorder = LoadTextureOrFallback("Assets/Art/UI/hotbar-slot-selected.png",
+            _countBorder = LoadTextureOrFallback("Assets/Art/UI/hotbar-slot-selected.png",
                 Color.white);
             _countBg = new Texture2D(1, 1);
             _countBg.SetPixel(0, 0, new Color(0, 0, 0, 0.85f));
@@ -117,7 +117,7 @@ namespace MyWorld.Unity.UI
 
                 if (i == ctx.Inventory.SelectedHotbarIndex)
                 {
-                    GUI.DrawTexture(rect, _selectBorder);
+                    GUI.DrawTexture(rect, _countBorder);
                 }
             }
         }

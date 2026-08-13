@@ -79,7 +79,6 @@ namespace MyWorld.Core.Tests.Visual
                     // 这条测试只断言「真实贴图就位的方块不应含 magenta」，不要替缺失贴图背书。
                     if (lib.IsMissing(i)) continue;
                     var m = lib.Get(i);
-                    if (m == null) continue;
                     Assert.That(BlockMaterialLibrary.HasMagentaPixels(m), Is.False,
                         $"slot {i} 的材质含 magenta 像素（贴图缺失）");
                 }
