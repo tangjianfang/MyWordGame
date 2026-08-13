@@ -1,0 +1,6 @@
+{
+  "Pig":     [{ "itemId": 1008, "count": 1, "chance": 1.0 }],
+  "Cow":     [{ "itemId": 1003, "count": 1, "chance": 1.0 }],
+  "Chicken": [{ "itemId": 1004, "count": 1, "chance": 1.0 }],
+  "Zombie":  [{ "itemId": 1010, "count": 1, "chance": 0.5 }]
+}

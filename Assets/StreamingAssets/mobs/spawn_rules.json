@@ -1,0 +1,6 @@
+{
+  "Pig":     { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 10 },
+  "Cow":     { "biomes": ["Plains"], "minLight": 9, "weight": 8 },
+  "Chicken": { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 8 },
+  "Zombie":  { "biomes": ["Plains", "Desert", "Forest", "Mountains"], "minLight": 0, "weight": 5 }
+}

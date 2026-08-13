@@ -45,7 +45,7 @@ namespace MyWorld.Core.Entities
                 if (mob.DeathTimer <= 0f) mob.DeathTimer = DefaultDeathTimer;
                 if (mob.LastDrops == null)
                 {
-                    mob.LastDrops = ItemDropTable.Drop(mob.Kind);
+                    mob.LastDrops = Items.ItemDropTable.Drop(mob.Kind);
                 }
                 return;
             }
