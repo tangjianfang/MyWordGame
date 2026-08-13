@@ -1,16 +1,30 @@
 using MyWorld.Unity.Gameplay;
+using MyWorld.Core.Player;
 using UnityEngine;
 
 namespace MyWorld.Unity.UI
 {
-    /// <summary>食物条（10 个肉排占位）。plan-3c 接饥饿系统，plan-3a 只画。</summary>
+    /// <summary>食物条（10 个肉排占位）。每帧从 <see cref="HungerSystem"/> 读 <see cref="HungerSystem.Hunger"/>。</summary>
     public sealed class FoodBarUI : MonoBehaviour
     {
         public const int DrumstickSize = 14;
 
+        /// <summary>最近一次从 <see cref="HungerSystem"/> 读到的 Hunger 值。OnGUI / TickForTest 后才更新。</summary>
+        public int CurrentHunger { get; private set; } = 20;
+
+        private HungerSystem _hunger;
         private Texture2D _full;
         private Texture2D _empty;
         private Texture2D _bg;
+
+        /// <summary>绑定饥饿系统。允许为空，<c>null</c> 时 OnGUI 保持占位显示。</summary>
+        public void Bind(HungerSystem hs) { _hunger = hs; }
+
+        /// <summary>EditMode 测试入口：手动驱动一次刷新（避免依赖 OnGUI 事件循环）。</summary>
+        public void TickForTest()
+        {
+            if (_hunger != null) CurrentHunger = _hunger.Hunger;
+        }
 
         private void EnsureTextures()
         {
@@ -38,15 +52,17 @@ namespace MyWorld.Unity.UI
         private void OnGUI()
         {
             EnsureTextures();
+            if (_hunger != null) CurrentHunger = _hunger.Hunger;
             float totalWidth = 10 * (DrumstickSize + 2);
             float startX = (Screen.width - totalWidth) / 2f;
             float y = Screen.height - 64 - HotbarUI.SlotSize - 18 + HealthBarUI.HeartSize + 2;
 
-            // plan-3a 食物永远满，UI 静态显示
+            // 当前 Hunger 决定已填槽数（每 2 点 = 1 块肉排，10 槽满 = 20）。
+            int filled = Mathf.Clamp(CurrentHunger / 2, 0, 10);
             for (int i = 0; i < 10; i++)
             {
                 var rect = new Rect(startX + i * (DrumstickSize + 2), y, DrumstickSize, DrumstickSize);
-                GUI.DrawTexture(rect, i < 8 ? _full : _empty);
+                GUI.DrawTexture(rect, i < filled ? _full : _empty);
             }
         }
     }

@@ -23,6 +23,7 @@ namespace MyWorld.Unity.Gameplay
         public RecipeDatabase Recipes;
         public Experience Experience;
         public DeathSystem Death;
+        public HungerSystem HungerSystem;
 
         private void Awake()
         {
@@ -36,6 +37,7 @@ namespace MyWorld.Unity.Gameplay
             if (Inventory == null) Inventory = new PlayerInventory();
             if (Health.Current <= 0) Health = new Health(20);
             if (Time == null) Time = new TimeOfDay();
+            if (HungerSystem == null) HungerSystem = new HungerSystem();
         }
 
         private void OnDestroy()
