@@ -151,6 +151,11 @@ namespace MyWorld.Unity.Bootstrap
             // 22. 熔炉 UI（plan-3 task B5：挂 Player 上并 Bind FurnaceSystem）
             var furnaceUi = gameObject.AddComponent<MyWorld.Unity.UI.CraftingFurnaceUi>();
             furnaceUi.Bind(_playerContext.FurnaceSystem);
+
+            // 23. 合成背包 UI（plan-3 task B6：Bind RecipeDatabase；优先用现成组件，重复 AddComponent 会双倍 OnGUI）
+            var invUi = GetComponent<MyWorld.Unity.UI.CraftingInventoryUi>()
+                        ?? gameObject.AddComponent<MyWorld.Unity.UI.CraftingInventoryUi>();
+            if (_playerContext.Recipes != null) invUi.Bind(_playerContext.Recipes);
         }
 
         private void Update()

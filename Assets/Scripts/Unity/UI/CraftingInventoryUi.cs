@@ -15,6 +15,12 @@ namespace MyWorld.Unity.UI
 
         private bool _open;
         private ItemStack[] _craft;
+        // B6：显式 Bind 注入的配方表；为 null 时回退到 PlayerContext.Instance.Recipes，
+        // 这样 OnGUI 既能被 WorldBootstrap 主动驱动，也能保持原先「只靠 PlayerContext」的写法。
+        private RecipeDatabase _recipes;
+
+        /// <summary>B6：最近一次 CraftForTest 得到的输出；null 表示未匹配、未绑定或配方表为空。</summary>
+        public ItemStack? LastOutput { get; private set; }
 
         private void Awake()
         {
@@ -25,6 +31,46 @@ namespace MyWorld.Unity.UI
         private void Update()
         {
             if (Input.GetKeyDown(ToggleKey)) _open = !_open;
+        }
+
+        /// <summary>B6：显式绑定 RecipeDatabase；null = 解绑，回退到 PlayerContext。</summary>
+        public void Bind(RecipeDatabase db)
+        {
+            _recipes = db;
+        }
+
+        /// <summary>B6：测试用。按 itemId 数组写入合成网格（0 或越界 = 空）。</summary>
+        public void SetGridForTest(int[] items)
+        {
+            EnsureGrid();
+            int n = items != null ? items.Length : 0;
+            for (int i = 0; i < _craft.Length; i++)
+            {
+                int id = i < n ? items[i] : 0;
+                _craft[i] = id == 0 ? ItemStack.Empty : new ItemStack(id, 1);
+            }
+        }
+
+        /// <summary>B6：测试用。当前网格跑 FindMatch，匹配则把输出 ItemStack 写到 LastOutput。</summary>
+        public void CraftForTest()
+        {
+            EnsureGrid();
+            LastOutput = null;
+            var db = _recipes != null ? _recipes : PlayerContext.Instance?.Recipes;
+            if (db == null) return;
+            var recipe = db.FindMatch(_craft, CraftWidth, CraftHeight);
+            if (recipe == null) return;
+            LastOutput = recipe.Output;
+        }
+
+        private void EnsureGrid()
+        {
+            int target = CraftWidth * CraftHeight;
+            if (_craft == null || _craft.Length != target)
+            {
+                _craft = new ItemStack[target];
+                for (int i = 0; i < _craft.Length; i++) _craft[i] = ItemStack.Empty;
+            }
         }
 
         private void OnGUI()
@@ -47,7 +93,8 @@ namespace MyWorld.Unity.UI
             }
             // 输出
             var outRect = new Rect(40 + (CraftWidth + 1) * (SlotSize + 4), 60 + SlotSize / 2, SlotSize, SlotSize);
-            var recipe = ctx.Recipes != null ? ctx.Recipes.FindMatch(_craft, CraftWidth, CraftHeight) : null;
+            var db = _recipes != null ? _recipes : ctx.Recipes;
+            var recipe = db != null ? db.FindMatch(_craft, CraftWidth, CraftHeight) : null;
             DrawSlot(outRect, recipe != null ? recipe.Output : ItemStack.Empty);
 
             // 主背包
