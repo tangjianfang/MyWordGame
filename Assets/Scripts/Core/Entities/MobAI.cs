@@ -1,3 +1,4 @@
+using MyWorld.Core.Items;
 using MyWorld.Core.Math;
 using MyWorld.Core.Time;
 using MyWorld.Core.Voxel;
@@ -7,6 +8,12 @@ namespace MyWorld.Core.Entities
     /// <summary>
     /// 动物 AI tick。每帧调用，移动 + 状态切换。
     /// 不依赖 Unity——可单测。
+    /// <para>
+    /// Phase D 扩展（spec line 171）：加 <c>MobKind.Pig / Cow / Chicken / Zombie</c> switch，
+    /// type-specific 行为——猪/牛/鸡 走 Passive 流（wander + 玩家靠近 Flee），
+    /// 新僵尸走 Hostile 流（chase 32 格 + attack 8 格）+ 死亡自动触发 <see cref="ItemDropTable"/>。
+    /// 既有 mobTypeId 1-5（Passive/Hostile/Neutral 分类）行为不变。
+    /// </para>
     /// </summary>
     public static class MobAI
     {
@@ -21,12 +28,27 @@ namespace MyWorld.Core.Entities
         public const float WanderSpeed = 1.5f;
         public const float ChaseSpeed = 3.5f;
         public const float FleeSpeed = 5f;
+        public const float DefaultDeathTimer = 0.5f;
 
         public static void Tick(Mob mob, Float3 playerPos, World world, TimeOfDay time, float dt)
         {
             if (!mob.IsAlive) return;
             if (mob.HitFlashTimer > 0) mob.HitFlashTimer -= dt;
             if (mob.AttackCooldown > 0) mob.AttackCooldown -= dt;
+
+            // Phase D 新增：自动死亡检测。若 Health 已经降到 0 但 State 还没转 Dying
+            // （旧代码路径由 Unity 侧 CombatController.DoAttack 直接置 Dying；这里兜住
+            // 测试/Core-only 路径），转 Dying + 调 ItemDropTable.Drop 写入 LastDrops。
+            if (mob.Health.IsDead)
+            {
+                mob.State = MobState.Dying;
+                if (mob.DeathTimer <= 0f) mob.DeathTimer = DefaultDeathTimer;
+                if (mob.LastDrops == null)
+                {
+                    mob.LastDrops = ItemDropTable.Drop(mob.Kind);
+                }
+                return;
+            }
 
             float distSq = DistanceSquared(playerPos, mob.Position);
             bool isNight = time != null && time.IsNight;
@@ -47,6 +69,18 @@ namespace MyWorld.Core.Entities
                         TickHostile(mob, playerPos, distSq, dt, world);
                     }
                     break;
+
+                // Phase D 新增 type-specific（spec line 173）
+                case MobKind.Pig:
+                case MobKind.Cow:
+                case MobKind.Chicken:
+                    // 友好动物：wander + 玩家靠近时 flee（Scared），不追玩家
+                    TickPassive(mob, playerPos, distSq, dt, world);
+                    break;
+                case MobKind.Zombie:
+                    // 新僵尸：永远追玩家（不分昼夜）；chase/attack 半径由 mob.ChaseRadius / mob.AttackRange 控制
+                    TickHostile(mob, playerPos, distSq, dt, world);
+                    break;
             }
         }
 
@@ -61,6 +95,8 @@ namespace MyWorld.Core.Entities
             {
                 mob.State = MobState.Idle;
             }
+
+            float speed = mob.MoveSpeed > 0f ? mob.MoveSpeed : WanderSpeed;
 
             switch (mob.State)
             {
@@ -86,7 +122,7 @@ namespace MyWorld.Core.Entities
                     }
                     else
                     {
-                        mob.Velocity = new Float3(to.X / d * WanderSpeed, 0, to.Z / d * WanderSpeed);
+                        mob.Velocity = new Float3(to.X / d * speed, 0, to.Z / d * speed);
                     }
                     break;
                 }
@@ -115,7 +151,12 @@ namespace MyWorld.Core.Entities
                 return;
             }
 
-            if (distSq < HostileChaseRadiusSq)
+            // Phase D：用 mob.ChaseRadius（默认 16 = 既有 HostileChaseRadius）替代硬编码常量，
+            // 让新僵尸可以单独配 32 格 aggro，旧 mobTypeId 不受影响。
+            float chaseRadius = mob.ChaseRadius > 0f ? mob.ChaseRadius : HostileChaseRadius;
+            float chaseRadiusSq = chaseRadius * chaseRadius;
+
+            if (distSq < chaseRadiusSq)
             {
                 mob.State = MobState.Chasing;
             }
