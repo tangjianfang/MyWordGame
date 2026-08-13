@@ -13,6 +13,13 @@ namespace MyWorld.Unity.Player
         public float SwingDuration = 0.25f;
         public float SwingDownAngle = -45f;
 
+        // ─── 公开 API（A5：HandController jump 姿势） ─────────────────────────────
+        /// <summary>当前是否处于挥动状态——绑定玩家时由 airborne 信号驱动：
+        /// 未绑定 / 在空中 = false（持物但不挥），着地 = true（允许挥动）。</summary>
+        public bool IsSwinging { get; private set; } = false;
+
+        private PlayerController _player;
+
         private float _swingTime;
         private bool _swinging;
         private Texture2D _missingTex;
@@ -33,8 +40,37 @@ namespace MyWorld.Unity.Player
             _swingTime = 0;
         }
 
+        /// <summary>绑定到玩家身上——后续每帧 Update 会读 <see cref="PlayerController.IsGrounded"/>
+        /// 决定是否挥动。不绑定则保持原行为（每帧只推进挥动计时器）。</summary>
+        public void AttachTo(PlayerController player)
+        {
+            _player = player;
+        }
+
+        /// <summary>测试入口——同 Update 逻辑但可在 EditMode 下显式触发。
+        /// 公开出来是因为 EditMode 不跑 MonoBehaviour.Update，必须手动步进。</summary>
+        public void TickForTest()
+        {
+            TickInternal();
+        }
+
         private void Update()
         {
+            TickInternal();
+        }
+
+        private void TickInternal()
+        {
+            // 玩家在空中：停止挥动、复位姿势到 idle，避免「空中还在走路挥剑」的违和感
+            if (_player != null && !_player.IsGrounded)
+            {
+                IsSwinging = false;
+                _swinging = false;
+                transform.localRotation = Quaternion.identity;
+                return;
+            }
+
+            IsSwinging = true;
             if (_swinging)
             {
                 _swingTime += Time.deltaTime;

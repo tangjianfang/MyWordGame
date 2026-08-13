@@ -95,6 +95,15 @@ namespace MyWorld.Unity.Player
             }
         }
 
+        /// <summary>测试助手（A5 用）——强制把玩家置为着地、清零竖直速度。
+        /// 让 EditMode 测试在没真 World 的情况下也能从空中切回地面，
+        /// 不依赖 Core 碰撞检测。仅 EditMode / 测试代码使用。</summary>
+        public void ForceGroundedForTest()
+        {
+            _defaultIsGrounded = true;
+            _defaultVerticalVelocity = 0f;
+        }
+
         /// <summary>由 <c>WorldBootstrap</c> 在世界准备好之后调用。</summary>
         public void Bind(World world, BlockRegistry registry, Float3 spawnPosition)
         {
