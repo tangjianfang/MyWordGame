@@ -12,6 +12,49 @@ namespace MyWorld.Unity.UI
     {
         public Color OverlayColor = new Color(0.5f, 0f, 0f, 0.65f);
 
+        /// <summary>当前是否在显示死亡画面。由 <see cref="Show"/> / <see cref="OnPlayerDied"/> 触发，
+        /// 复活完成（<see cref="DeathSystem.Phase"/> 回 <see cref="DeathPhase.Alive"/>）后自动收起。</summary>
+        public bool IsVisible => _visible;
+
+        private bool _visible;
+
+        private void Awake()
+        {
+            // 把自身挂到 PlayerContext 上，方便 PlayerController 在 HP=0 时反查 Show()，
+            // 无需走 FindObjectOfType（OnGUI / 战斗中频繁调用，全局查找开销不可忽略）。
+            var ctx = PlayerContext.Instance;
+            if (ctx != null) ctx.DeathScreen = this;
+        }
+
+        /// <summary>触发死亡画面。同步把 <see cref="DeathSystem"/> 推进到
+        /// <see cref="DeathPhase.Dying"/>，让 Core 侧的状态机与 UI 侧保持一致。</summary>
+        public void Show()
+        {
+            _visible = true;
+            var ctx = PlayerContext.Instance;
+            if (ctx != null && ctx.Death != null)
+            {
+                var pos = transform.position;
+                ctx.Death.OnDeath(new MyWorld.Core.Math.Float3(pos.x, pos.y, pos.z));
+            }
+        }
+
+        /// <summary>玩家死亡事件入口（与 <see cref="Show"/> 等价，供未来事件总线接入）。
+        /// B3 测试用此方法验证 OnPlayerDied 后 IsVisible=true。</summary>
+        public void OnPlayerDied() => Show();
+
+        private void Update()
+        {
+            // 每帧推进 DeathSystem 状态机：Phase=Alive 时收起 IsVisible。
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Death == null) return;
+            ctx.Death.Tick(Time.deltaTime);
+            if (ctx.Death.Phase == DeathPhase.Alive && _visible)
+            {
+                _visible = false;
+            }
+        }
+
         private void OnGUI()
         {
             var ctx = PlayerContext.Instance;

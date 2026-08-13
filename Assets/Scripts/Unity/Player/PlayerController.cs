@@ -3,6 +3,7 @@ using MyWorld.Core.Math;
 using MyWorld.Core.Player;
 using MyWorld.Core.Voxel;
 using MyWorld.Unity.Audio;
+using MyWorld.Unity.Gameplay;
 using UnityEngine;
 
 namespace MyWorld.Unity.Player
@@ -105,6 +106,44 @@ namespace MyWorld.Unity.Player
         {
             _defaultIsGrounded = true;
             _defaultVerticalVelocity = 0f;
+        }
+
+        /// <summary>玩家当前生命值。归零时触发死亡画面（见 <see cref="TakeDamage"/>）。</summary>
+        public int Health { get; private set; } = MaxHealth;
+
+        /// <summary>生命值上限。默认 20（=10 颗心）。</summary>
+        public const int MaxHealth = 20;
+
+        /// <summary>玩家受到伤害。<paramref name="amount"/> ≤ 0 直接忽略；生命归零时通知
+        /// <see cref="MyWorld.Unity.UI.DeathScreenUi"/> 显示死亡画面。<paramref name="attacker"/>
+        /// 保留给未来的伤害归属 / 成就系统，这里不用。</summary>
+        public void TakeDamage(int amount, object attacker)
+        {
+            if (amount <= 0) return;
+            Health = System.Math.Max(0, Health - amount);
+            if (Health == 0)
+            {
+                var ctx = GetComponent<PlayerContext>();
+                ctx?.DeathScreen?.Show();
+            }
+        }
+
+        /// <summary>玩家复活到 <paramref name="spawnPoint"/>：传送 + 回满生命 + 清竖直速度 +
+        /// 标记着地 + 通过 <see cref="PlayerContext.HungerSystem"/> 重置饥饿 / 饱和度。
+        /// Core 的 <see cref="PlayerState"/> 字段（Hunger / Saturation）暂不写回——B8 接 pickup 时
+        /// 再决定是否把 HungerSystem.Hunger 同步到 PlayerState.Hunger。</summary>
+        public void Respawn(Vector3 spawnPoint)
+        {
+            transform.position = spawnPoint;
+            Health = MaxHealth;
+            _defaultVerticalVelocity = 0f;
+            _defaultIsGrounded = true;
+            var ctx = GetComponent<PlayerContext>();
+            if (ctx?.HungerSystem != null)
+            {
+                ctx.HungerSystem.Hunger = HungerSystem.MaxHunger;
+                ctx.HungerSystem.Saturation = 5f;
+            }
         }
 
         /// <summary>由 <c>WorldBootstrap</c> 在世界准备好之后调用。</summary>
