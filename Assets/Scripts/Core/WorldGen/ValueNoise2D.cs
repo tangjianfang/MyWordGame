@@ -73,5 +73,20 @@ namespace MyWorld.Core.WorldGen
                 return h / (float)uint.MaxValue * 2f - 1f;
             }
         }
+
+        /// <summary>
+        /// 整型 3D 哈希 → [0, 1)。cave 等不需要空间插值的场景用，无需持久化（重建种子重算即可）。
+        /// </summary>
+        public static float Sample3D(int x, int y, int z, int seed)
+        {
+            unchecked
+            {
+                uint h = (uint)(x * 73856093 ^ y * 19349663 ^ z * 83492791 ^ seed * 2654435761);
+                h ^= h >> 16;
+                h *= 0x45d9f3b;
+                h ^= h >> 16;
+                return (h & 0xFFFFFF) / (float)0x1000000;
+            }
+        }
     }
 }
