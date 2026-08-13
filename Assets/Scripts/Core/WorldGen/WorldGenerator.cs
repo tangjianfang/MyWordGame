@@ -104,8 +104,9 @@ namespace MyWorld.Core.WorldGen
             return BaseHeight + (int)(noise * HeightAmplitude);
         }
 
-        /// <summary>取 (worldX, worldZ) 列对应的 biome。仅依赖世界坐标与 seed，与生成顺序无关。</summary>
-        private Biome BiomeAt(int worldX, int worldZ)
+        /// <summary>取 (worldX, worldZ) 列对应的 biome。仅依赖世界坐标与 seed，与生成顺序无关。
+        /// 公开给 MobManager 等运行时刷怪系统查询当前刷怪点的 biome。</summary>
+        public Biome BiomeAt(int worldX, int worldZ)
         {
             float temperature = SampleClimate(worldX, worldZ, channelOffset: 0f);
             float humidity = SampleClimate(worldX, worldZ, channelOffset: 1000f);

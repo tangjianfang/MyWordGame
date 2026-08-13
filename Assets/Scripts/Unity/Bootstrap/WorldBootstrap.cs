@@ -107,7 +107,10 @@ namespace MyWorld.Unity.Bootstrap
 
             // 12. 动物系统
             _mobManager = gameObject.AddComponent<MobManager>();
-            _mobManager.Bind(_world, _playerContext.Time, transform);
+            // 加载 MobSpawnRules 并把 WorldGenerator 注入 MobManager，让运行时刷怪
+            // 按 biome + 光照 + seed 决定（而非写死概率）。
+            var spawnRules = MobSpawnRulesLoader.TryLoad();
+            _mobManager.Bind(_world, _playerContext.Time, transform, generator, spawnRules);
 
             // 13. 时间 + 水
             var sun = GameObject.Find("方向光");

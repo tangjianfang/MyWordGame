@@ -99,5 +99,63 @@ namespace MyWorld.Core.Tests.Entities
             Assert.That(plainsSpawns, Is.GreaterThan(desertSpawns),
                 $"Cow 应只在 Plains 刷（Plains {plainsSpawns}/100，Desert {desertSpawns}/100）");
         }
+
+        /// <summary>
+        /// 白天 + Plains + 候选 [Pig, Cow, Chicken] 应能挑出一个白天友好的 kind；
+        /// Pig/Cow/Chicken 的 minLight=9，Plains 都在白名单里，至少应出现一次成功。
+        /// </summary>
+        [Test]
+        public void PickKind_DaytimePlains_ReturnsFriendlyKind()
+        {
+            var rules = MobSpawnRules.Load(SpawnRulesPath());
+            var candidates = new[] { MobKind.Pig, MobKind.Cow, MobKind.Chicken };
+            int hits = 0;
+            for (int i = 0; i < 100; i++)
+            {
+                var kind = rules.PickKind(Biome.Plains, lightLevel: 15, candidates, seed: i);
+                if (kind.HasValue)
+                {
+                    foreach (var c in candidates) if (c == kind.Value) { hits++; break; }
+                }
+            }
+            Assert.That(hits, Is.GreaterThan(50),
+                $"白天 + Plains 应高概率挑出友好 kind（实际 {hits}/100）");
+        }
+
+        /// <summary>
+        /// 夜晚 + Plains + 候选 [Zombie] 应稳定挑出 Zombie：Zombie 的 minLight=0，
+        /// Plains 在白名单，weight=5 → 期望约 25% 命中。
+        /// </summary>
+        [Test]
+        public void PickKind_NightPlainsZombie_ReturnsZombie()
+        {
+            var rules = MobSpawnRules.Load(SpawnRulesPath());
+            var candidates = new[] { MobKind.Zombie };
+            int hits = 0;
+            for (int i = 0; i < 100; i++)
+            {
+                var kind = rules.PickKind(Biome.Plains, lightLevel: 0, candidates, seed: i);
+                if (kind == MobKind.Zombie) hits++;
+            }
+            Assert.That(hits, Is.GreaterThan(0),
+                $"夜晚 + Plains 应能刷出 Zombie（实际 {hits}/100）");
+        }
+
+        /// <summary>
+        /// 夜晚 + 候选 [Pig, Cow, Chicken]：所有 kind 的 minLight=9，lightLevel=0 < 9，
+        /// ShouldSpawn 全部返回 false → PickKind 返回 null。
+        /// </summary>
+        [Test]
+        public void PickKind_NightFriendlies_AlwaysReturnsNull()
+        {
+            var rules = MobSpawnRules.Load(SpawnRulesPath());
+            var candidates = new[] { MobKind.Pig, MobKind.Cow, MobKind.Chicken };
+            for (int i = 0; i < 50; i++)
+            {
+                var kind = rules.PickKind(Biome.Plains, lightLevel: 0, candidates, seed: i);
+                Assert.That(kind, Is.Null,
+                    $"夜晚 lightLevel=0 < MinLight=9，候选友好 mob 一律不应刷（seed={i}）");
+            }
+        }
     }
 }

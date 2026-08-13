@@ -92,6 +92,27 @@ namespace MyWorld.Core.Entities
             return chance < rule.Weight * 5;
         }
 
+        /// <summary>
+        /// 从候选列表里挑一个能在此处刷的 kind，按列表顺序检查，第一个命中即返回。
+        /// 都未命中返回 null（说明当前 biome + light + seed 不允许任何候选刷怪）。
+        /// <para>
+        /// MobManager 调用形式：白天传 <c>{Pig, Cow, Chicken}</c>，夜晚传 <c>{Zombie}</c>。
+        /// 列表顺序即优先级（白天优先刷猪）。
+        /// </para>
+        /// </summary>
+        public MobKind? PickKind(Biome biome, int lightLevel, MobKind[] candidates, int seed)
+        {
+            if (candidates == null) return null;
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (ShouldSpawn(biome, candidates[i], lightLevel, seed + i))
+                {
+                    return candidates[i];
+                }
+            }
+            return null;
+        }
+
         private static MobKind ParseKind(string name)
         {
             switch (name)

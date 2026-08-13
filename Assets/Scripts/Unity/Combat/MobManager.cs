@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Math;
-using MyWorld.Core.Player;
 using MyWorld.Core.Time;
 using MyWorld.Core.Voxel;
+using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Bootstrap;
 using MyWorld.Unity.Gameplay;
 using UnityEngine;
@@ -14,6 +14,11 @@ namespace MyWorld.Unity.Combat
     /// 动物总管理：spawn + tick + 渲染。
     /// 玩家 16 米半径内的 chunk 才会生成。
     /// 友好动物白天全天生成，僵尸仅夜晚生成。
+    /// <para>
+    /// Phase D：刷怪决策由 <see cref="MobSpawnRules"/> 数据驱动（biome + 光照 + seed），
+    /// 而不是写死的概率。运行时刷怪点 biome 查 <see cref="WorldGenerator.BiomeAt"/>，
+    /// 光照由 <see cref="TimeOfDay.IsNight"/> 派生（白天=15，夜晚=0）。
+    /// </para>
     /// </summary>
     public sealed class MobManager : MonoBehaviour
     {
@@ -21,13 +26,20 @@ namespace MyWorld.Unity.Combat
         public float SpawnChancePerSecond = 0.4f;
         public int MaxMobs = 24;
 
+        // 白天候选 mob（按优先级排序：先猪，后牛/鸡）
+        private static readonly MobKind[] DayCandidates = { MobKind.Pig, MobKind.Cow, MobKind.Chicken };
+        // 夜晚候选 mob（只有 Zombie）
+        private static readonly MobKind[] NightCandidates = { MobKind.Zombie };
+
         private readonly List<Mob> _mobs = new List<Mob>();
         private readonly Dictionary<int, GameObject> _views = new Dictionary<int, GameObject>();
         private int _nextEntityId = 1;
         private float _spawnAccum;
         private World _world;
+        private WorldGenerator _generator;
         private TimeOfDay _time;
         private Transform _player;
+        private MobSpawnRules _rules;
 
         private void OnEnable()
         {
@@ -69,11 +81,19 @@ namespace MyWorld.Unity.Combat
             if (pc != null) _player = pc.transform;
         }
 
-        public void Bind(World world, TimeOfDay time, Transform player)
+        /// <summary>
+        /// 由 <see cref="WorldBootstrap"/> 在 Awake 末尾调用，注入依赖。
+        /// <paramref name="generator"/> 与 <paramref name="rules"/> 可为 null：
+        /// 为 null 时退化为旧硬编码概率路径（保持现有行为）。
+        /// </summary>
+        public void Bind(World world, TimeOfDay time, Transform player,
+            WorldGenerator generator = null, MobSpawnRules rules = null)
         {
             _world = world;
             _time = time;
             _player = player;
+            _generator = generator;
+            _rules = rules;
         }
 
         public IReadOnlyList<Mob> ActiveMobs => _mobs;
@@ -116,59 +136,138 @@ namespace MyWorld.Unity.Combat
                 PlayerContext.Instance.Death.Tick(dt);
             }
 
-            // 3) spawn
+            // 3) spawn：用 _spawnAccum 控制频率，到点调用 TickSpawn 走规则判定
             _spawnAccum += dt * SpawnChancePerSecond;
+            float dayPhase = _time != null ? _time.DayPhase01 : 0.5f;
             while (_spawnAccum >= 1f && _mobs.Count < MaxMobs)
             {
                 _spawnAccum -= 1f;
-                TrySpawnOne();
+                int seed = unchecked((int)(Time.time * 1000.0f) ^ _nextEntityId);
+                TickSpawn(seed, dayPhase);
             }
         }
 
-        private void TrySpawnOne()
+        /// <summary>
+        /// 单次刷怪检查。给定 seed 与昼夜相位（0..1，&lt;0.5 视作夜晚），按
+        /// <see cref="MobSpawnRules.PickKind"/> 决策，命中即实例化 <see cref="MobView"/>。
+        /// <para>
+        /// 测试可直接调用本方法注入确定性参数，绕开 Random.Range / Time.time。
+        /// Update() 与外部调用都走这一条路径。
+        /// </para>
+        /// </summary>
+        public void TickSpawn(int seed, float dayNightPhase)
         {
+            if (_player == null) return;
+            if (_mobs.Count >= MaxMobs) return;
+
             // 玩家 chunk 坐标 ± SpawnRadius 内随机挑一个 (x, z)
             int pcx = Mathf.FloorToInt(_player.position.x / 16f);
             int pcz = Mathf.FloorToInt(_player.position.z / 16f);
-            int rx = Random.Range(-SpawnRadiusChunks, SpawnRadiusChunks + 1);
-            int rz = Random.Range(-SpawnRadiusChunks, SpawnRadiusChunks + 1);
-            int wx = (pcx + rx) * 16 + Random.Range(2, 14);
-            int wz = (pcz + rz) * 16 + Random.Range(2, 14);
+            int rx = Mathf.Abs((seed * 13) % (SpawnRadiusChunks * 2 + 1)) - SpawnRadiusChunks;
+            int rz = Mathf.Abs((seed * 17) % (SpawnRadiusChunks * 2 + 1)) - SpawnRadiusChunks;
+            int wx = (pcx + rx) * 16 + Mathf.Abs((seed >> 4) % 12) + 2;
+            int wz = (pcz + rz) * 16 + Mathf.Abs((seed >> 8) % 12) + 2;
             int surfaceY = _world != null
                 ? FindSurfaceY(_world, wx, wz)
                 : 70;
             if (surfaceY < 0) return;
 
-            bool isNight = _time != null && _time.IsNight;
+            bool isNight = dayNightPhase < 0.5f;
+            int light = isNight ? 0 : 15;
+            Biome biome = _generator != null ? _generator.BiomeAt(wx, wz) : Biome.Plains;
+
             int type;
-            if (isNight)
+            MobKind kind;
+            if (_rules != null)
             {
-                // 夜晚：50% 僵尸 / 30% 骷髅 / 20% 苦力怕
-                float r = Random.value;
-                type = r < 0.5f ? 3 : (r < 0.8f ? 4 : 5);
+                // 数据驱动路径：按 biome + light + seed 在候选里挑一个能刷的 kind
+                MobKind[] candidates = isNight ? NightCandidates : DayCandidates;
+                var picked = _rules.PickKind(biome, light, candidates, seed);
+                if (!picked.HasValue) return;
+                kind = picked.Value;
+                type = MobKindToTypeId(kind);
             }
             else
             {
-                // 白天：50% 猪 / 35% 羊 / 15% 僵尸
-                float r = Random.value;
-                type = r < 0.5f ? 1 : (r < 0.85f ? 2 : 3);
+                // 旧路径：硬编码概率（_rules == null 时回退，保证现有场景/测试不受影响）
+                if (isNight)
+                {
+                    // 夜晚：50% 僵尸 / 30% 骷髅 / 20% 苦力怕
+                    uint h = unchecked((uint)(seed * 2654435761));
+                    float r = (h & 0xFFFF) / 65535f;
+                    type = r < 0.5f ? 3 : (r < 0.8f ? 4 : 5);
+                }
+                else
+                {
+                    // 白天：50% 猪 / 35% 羊 / 15% 僵尸
+                    uint h = unchecked((uint)(seed * 2654435761));
+                    float r = (h & 0xFFFF) / 65535f;
+                    type = r < 0.5f ? 1 : (r < 0.85f ? 2 : 3);
+                }
+                // 旧 mobTypeId 1-5 沿用既有 MobView 默认 cube 视觉
+                kind = MobKind.Passive; // 仅占位，MobView.Attach 用 MobTypeId 染色
             }
-            var mob = Mob.Create(type, new Float3(wx + 0.5f, surfaceY + 1f, wz + 0.5f));
+
+            SpawnMob(type, kind, new Float3(wx + 0.5f, surfaceY + 1f, wz + 0.5f));
+        }
+
+        /// <summary>
+        /// 实例化 <see cref="Mob"/> 与对应 GameObject + <see cref="MobView"/>。
+        /// Phase D kind 走 Body+Head 双段（旧 mobTypeId 1-5 走单 cube 由 MobView 默认分支处理）。
+        /// </summary>
+        private void SpawnMob(int type, MobKind kind, Float3 position)
+        {
+            var mob = Mob.Create(type, position);
             mob.EntityId = _nextEntityId++;
             _mobs.Add(mob);
 
-            // 创建 GameObject（简单 cube）
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = $"Mob_{type}_{mob.EntityId}";
-            // 敌对 mob 用细高一些的体型（人型），友好 mob 用胖短体型
-            go.transform.localScale = (type == 3 || type == 4 || type == 5)
-                ? new Vector3(0.6f, 1.8f, 0.6f)
-                : new Vector3(0.8f, 1.0f, 1.2f);
-            // 移除 BoxCollider 之外不需要的东西
+            go.name = $"Mob_{kind}_{mob.EntityId}";
+
+            // 体型按 kind 调；MobView.Setup 也会按 kind 切视觉，缩放与之对齐
+            switch (kind)
+            {
+                case MobKind.Pig:
+                    go.transform.localScale = new Vector3(0.9f, 0.6f, 1.2f);
+                    break;
+                case MobKind.Cow:
+                    go.transform.localScale = new Vector3(1.0f, 0.8f, 1.4f);
+                    break;
+                case MobKind.Chicken:
+                    go.transform.localScale = new Vector3(0.4f, 0.4f, 0.5f);
+                    break;
+                case MobKind.Zombie:
+                    go.transform.localScale = new Vector3(0.6f, 1.8f, 0.4f);
+                    break;
+                default:
+                    // 旧 mobTypeId 路径（Passive/Hostile）：敌对用细高体型，友好用胖短
+                    go.transform.localScale = (type == 3 || type == 4 || type == 5)
+                        ? new Vector3(0.6f, 1.8f, 0.6f)
+                        : new Vector3(0.8f, 1.0f, 1.2f);
+                    break;
+            }
+
             var col = go.GetComponent<BoxCollider>();
-            col.size = Vector3.one;
+            if (col != null) col.size = Vector3.one;
+
             MobView.Attach(go, mob);
             _views[mob.EntityId] = go;
+        }
+
+        /// <summary>
+        /// Phase D MobKind → Mob.Create 用的 int mobTypeId。
+        /// 旧 mobTypeId 1-5 由 SetBlock 反向分支处理。
+        /// </summary>
+        private static int MobKindToTypeId(MobKind kind)
+        {
+            switch (kind)
+            {
+                case MobKind.Pig: return 6;
+                case MobKind.Cow: return 7;
+                case MobKind.Chicken: return 8;
+                case MobKind.Zombie: return 9;
+                default: return 1;
+            }
         }
 
         private static int FindSurfaceY(World world, int x, int z)
