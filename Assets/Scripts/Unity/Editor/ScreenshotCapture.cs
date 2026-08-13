@@ -150,14 +150,10 @@ namespace MyWorld.Unity.EditorTools
             }
         }
 
-        /// <summary>
-        /// EditMode 兜底：WorldBootstrap.Awake 里 AddComponent<PlayerVisual> 与
-        /// <see cref="MyWorld.Unity.Player.CameraThirdPerson"/> 不会触发各自 Awake，
-        /// 反射手动调一次。PlayerVisual.Awake 建 6 个身体 Cube，CameraThirdPerson.Awake
-        /// 建 ThirdPersonCamera 子相机。
-        /// 重复调用安全：被调的 PlayerVisual.Awake / CameraThirdPerson.Awake 各自内部有"已初始化则 return"守卫，
-        /// 所以 CaptureAll → CaptureThirdPerson 连调两次不会双初始化。
-        /// </summary>
+        // 注意：本辅助不幂等。PlayerVisual.Awake / CameraThirdPerson.Awake 内部都无"已初始化则 return"
+        // 守卫，重复调用会重建组件并泄漏旧对象。CaptureAll 流程只经 CaptureThirdPerson 调一次，
+        // 所以默认流水线安全；若要手动多次调用，外部自行去重（例如先 GameObject.Find 检查 _torso /
+        // _firstPersonCam 是否已存在）。
         private static void EditModeAwakeWorkaround()
         {
             var bootstrapGo = GameObject.Find("玩家");
