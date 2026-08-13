@@ -37,6 +37,64 @@ namespace MyWorld.Unity.Player
         /// <summary>相机所在位置——射线拾取要用，所以公开出去。</summary>
         public Transform Eye => eye;
 
+        // ─── 公开 jump / 着地信号（A4：HandController 与无头驱动依赖） ──────────────
+        // 绑定到世界后这两个值同步自 <see cref="PlayerState"/>——Core 在 <see cref="Tick"/>
+        // 里做碰撞检测、重力累积；绑定前保留本地默认值，避免测试 / 预览场景拿不到信号。
+        // HandController 等客户端只读这两个属性，不必关心 Core 的状态机。
+
+        /// <summary>玩家是否着地。绑定到世界后由 Core 碰撞检测驱动，
+        /// 绑定前默认为 true（新生角色视为站在出生点上）。</summary>
+        public bool IsGrounded => _world == null ? _defaultIsGrounded : _state.IsGrounded;
+
+        /// <summary>竖直速度（m/s）。绑定后同步自 <see cref="PlayerState.Velocity.Y"/>，
+        /// 绑定前返回本地默认（jump 后 = <see cref="JumpSpeed"/>）。</summary>
+        public float VerticalVelocity => _world == null ? _defaultVerticalVelocity : _state.Velocity.Y;
+
+        /// <summary>走路相位累加器，给 HandController 摆动动画用。无 dt 时不前进。</summary>
+        public float WalkPhase { get; private set; } = 0f;
+
+        private bool _defaultIsGrounded = true;
+        private float _defaultVerticalVelocity = 0f;
+
+        // 跳跃初速度（m/s）。与 Core <see cref="PlayerMotorSettings.JumpSpeed"/> 独立——
+        // 这套公开 API 面向调用方直接触发跳跃（按 Space / HandController / 测试），
+        // 不一定走 Core Tick 链路，所以保留独立常量。
+        private const float JumpSpeed = 8f;
+
+        // 重力加速度（m/s²）。Core 在 PlayerMotor.StepVertical 里已经按 gravity=-28 累加重力，
+        // 这里留一个常量作为公开文档，不在 Update 里直接用——避免双重重力把玩家拉穿地板。
+        private const float Gravity = -20f;
+
+        /// <summary>由调用方（按 Space / HandController / 测试 / 无头驱动）触发跳跃。
+        /// 必须在着地状态才生效——避免空中连跳破坏物理手感。</summary>
+        public void Jump()
+        {
+            if (!IsGrounded) return;
+            if (_world != null)
+            {
+                _state = new PlayerState(
+                    _state.Position,
+                    new Float3(_state.Velocity.X, JumpSpeed, _state.Velocity.Z),
+                    false);
+            }
+            else
+            {
+                _defaultIsGrounded = false;
+                _defaultVerticalVelocity = JumpSpeed;
+            }
+        }
+
+        /// <summary>无头驱动一帧的水平步进。<paramref name="speed"/> 低于阈值时不计相位（停下脚步），
+        /// <paramref name="dt"/> 钳位到 1e-4 防止 EditMode / batchmode 极小 dt 时 WalkPhase 累加爆炸。</summary>
+        public void ApplyMovementTick(float speed, float dt)
+        {
+            dt = Mathf.Max(dt, 1e-4f);
+            if (speed > 0.1f)
+            {
+                WalkPhase += dt * speed * 8f;
+            }
+        }
+
         /// <summary>由 <c>WorldBootstrap</c> 在世界准备好之后调用。</summary>
         public void Bind(World world, BlockRegistry registry, Float3 spawnPosition)
         {
