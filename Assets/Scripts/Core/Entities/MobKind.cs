@@ -13,5 +13,8 @@ namespace MyWorld.Core.Entities
         Cow = 11,
         Chicken = 12,
         Zombie = 13,
+
+        // Task D6：Villager 占位（中立友好 mob，不走 Passive 的 flee，也不走 Hostile 的 chase）
+        Villager = 14,
     }
 }

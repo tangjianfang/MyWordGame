@@ -121,9 +121,10 @@ namespace MyWorld.Core.Entities
                 case "Cow": return MobKind.Cow;
                 case "Chicken": return MobKind.Chicken;
                 case "Zombie": return MobKind.Zombie;
+                case "Villager": return MobKind.Villager;
                 default:
                     throw new System.ArgumentException(
-                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie）");
+                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Villager）");
             }
         }
     }

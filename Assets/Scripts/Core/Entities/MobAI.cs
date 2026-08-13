@@ -81,6 +81,13 @@ namespace MyWorld.Core.Entities
                     // 新僵尸：永远追玩家（不分昼夜）；chase/attack 半径由 mob.ChaseRadius / mob.AttackRange 控制
                     TickHostile(mob, playerPos, distSq, dt, world);
                     break;
+
+                // Task D6：Villager 占位。中立友好：保持 Idle、零速度，不 flee、不 chase。
+                // 不调 TickPassive / TickHostile 也就不更新 Position（或留给宿主处理）。
+                case MobKind.Villager:
+                    mob.State = MobState.Idle;
+                    mob.Velocity = default;
+                    break;
             }
         }
 

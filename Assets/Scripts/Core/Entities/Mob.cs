@@ -59,6 +59,10 @@ namespace MyWorld.Core.Entities
                 8 => new Mob { MobTypeId = 8, Kind = MobKind.Chicken, Health = new Health(4), Position = position, WanderCooldown = 2f, MoveSpeed = 0.5f },
                 9 => new Mob { MobTypeId = 9, Kind = MobKind.Zombie, Health = new Health(20), Position = position, AttackDamage = 2f, AttackRange = 8f, ChaseRadius = 32f, WanderCooldown = 2f, MoveSpeed = 3.5f },
 
+                // Task D6：Villager 占位 mobTypeId。MobAI 走中立分支（stand still），
+                // MoveSpeed 留 0（不靠 wander / flee 速度）。
+                10 => new Mob { MobTypeId = 10, Kind = MobKind.Villager, Health = new Health(20), Position = position, WanderCooldown = 2f, MoveSpeed = 0f },
+
                 _ => throw new System.ArgumentException($"未知 mobTypeId: {mobTypeId}"),
             };
         }

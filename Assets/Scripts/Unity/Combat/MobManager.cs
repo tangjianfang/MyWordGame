@@ -26,8 +26,8 @@ namespace MyWorld.Unity.Combat
         public float SpawnChancePerSecond = 0.4f;
         public int MaxMobs = 24;
 
-        // 白天候选 mob（按优先级排序：先猪，后牛/鸡）
-        private static readonly MobKind[] DayCandidates = { MobKind.Pig, MobKind.Cow, MobKind.Chicken };
+        // 白天候选 mob（按优先级排序：先猪，后牛/鸡、村民）
+        private static readonly MobKind[] DayCandidates = { MobKind.Pig, MobKind.Cow, MobKind.Chicken, MobKind.Villager };
         // 夜晚候选 mob（只有 Zombie）
         private static readonly MobKind[] NightCandidates = { MobKind.Zombie };
 
@@ -239,6 +239,10 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Zombie:
                     go.transform.localScale = new Vector3(0.6f, 1.8f, 0.4f);
                     break;
+                case MobKind.Villager:
+                    // Task D6：人形（与 Zombie 同体型），稍宽一点显示袍的剪影。
+                    go.transform.localScale = new Vector3(0.6f, 1.8f, 0.4f);
+                    break;
                 default:
                     // 旧 mobTypeId 路径（Passive/Hostile）：敌对用细高体型，友好用胖短
                     go.transform.localScale = (type == 3 || type == 4 || type == 5)
@@ -266,6 +270,7 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Cow: return 7;
                 case MobKind.Chicken: return 8;
                 case MobKind.Zombie: return 9;
+                case MobKind.Villager: return 10;
                 default: return 1;
             }
         }

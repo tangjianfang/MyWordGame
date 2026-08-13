@@ -53,8 +53,8 @@ namespace MyWorld.Core.Tests.Combat
         }
 
         /// <summary>
-        /// 白天（dayNightPhase=0.7）+ Plains + 友好候选 [Pig, Cow, Chicken] 应至少有一次命中。
-        /// Pig/Cow/Chicken 的 MinLight=9，light=15 满足；Plains 在白名单。
+        /// 白天（dayNightPhase=0.7）+ Plains + 友好候选 [Pig, Cow, Chicken, Villager] 应至少有一次命中。
+        /// Pig/Cow/Chicken/Villager 的 MinLight=9，light=15 满足；Plains 在白名单。
         /// </summary>
         [Test]
         public void TickSpawn_Daytime_SpawnsFriendlyMob()
@@ -70,7 +70,7 @@ namespace MyWorld.Core.Tests.Combat
                     var spawned = _mgr.ActiveMobs[_mgr.ActiveMobs.Count - 1];
                     Assert.That(spawned.Kind,
                         Is.EqualTo(MobKind.Pig).Or.EqualTo(MobKind.Cow)
-                            .Or.EqualTo(MobKind.Chicken),
+                            .Or.EqualTo(MobKind.Chicken).Or.EqualTo(MobKind.Villager),
                         "白天刷出的 mob 应是友好 kind 之一");
                 }
             }

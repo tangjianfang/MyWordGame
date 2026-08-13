@@ -73,6 +73,16 @@ namespace MyWorld.Unity.Combat
                         headScale: new Vector3(0.5f, 0.5f, 0.5f),
                         bodyColor: BaseColor, headColor: BaseColor);
                     break;
+                case MobKind.Villager:
+                    // Task D6：棕色袍（褐色头巾 + 棕色袍）。
+                    // 体型与 Zombie 同（人形），但颜色明显区分：body 棕色 0.55/0.4/0.2，head 头巾 0.4/0.3/0.15。
+                    BaseColor = new Color(0.55f, 0.4f, 0.2f);
+                    BuildBodyHead(
+                        bodyScale: new Vector3(0.6f, 1.8f, 0.4f),
+                        headOffset: new Vector3(0f, 1.0f, 0f),
+                        headScale: new Vector3(0.5f, 0.5f, 0.5f),
+                        bodyColor: BaseColor, headColor: new Color(0.4f, 0.3f, 0.15f));
+                    break;
                 default:
                     // Passive/Hostile/Neutral：单 cube 既有路径。
                     // host 是 MobManager 创建的 Cube primitive，自带 Renderer；直接染色 host 本身。
