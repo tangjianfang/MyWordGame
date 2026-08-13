@@ -9,15 +9,15 @@ using UnityEngine;
 
 namespace MyWorld.Unity.EditorTools
 {
-    /// <summary>
-    /// 批处理截图工具：把场景里 "相机" GameObject 的 Camera 强制渲染到 RenderTexture，
-    /// 拷到 Texture2D 落盘 PNG。可被 -executeMethod 无头调用。
-    /// </summary>
+    // 视觉回归截图工具。
+    //
+    // ⚠️ 重要：调用方（visual-smoke.sh / build-and-run.sh --with-visual）必须 **不带** `-nographics`，
+    // 否则 RTX 2070 Super 会变 Null Device 拍空图（D1 fix 已证）。
+    //
+    // 用 0-arg `CaptureAllDefault` 重载（Unity -executeMethod 不支持带参）。
     public static class ScreenshotCapture
     {
         public const string DefaultScenePath = "Assets/Scenes/Preview.unity";
-
-        public static string DefaultCameraName = "相机";
 
         [MenuItem("MyWorld/截图：当前场景")]
         public static void CaptureCurrentSceneMenu()
@@ -30,7 +30,13 @@ namespace MyWorld.Unity.EditorTools
 
         public static void Capture(string outputPath, int width = 1280, int height = 720)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+            string dir = Path.GetDirectoryName(outputPath);
+            if (string.IsNullOrEmpty(dir))
+            {
+                dir = Application.dataPath;  // 默认到 Assets/
+                outputPath = Path.Combine(dir, Path.GetFileName(outputPath));
+            }
+            Directory.CreateDirectory(dir);
 
             // 找到主相机（用 tag=MainCamera 更稳，不要靠 GameObject 名）
             var cam = Camera.main;
@@ -81,7 +87,13 @@ namespace MyWorld.Unity.EditorTools
 
         public static void CaptureThirdPerson(string outputPath, int width = 1280, int height = 720)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+            string dir = Path.GetDirectoryName(outputPath);
+            if (string.IsNullOrEmpty(dir))
+            {
+                dir = Application.dataPath;  // 默认到 Assets/
+                outputPath = Path.Combine(dir, Path.GetFileName(outputPath));
+            }
+            Directory.CreateDirectory(dir);
 
             // EditMode 下 AddComponent 不会触发 Awake——手动驱动 PlayerVisual（A 建 6 个 Cube）
             // 和 CameraThirdPerson（A 建子相机），否则 GameObject.Find("ThirdPersonCamera") 找不到东西。
@@ -142,7 +154,9 @@ namespace MyWorld.Unity.EditorTools
         /// EditMode 兜底：WorldBootstrap.Awake 里 AddComponent<PlayerVisual> 与
         /// <see cref="MyWorld.Unity.Player.CameraThirdPerson"/> 不会触发各自 Awake，
         /// 反射手动调一次。PlayerVisual.Awake 建 6 个身体 Cube，CameraThirdPerson.Awake
-        /// 建 ThirdPersonCamera 子相机。重复调用是安全的（第二次进 if 分支就 return）。
+        /// 建 ThirdPersonCamera 子相机。
+        /// 重复调用安全：被调的 PlayerVisual.Awake / CameraThirdPerson.Awake 各自内部有"已初始化则 return"守卫，
+        /// 所以 CaptureAll → CaptureThirdPerson 连调两次不会双初始化。
         /// </summary>
         private static void EditModeAwakeWorkaround()
         {
@@ -173,7 +187,7 @@ namespace MyWorld.Unity.EditorTools
             }
         }
 
-        /// <summary>拍预设 5 张关键场景。要求场景里有 WorldBootstrap 且 bootstrap 流程跑通。</summary>
+        /// <summary>拍预设的 2 张关键场景到 outputDir：overworld.png（主视角）+ third-person.png（第三人称验证玩家身体）。</summary>
         public static void CaptureAll(string outputDir)
         {
             Directory.CreateDirectory(outputDir);
