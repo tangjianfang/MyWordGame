@@ -25,6 +25,12 @@ namespace MyWorld.Unity.Gameplay
         public DeathSystem Death;
         public HungerSystem HungerSystem;
         public FurnaceSystem FurnaceSystem;
+
+        /// <summary>世界里正在飞的掉落物（B7 <see cref="ItemDropEntity"/>）。
+        /// 挖方块时 spawn，<see cref="MyWorld.Unity.Player.PlayerController.PickupNearbyDrops"/>
+        /// 每帧检查并把范围内的收进背包。永不为 null，直接 Add / Remove 即可。</summary>
+        public readonly System.Collections.Generic.List<ItemDropEntity> ItemDrops =
+            new System.Collections.Generic.List<ItemDropEntity>();
         public MyWorld.Unity.UI.DeathScreenUi DeathScreen;
 
         private void Awake()

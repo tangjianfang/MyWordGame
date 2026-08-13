@@ -116,7 +116,12 @@ namespace MyWorld.Unity.Player
 
         /// <summary>玩家受到伤害。<paramref name="amount"/> ≤ 0 直接忽略；生命归零时通知
         /// <see cref="MyWorld.Unity.UI.DeathScreenUi"/> 显示死亡画面。<paramref name="attacker"/>
-        /// 保留给未来的伤害归属 / 成就系统，这里不用。</summary>
+        /// 保留给未来的伤害归属 / 成就系统，这里不用。
+        /// <para>
+        /// B8 起这是**多源**入口：怪物近战（<c>CombatController</c>）、摔落
+        /// （<see cref="TickFallDamage"/>）、饥饿（<see cref="TickHungerDamage"/>）都走这里，
+        /// 死亡判定只有这一处，不要在各伤害源里各写一份。
+        /// </para></summary>
         public void TakeDamage(int amount, object attacker)
         {
             if (amount <= 0) return;
@@ -126,6 +131,119 @@ namespace MyWorld.Unity.Player
                 var ctx = GetComponent<PlayerContext>();
                 ctx?.DeathScreen?.Show();
             }
+        }
+
+        // ─── 伤害源 1：摔落 ───────────────────────────────────────────────────
+        // 用「离地期间的最高点」而不是逐帧位移差：逐帧差只有一帧的下落量（几厘米），
+        // 永远触发不了 3 格阈值。着地那一帧结算 (峰值 - 落点 - 3) 点伤害后重置峰值。
+
+        private float _fallPeakY;
+        private bool _trackingFall;
+
+        /// <summary>摔落伤害免伤格数。落差不超过这个值不扣血。</summary>
+        public const float FallDamageThreshold = 3f;
+
+        /// <summary>每帧调用一次：离地时记录最高点，着地时按落差结算伤害。
+        /// 公开出来是为了让 EditMode 测试 / 无头驱动手动步进。</summary>
+        public void TickFallDamage()
+        {
+            float y = transform.position.y;
+            if (!IsGrounded)
+            {
+                if (!_trackingFall)
+                {
+                    _trackingFall = true;
+                    _fallPeakY = y;
+                }
+                else if (y > _fallPeakY)
+                {
+                    _fallPeakY = y;
+                }
+                return;
+            }
+
+            if (!_trackingFall) return;
+            _trackingFall = false;
+
+            float fallDistance = _fallPeakY - y;
+            if (fallDistance > FallDamageThreshold)
+            {
+                TakeDamage((int)(fallDistance - FallDamageThreshold), null);
+            }
+        }
+
+        // ─── 伤害源 2：饥饿 ───────────────────────────────────────────────────
+
+        private float _starveTimer;
+
+        /// <summary>饥饿归零后每隔多少秒扣 1 点血。</summary>
+        public const float StarveDamageInterval = 10f;
+
+        /// <summary>推进饥饿系统 <paramref name="dt"/> 秒，并在 Hunger=0 时按
+        /// <see cref="StarveDamageInterval"/> 扣血。<see cref="PlayerContext.HungerSystem"/>
+        /// 缺失时直接跳过（纯逻辑测试场景照常工作）。</summary>
+        public void TickHungerDamage(float dt)
+        {
+            var ctx = GetComponent<PlayerContext>();
+            if (ctx?.HungerSystem == null) return;
+
+            ctx.HungerSystem.Tick(dt);
+            if (!ctx.HungerSystem.IsStarving())
+            {
+                _starveTimer = 0f;
+                return;
+            }
+
+            _starveTimer += dt;
+            while (_starveTimer >= StarveDamageInterval)
+            {
+                TakeDamage(1, null);
+                _starveTimer -= StarveDamageInterval;
+            }
+        }
+
+        // ─── 拾取掉落物 ───────────────────────────────────────────────────────
+
+        /// <summary>把 <see cref="PlayerContext.ItemDrops"/> 里落在拾取半径内的掉落物收进背包，
+        /// 返回本次实际拾取的物品总数。背包塞不下时**保留**掉落物（部分塞入的按剩余量回写），
+        /// 玩家腾出格子后还能再捡。</summary>
+        public int PickupNearbyDrops()
+        {
+            var ctx = GetComponent<PlayerContext>();
+            if (ctx == null || ctx.Inventory == null || ctx.ItemDrops.Count == 0) return 0;
+
+            var self = new Float3(transform.position.x, transform.position.y, transform.position.z);
+            int total = 0;
+
+            // 倒序遍历：边判边删，不用复制列表
+            for (int i = ctx.ItemDrops.Count - 1; i >= 0; i--)
+            {
+                var drop = ctx.ItemDrops[i];
+                if (drop == null || drop.Content == null)
+                {
+                    ctx.ItemDrops.RemoveAt(i);
+                    continue;
+                }
+
+                if (!drop.TryPickupBy(self, out int picked)) continue;
+
+                var stack = drop.Content.Value;
+                if (ctx.Inventory.TryAdd(stack, out int leftover))
+                {
+                    drop.MarkPicked();
+                    ctx.ItemDrops.RemoveAt(i);
+                    total += picked;
+                }
+                else if (leftover < picked)
+                {
+                    // 背包只塞下一部分：掉落物按剩余量重建，等玩家腾格子后再捡
+                    ctx.ItemDrops[i] = new Core.Items.ItemDropEntity(
+                        stack.WithCount(leftover), drop.Position);
+                    total += picked - leftover;
+                }
+            }
+
+            return total;
         }
 
         /// <summary>玩家复活到 <paramref name="spawnPoint"/>：传送 + 回满生命 + 清竖直速度 +
@@ -160,6 +278,11 @@ namespace MyWorld.Unity.Player
                 ctx.HungerSystem.Hunger = HungerSystem.MaxHunger;
                 ctx.HungerSystem.Saturation = 5f;
             }
+
+            // 多源伤害的累计状态也要清：否则重生瞬间会被上一次的落差 / 饥饿计时补刀
+            _trackingFall = false;
+            _fallPeakY = spawnPoint.y;
+            _starveTimer = 0f;
         }
 
         /// <summary>由 <c>WorldBootstrap</c> 在世界准备好之后调用。</summary>
@@ -195,6 +318,9 @@ namespace MyWorld.Unity.Player
         {
             UpdateLook();
             Tick(ReadInput(), Time.deltaTime);
+            TickFallDamage();
+            TickHungerDamage(Time.deltaTime);
+            PickupNearbyDrops();
         }
 
         private void Awake()
