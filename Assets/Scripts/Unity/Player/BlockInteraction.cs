@@ -3,6 +3,7 @@ using MyWorld.Core.Math;
 using MyWorld.Core.Physics;
 using MyWorld.Core.Player;
 using MyWorld.Core.Voxel;
+using MyWorld.Unity.Audio;
 using MyWorld.Unity.Rendering;
 using UnityEngine;
 
@@ -27,6 +28,7 @@ namespace MyWorld.Unity.Player
         private BlockRegistry _registry;
         private ChunkViewRegistry _views;
         private SelectionBox _selection;
+        private PlayerAudioSystem _audio;
 
         public void Bind(World world, BlockRegistry registry, ChunkViewRegistry views, Transform parent)
         {
@@ -34,6 +36,9 @@ namespace MyWorld.Unity.Player
             _world = world;
             _registry = registry;
             _views = views;
+            // 父链上找 PlayerAudioSystem（WorldBootstrap 与 Player 同 GameObject），
+            // 找不到也无所谓——_audio 为 null，place/break 时跳过音效即可（nice-to-have）。
+            _audio = GetComponentInParent<PlayerAudioSystem>();
 
             if (selectionMaterial == null)
             {
@@ -70,6 +75,7 @@ namespace MyWorld.Unity.Player
                     // 挖：把命中格设为空气，标脏，重建
                     _world.SetBlock(hit.X, hit.Y, hit.Z, BlockIds.Air);
                     _views.MarkBlockChanged(hit.X, hit.Y, hit.Z);
+                    _audio?.PlayBreak();
                 }
                 else if (Input.GetMouseButtonDown(1))
                 {
@@ -80,6 +86,7 @@ namespace MyWorld.Unity.Player
                     {
                         _world.SetBlock(x, y, z, placeBlockId);
                         _views.MarkBlockChanged(x, y, z);
+                        _audio?.PlayPlace();
                     }
                 }
             }

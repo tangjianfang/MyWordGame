@@ -2,6 +2,7 @@ using MyWorld.Core.Blocks;
 using MyWorld.Core.Math;
 using MyWorld.Core.Player;
 using MyWorld.Core.Voxel;
+using MyWorld.Unity.Audio;
 using UnityEngine;
 
 namespace MyWorld.Unity.Player
@@ -27,9 +28,11 @@ namespace MyWorld.Unity.Player
         private PlayerState _state;
         private World _world;
         private BlockRegistry _registry;
+        private PlayerAudioSystem _audio;
 
         private float _yaw;
         private float _pitch;
+        private float _lastFootstepTime = -1f;
 
         public PlayerState State => _state;
         public PlayerMotorSettings Settings => _settings;
@@ -148,6 +151,10 @@ namespace MyWorld.Unity.Player
             {
                 eye = FindEyeInChildren(transform);
             }
+
+            // 找音频系统（同 GameObject / 父链），找不到就 null（_audio?.PlayFootstep 安全跳过）。
+            _audio = GetComponent<PlayerAudioSystem>();
+            if (_audio == null) _audio = GetComponentInParent<PlayerAudioSystem>();
         }
 
         private static Transform FindEyeInChildren(Transform root)
@@ -208,6 +215,14 @@ namespace MyWorld.Unity.Player
             if (direction.sqrMagnitude > 1f)
             {
                 direction.Normalize();
+            }
+
+            // 走路音效：实际有水平输入且距上次播放 > 0.5s 触发一次。
+            // _audio 缺失就跳过（nice-to-have，不阻断游戏）。
+            if (direction.sqrMagnitude > 0.01f && Time.time - _lastFootstepTime > 0.5f)
+            {
+                _audio?.PlayFootstep();
+                _lastFootstepTime = Time.time;
             }
 
             return new PlayerInput(direction.x, direction.z,
