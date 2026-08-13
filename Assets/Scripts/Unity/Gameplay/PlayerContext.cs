@@ -24,6 +24,7 @@ namespace MyWorld.Unity.Gameplay
         public Experience Experience;
         public DeathSystem Death;
         public HungerSystem HungerSystem;
+        public FurnaceSystem FurnaceSystem;
         public MyWorld.Unity.UI.DeathScreenUi DeathScreen;
 
         private void Awake()

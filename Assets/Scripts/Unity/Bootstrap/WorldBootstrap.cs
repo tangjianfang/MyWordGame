@@ -143,6 +143,14 @@ namespace MyWorld.Unity.Bootstrap
 
             // 20. 附魔 UI（plan-3d）
             gameObject.AddComponent<MyWorld.Unity.UI.EnchantingUi>();
+
+            // 21. 熔炉系统（plan-3 task B5：FurnaceSystem 是 Core 类，挂在 PlayerContext 上）
+            if (_playerContext.FurnaceSystem == null)
+                _playerContext.FurnaceSystem = new FurnaceSystem(coalFuelValue: 8, smeltTimeSeconds: 1f);
+
+            // 22. 熔炉 UI（plan-3 task B5：挂 Player 上并 Bind FurnaceSystem）
+            var furnaceUi = gameObject.AddComponent<MyWorld.Unity.UI.CraftingFurnaceUi>();
+            furnaceUi.Bind(_playerContext.FurnaceSystem);
         }
 
         private void Update()
