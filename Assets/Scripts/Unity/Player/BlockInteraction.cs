@@ -3,6 +3,7 @@ using MyWorld.Core.Math;
 using MyWorld.Core.Physics;
 using MyWorld.Core.Player;
 using MyWorld.Core.Voxel;
+using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Audio;
 using MyWorld.Unity.Rendering;
 using UnityEngine;
@@ -97,5 +98,30 @@ namespace MyWorld.Unity.Player
         }
 
         private static Float3 ToFloat3(Vector3 v) => new Float3(v.x, v.y, v.z);
+
+        /// <summary>
+        /// 按 Biome 调整方块的挖掘耗时（秒）。
+        /// 山地石头硬 ×2，沙漠沙软 ×0.5，其它默认 1f。
+        /// <para>
+        /// 静态纯函数：EditMode 测试可直接调用验证契约，
+        /// 与 MonoBehaviour 实例化 / <see cref="World"/> / <see cref="PlayerController"/>
+        /// 等上下文完全解耦。当前 <c>Update</c> 里仍是瞬时挖矿——以后接真实 MiningTimed
+        /// 逻辑时这个返回值就是「按住 LMB 的目标持续时间」。
+        /// </para>
+        /// </summary>
+        public static float BreakTime(int blockId, Biome biome)
+        {
+            float base_ = 1f;
+            if (blockId == BlockIds.Stone)
+            {
+                base_ = (biome == Biome.Mountains) ? 2f : 1f;
+            }
+            else if (blockId == BlockIds.Sand)
+            {
+                base_ = (biome == Biome.Desert) ? 0.5f : 1f;
+            }
+
+            return base_;
+        }
     }
 }
