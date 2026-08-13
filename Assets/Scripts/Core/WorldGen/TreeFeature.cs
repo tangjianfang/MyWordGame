@@ -16,7 +16,28 @@ namespace MyWorld.Core.WorldGen
         public const int MaxTrunk = 7;
         public const int LeafLayers = 3;
         public const int LeafRadius = 2;     // 顶层半径
-        public const int SkipChanceDenominator = 80;  // 每 N 格才有 1 棵树
+        public const int SkipChanceDenominator = 80;  // 每 N 格才有 1 棵树（旧 API 回退值）
+
+        // 新 biome 感知放置概率：modulus=10000 时 density*2 表示「每 10000 格期望的树数」。
+        // 例：density=8 → 16/10000=0.16%，10000 格约 16 棵；density=30 → 60/10000=0.6%，约 60 棵。
+        private const int BiomeChanceModulus = 10000;
+        private const int BiomeChanceMultiplier = 2;
+
+        /// <summary>
+        /// 按 <see cref="BiomeConfig.TreeDensity"/> 决定 (worldX, worldZ) 这一格是否要尝试放树。
+        /// 纯函数：仅依赖 (worldX, worldZ, config.TreeDensity, seed)，与区块生成顺序无关。
+        /// config 为 null 或 TreeDensity ≤ 0 时直接 false（沙漠不放树）。
+        /// </summary>
+        public static bool ShouldPlaceTree(int worldX, int worldZ, BiomeConfig config, int seed)
+        {
+            if (config == null || config.TreeDensity <= 0) return false;
+
+            // 与 TryGenerate 内部 hash 不同：新通道 (seed*2654435761) 互不干扰旧测试结果。
+            uint h = unchecked((uint)((worldX * 73856093) ^ (worldZ * 19349663) ^ (seed * 2654435761)));
+            int chance = (int)(h % BiomeChanceModulus);
+            int threshold = config.TreeDensity * BiomeChanceMultiplier;
+            return chance < threshold;
+        }
 
         /// <summary>
         /// 通过 <see cref="World"/> 寻址 chunk，尝试在世界坐标 (worldX, worldZ) 上方放一棵树。
@@ -31,8 +52,7 @@ namespace MyWorld.Core.WorldGen
         }
 
         /// <summary>
-        /// 直接对单根 <see cref="ChunkColumn"/> 尝试放树。WorldGenerator 在生成地形后调用它，
-        /// 不再需要 World 引用。
+        /// 直接对单根 <see cref="ChunkColumn"/> 尝试放树（旧 API，没有 biome 配置时回退到 <see cref="SkipChanceDenominator"/>）。
         /// </summary>
         public static bool TryGenerate(ChunkColumn column, int seed, int worldX, int worldZ)
         {
@@ -40,10 +60,34 @@ namespace MyWorld.Core.WorldGen
             int skipHash = Hash2D(seed ^ 0x511A, worldX, worldZ);
             if (skipHash % SkipChanceDenominator != 0) return false;
 
-            int trunkHeight = MinTrunk + Hash2D(seed ^ 0x713A, worldX, worldZ) % (MaxTrunk - MinTrunk + 1);
+            return GenerateTree(column, seed, worldX, worldZ);
+        }
 
+        /// <summary>
+        /// 按 <see cref="BiomeConfig"/> 的密度放置一棵树。WorldGenerator 在生成地形 + 洞穴后调用它。
+        /// config 为 null 时退化为 <see cref="TryGenerate(ChunkColumn, int, int, int)"/> 的旧行为。
+        /// </summary>
+        public static bool TryGenerate(ChunkColumn column, BiomeConfig config, int seed, int worldX, int worldZ)
+        {
+            if (config == null)
+            {
+                return TryGenerate(column, seed, worldX, worldZ);
+            }
+
+            if (!ShouldPlaceTree(worldX, worldZ, config, seed)) return false;
+
+            return GenerateTree(column, seed, worldX, worldZ);
+        }
+
+        /// <summary>
+        /// 真正的放置逻辑：找到地表 → 树干 → 叶冠 → 顶部叶。前提是 ShouldPlaceTree 已经放行。
+        /// </summary>
+        private static bool GenerateTree(ChunkColumn column, int seed, int worldX, int worldZ)
+        {
             int localX = VoxelCoords.WorldToLocal(worldX);
             int localZ = VoxelCoords.WorldToLocal(worldZ);
+
+            int trunkHeight = MinTrunk + Hash2D(seed ^ 0x713A, worldX, worldZ) % (MaxTrunk - MinTrunk + 1);
 
             // 找地表
             int surfaceY = -1;

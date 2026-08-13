@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
 using NUnit.Framework;
@@ -8,6 +9,21 @@ namespace MyWorld.Core.Tests.WorldGen
     public class WorldGeneratorTests
     {
         private const int Seed = 20260806;
+
+        /// <summary>
+        /// 关掉所有 biome 的树生成，方便测「纯地形」分层。测试只关心 grass / dirt / stone 的纵向结构，
+        /// 不关心树叶干扰。
+        /// </summary>
+        private static List<BiomeConfig> NoTreeBiomes()
+        {
+            return new List<BiomeConfig>
+            {
+                new BiomeConfig { Id = (int)Biome.Plains,    Name = "plains",    TreeDensity = 0, CaveMultiplier = 1.0f },
+                new BiomeConfig { Id = (int)Biome.Desert,    Name = "desert",    TreeDensity = 0, CaveMultiplier = 0.5f },
+                new BiomeConfig { Id = (int)Biome.Forest,    Name = "forest",    TreeDensity = 0, CaveMultiplier = 1.5f },
+                new BiomeConfig { Id = (int)Biome.Mountains, Name = "mountains", TreeDensity = 0, CaveMultiplier = 2.0f }
+            };
+        }
 
         [Test]
         public void Generate_SameSeedAndChunk_ProducesIdenticalColumns()
@@ -53,7 +69,7 @@ namespace MyWorld.Core.Tests.WorldGen
         [Test]
         public void Generate_LeavesAirAboveSurfaceAndSolidBelow()
         {
-            ChunkColumn column = new WorldGenerator(Seed).Generate(new ChunkPos(0, 0));
+            ChunkColumn column = new WorldGenerator(Seed, NoTreeBiomes()).Generate(new ChunkPos(0, 0));
 
             int surface = FindSurfaceHeight(column, 8, 8);
 
@@ -66,7 +82,7 @@ namespace MyWorld.Core.Tests.WorldGen
         [Test]
         public void Generate_TopsSurfaceWithGrassOverDirtOverStone()
         {
-            ChunkColumn column = new WorldGenerator(Seed).Generate(new ChunkPos(0, 0));
+            ChunkColumn column = new WorldGenerator(Seed, NoTreeBiomes()).Generate(new ChunkPos(0, 0));
 
             int surface = FindSurfaceHeight(column, 4, 12);
 
