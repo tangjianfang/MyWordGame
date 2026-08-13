@@ -130,14 +130,30 @@ namespace MyWorld.Unity.Player
 
         /// <summary>玩家复活到 <paramref name="spawnPoint"/>：传送 + 回满生命 + 清竖直速度 +
         /// 标记着地 + 通过 <see cref="PlayerContext.HungerSystem"/> 重置饥饿 / 饱和度。
+        /// 绑定到 <see cref="World"/> 之后公开属性 <see cref="VerticalVelocity"/> / <see cref="IsGrounded"/>
+        /// 实际由 <see cref="PlayerState"/> 驱动，所以这里必须重建 _state 让其 Velocity.Y=0、IsGrounded=true；
+        /// 只写私有 _default* 字段（未绑定时的 fallback）会被覆盖回原值，导致生产环境 Respawn 失败。
         /// Core 的 <see cref="PlayerState"/> 字段（Hunger / Saturation）暂不写回——B8 接 pickup 时
         /// 再决定是否把 HungerSystem.Hunger 同步到 PlayerState.Hunger。</summary>
         public void Respawn(Vector3 spawnPoint)
         {
             transform.position = spawnPoint;
             Health = MaxHealth;
-            _defaultVerticalVelocity = 0f;
-            _defaultIsGrounded = true;
+
+            if (_world != null)
+            {
+                // 绑定态：重建 PlayerState 让公开属性立刻反映重生后的竖直速度 / 着地。
+                var pos = new Float3(spawnPoint.x, spawnPoint.y, spawnPoint.z);
+                var vel = new Float3(_state.Velocity.X, 0f, _state.Velocity.Z);
+                _state = new PlayerState(pos, vel, true);
+            }
+            else
+            {
+                // 未绑定态（EditMode 测试场景）：写私有 fallback 字段。
+                _defaultVerticalVelocity = 0f;
+                _defaultIsGrounded = true;
+            }
+
             var ctx = GetComponent<PlayerContext>();
             if (ctx?.HungerSystem != null)
             {

@@ -1,5 +1,6 @@
 using MyWorld.Core.Entities;
 using MyWorld.Unity.Gameplay;
+using MyWorld.Unity.Player;
 using UnityEngine;
 
 namespace MyWorld.Unity.UI
@@ -48,11 +49,37 @@ namespace MyWorld.Unity.UI
             // 每帧推进 DeathSystem 状态机：Phase=Alive 时收起 IsVisible。
             var ctx = PlayerContext.Instance;
             if (ctx == null || ctx.Death == null) return;
+
+            var prevPhase = ctx.Death.Phase;
             ctx.Death.Tick(Time.deltaTime);
+
+            // 检测 Respawning → Alive 转换（无论自然倒计时结束还是按钮加速）：
+            // 真正调用 PlayerController.Respawn 传回死亡位置。
+            // 之前按钮只调 death.RequestRespawn()（Phase=Dying 时才生效），按钮实际是死 UI；
+            // 这里补上绑定，Update 与按钮两条路径都收敛到 TriggerRespawn。
+            if (prevPhase == DeathPhase.Respawning && ctx.Death.Phase == DeathPhase.Alive)
+            {
+                TriggerRespawn(ctx);
+            }
+
             if (ctx.Death.Phase == DeathPhase.Alive && _visible)
             {
                 _visible = false;
             }
+        }
+
+        /// <summary>真正执行复活：传送玩家到 <see cref="DeathSystem.LastDeathPosition"/>，
+        /// 内部 <see cref="PlayerController.Respawn"/> 已经会回满 HP / Hunger / 重置速度状态。
+        /// 按钮点击 / 倒计时结束都走这里，确保两条路径一致。</summary>
+        private void TriggerRespawn(PlayerContext ctx)
+        {
+            var pc = ctx.GetComponent<PlayerController>();
+            if (pc != null)
+            {
+                var pos = ctx.Death.LastDeathPosition;
+                pc.Respawn(new Vector3(pos.X, pos.Y, pos.Z));
+            }
+            _visible = false;
         }
 
         private void OnGUI()
@@ -84,7 +111,11 @@ namespace MyWorld.Unity.UI
                 GUI.backgroundColor = Color.white;
                 if (GUI.Button(new Rect(Screen.width / 2 - 100, Screen.height / 2 + 20, 200, 50), "复活", btnStyle))
                 {
-                    death.RequestRespawn();
+                    // 把 PhaseTimer 强制为 0，让 Tick 下一帧把 Respawning → Alive，
+                    // Update 会在同一帧 / 下一帧检测到转换并 TriggerRespawn。
+                    // 注：death.RequestRespawn() 只处理 Dying 阶段，Respawning 阶段是 no-op，
+                    // 所以这里直接写 PhaseTimer。
+                    death.PhaseTimer = 0f;
                 }
                 GUI.backgroundColor = Color.white;
             }
