@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using MyWorld.Core.Blocks;
 using MyWorld.Core.Math;
+using MyWorld.Core.Persistence;
 using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Rendering;
@@ -23,6 +24,7 @@ namespace MyWorld.Unity.Streaming
         private readonly World _world;
         private readonly WorldGenerator _generator;
         private readonly ChunkViewRegistry _views;
+        private readonly string _saveRegionsDir;
 
         private readonly Queue<ChunkPos> _generateQueue = new Queue<ChunkPos>();
         private readonly Queue<ChunkPos> _meshQueue = new Queue<ChunkPos>();
@@ -35,14 +37,18 @@ namespace MyWorld.Unity.Streaming
 
         // registry 与 seed 由 WorldGenerator 与 ChunkViewRegistry 各自持有，
         // 此处仅保留构造参数以维持 WorldBootstrap.Awake() 的调用契约。
+        // saveRegionsDir（milestone-4 B1）：非 null 时启用存档 overlay——生成后用 region
+        // 存档覆盖玩家改过的区块，卸载前先把脏区块落盘；null 时行为与之前完全一致。
+        // views 允许为 null（无渲染依赖的测试 / 无头场景）：只跳过建网格，生成与卸载照常。
         public ChunkStreamer(World world, WorldGenerator generator, BlockRegistry registry,
-            ChunkViewRegistry views, long seed)
+            ChunkViewRegistry views, long seed, string saveRegionsDir = null)
         {
             _ = registry;
             _ = seed;
             _world = world;
             _generator = generator;
             _views = views;
+            _saveRegionsDir = saveRegionsDir;
         }
 
         public void Tick(Float3 playerPosition)
@@ -65,8 +71,14 @@ namespace MyWorld.Unity.Streaming
             {
                 ChunkPos next = _generateQueue.Dequeue();
                 _generating.Remove(next);
-                ChunkColumn column = _generator.Generate(next);
-                _world.AddChunk(next, column);
+                _world.AddChunk(next, _generator.Generate(next));
+                // 存档 overlay（milestone-4 B1）：region 里有这根区块的改动记录时，
+                // TryLoadChunk 内部 AddChunk 覆盖 seed 生成结果；未命中返回 false，
+                // 上面刚 AddChunk 的生成结果原样保留——「有存档用存档、没存档用生成」。
+                if (_saveRegionsDir != null)
+                {
+                    RegionSaveCoordinator.TryLoadChunk(_world, next, _saveRegionsDir);
+                }
                 _meshQueue.Enqueue(next);
                 budget--;
             }
@@ -86,7 +98,7 @@ namespace MyWorld.Unity.Streaming
                     continue;
                 }
 
-                _views.BuildColumn(next);
+                _views?.BuildColumn(next);
                 budget--;
             }
         }
@@ -158,6 +170,22 @@ namespace MyWorld.Unity.Streaming
                 }
             }
 
+            // 卸载前保存（milestone-4 B1）：脏区块一旦 RemoveChunk，玩家的方块改动就随内存
+            // 丢掉，走远再回来会被 seed 重新生成覆盖。只要本次有脏区块要卸载就整批落盘一次
+            // （SaveDirty 只写脏区块）；没有脏区块卸载时不做任何磁盘 IO。
+            if (_saveRegionsDir != null && toUnload.Count > 0)
+            {
+                var dirty = new HashSet<ChunkPos>(_world.DirtyChunks);
+                foreach (ChunkPos chunk in toUnload)
+                {
+                    if (dirty.Contains(chunk))
+                    {
+                        RegionSaveCoordinator.SaveDirty(_world, _saveRegionsDir);
+                        break;
+                    }
+                }
+            }
+
             foreach (ChunkPos chunk in toUnload)
             {
                 if (_meshing.Remove(chunk))
@@ -194,7 +222,7 @@ namespace MyWorld.Unity.Streaming
                     }
                 }
                 _world.RemoveChunk(chunk);
-                _views.UnloadColumn(chunk);
+                _views?.UnloadColumn(chunk);
             }
         }
 
