@@ -39,6 +39,15 @@ namespace MyWorld.Core.Items
             return true;
         }
 
+        /// <summary>存档恢复专用：直接覆写三个槽位与烧炼进度（运行时不要调用）。</summary>
+        public void Restore(ItemStack? input, ItemStack? fuel, ItemStack? output, float progress)
+        {
+            Input = input;
+            Fuel = fuel;
+            Output = output;
+            Progress = progress;
+        }
+
         public ItemStack? TakeOutput()
         {
             var out_ = Output;
