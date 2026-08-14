@@ -5,6 +5,7 @@
 // 整个文件用 #if UNITY_EDITOR 包裹：依赖 MyWorld.Unity.Combat.MobManager，dotnet 链跑不动。
 using System.Reflection;
 using MyWorld.Core.Entities;
+using MyWorld.Core.Items;
 using MyWorld.Core.Math;
 using MyWorld.Unity.Combat;
 using MyWorld.Unity.Gameplay;
@@ -197,6 +198,34 @@ namespace MyWorld.Core.Tests.Combat
             Assert.That(drop.Position.X, Is.EqualTo(pos.X), "X 应一致");
             Assert.That(drop.Position.Y, Is.EqualTo(pos.Y), "Y 应一致");
             Assert.That(drop.Position.Z, Is.EqualTo(pos.Z), "Z 应一致");
+        }
+
+        /// <summary>
+        /// Fix-up X4：验证 X1 的 SpawnDropsForMob 正确透传 ItemStack.Count 到 ItemDropEntity。
+        /// 即 JSON-driven Core ItemDropTable 算出来的 count（如 1-3 porkchop），
+        /// 经 LastDrops → SpawnDropsForMob 路径后能完整保留到 ItemDropEntity。
+        /// 我们手动塞一个 count=3 的 stack 入 LastDrops，验证 entity 的 Content.Count == 3。
+        /// </summary>
+        [Test]
+        public void SpawnDropsForMob_CountPropagatesToItemDropEntity()
+        {
+            var pig = Mob.Create(6, new Float3(0, 70, 0));
+            pig.State = MobState.Dying;
+            // 手动构造 LastDrops 模拟「JSON 区间 1-3」中随机到 3 的情况
+            pig.LastDrops = new[]
+            {
+                new ItemStack(ItemDropTable.PorkchopItemId, 3),
+            };
+
+            _mgr.SpawnDropsForMob(pig);
+
+            Assert.That(_ctx.ItemDrops.Count, Is.EqualTo(1),
+                "应只创建一个 ItemDropEntity");
+            var drop = _ctx.ItemDrops[0];
+            Assert.That(drop.Content.HasValue, Is.True);
+            Assert.That(drop.Content.Value.ItemId, Is.EqualTo(ItemDropTable.PorkchopItemId));
+            Assert.That(drop.Content.Value.Count, Is.EqualTo(3),
+                "ItemDropEntity.Count 应等于 LastDrops 的 Count（X1 透传 count）");
         }
     }
 }

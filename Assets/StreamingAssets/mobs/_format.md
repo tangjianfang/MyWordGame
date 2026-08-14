@@ -13,15 +13,20 @@
 
 ```json
 {
-  "Pig":     [{ "itemId": 1008, "count": 1, "chance": 1.0 }],
-  "Zombie":  [{ "itemId": 1010, "count": 1, "chance": 0.5 }]
+  "Pig":     [{ "itemId": 1008, "countMin": 1, "countMax": 3, "chance": 1.0 }],
+  "Zombie":  [
+    { "itemId": 1010, "countMin": 0, "countMax": 2, "chance": 0.5 },
+    { "itemId": 1004, "countMin": 1, "countMax": 1, "chance": 0.05 }
+  ]
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `itemId` | 整数 | 是 | 物品 numericId，必须与 `Assets/StreamingAssets/items/*.json` 一致 |
-| `count` | 整数 | 否（默认 1） | 单次掉落堆叠数 |
+| `countMin` | 整数 | 否（默认 1） | 单次掉落堆叠数下界（含） |
+| `countMax` | 整数 | 否（默认 = countMin） | 单次掉落堆叠数上界（含） |
+| `count` | 整数 | 否（旧 schema） | 若 `countMin`/`countMax` 都缺省则用此值兜底 |
 | `chance` | 小数 | 否（默认 1.0） | 单条命中概率 0..1；多条时按列表顺序累计，余量未命中返回 null |
 
 ## spawn_rules.json
@@ -31,7 +36,7 @@
 ```json
 {
   "Pig":    { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 10 },
-  "Zombie": { "biomes": ["Plains", "Desert"], "minLight": 0, "weight": 5 }
+  "Zombie": { "biomes": ["Plains", "Forest", "Mountains"], "minLight": 0, "weight": 5 }
 }
 ```
 

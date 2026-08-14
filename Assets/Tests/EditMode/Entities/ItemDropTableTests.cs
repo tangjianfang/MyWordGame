@@ -87,5 +87,83 @@ namespace MyWorld.Core.Tests.Entities
             Assert.That(nullCount, Is.GreaterThan(0).And.LessThan(100),
                 $"Zombie chance=0.5 在 100 个 seed 中应有部分返回 null（实际 {nullCount}/100）");
         }
+
+        /// <summary>
+        /// Fix-up X4：review-final.md important #5——Spec D4 规定猪掉 1-3 个 porkchop。
+        /// 100 个 seed 多次 Roll，count 必须落在 [1, 3] 闭区间内，且至少出现 1 与 3 两个端点
+        /// （分布 `countMin=1, countMax=3` 用整数哈希 RollCount 必然到达两端）。
+        /// </summary>
+        [Test]
+        public void Pig_DropsPorkchop_CountInRange1to3()
+        {
+            var table = MobDropTable.Load(DropTablesPath());
+            int seenMin = 0, seenMax = 0;
+            for (int i = 0; i < 100; i++)
+            {
+                var drop = table.Roll(MobKind.Pig, seed: i);
+                Assert.That(drop.HasValue, Is.True, $"Pig seed={i} 应掉 porkchop");
+                int count = drop.Value.Count;
+                Assert.That(count, Is.InRange(1, 3),
+                    $"Pig count 应在 [1, 3] 区间（seed={i}, count={count}）");
+                if (count == 1) seenMin++;
+                if (count == 3) seenMax++;
+            }
+            Assert.That(seenMin, Is.GreaterThan(0),
+                $"countMin=1 端点应至少出现一次（实际 {seenMin}/100）");
+            Assert.That(seenMax, Is.GreaterThan(0),
+                $"countMax=3 端点应至少出现一次（实际 {seenMax}/100）");
+        }
+
+        /// <summary>
+        /// Fix-up X4：review-final.md important #5——Spec D5 规定僵尸掉 0-2 个 rotten_flesh。
+        /// 验 count ∈ [0, 2]，且两端都应被命中。只看 rotten_flesh 命中（过滤 1004 iron_ingot）。
+        /// </summary>
+        [Test]
+        public void Zombie_DropsRottenFlesh_CountInRange0to2()
+        {
+            var table = MobDropTable.Load(DropTablesPath());
+            int seenZero = 0, seenTwo = 0, rottenHits = 0;
+            for (int i = 0; i < 200; i++)
+            {
+                var drop = table.Roll(MobKind.Zombie, seed: i);
+                if (!drop.HasValue) continue; // chance=0.5，未命中跳过
+                if (drop.Value.ItemId != 1010) continue; // 只看 rotten_flesh 区间
+                rottenHits++;
+                int count = drop.Value.Count;
+                Assert.That(count, Is.InRange(0, 2),
+                    $"Zombie rotten_flesh count 应在 [0, 2] 区间（seed={i}, count={count}）");
+                if (count == 0) seenZero++;
+                if (count == 2) seenTwo++;
+            }
+            Assert.That(rottenHits, Is.GreaterThan(0),
+                $"应至少有一次 rotten_flesh 命中（{rottenHits}/200）");
+            Assert.That(seenZero, Is.GreaterThan(0),
+                $"countMin=0 端点应至少出现一次（实际 {seenZero}）");
+            Assert.That(seenTwo, Is.GreaterThan(0),
+                $"countMax=2 端点应至少出现一次（实际 {seenTwo}）");
+        }
+
+        /// <summary>
+        /// Fix-up X4：review-final.md important #5——Spec D5 规定僵尸 5% 概率掉 iron_ingot (1004)。
+        /// 1000 次 Roll 中 iron_ingot 命中应在 [25, 100] 区间（5% ± 3 σ 噪声），ItemId 必须是 1004。
+        /// </summary>
+        [Test]
+        public void Zombie_DropsIronIngot_5PercentChance()
+        {
+            var table = MobDropTable.Load(DropTablesPath());
+            int ironHits = 0;
+            const int trials = 1000;
+            for (int i = 0; i < trials; i++)
+            {
+                var drop = table.Roll(MobKind.Zombie, seed: i);
+                if (drop.HasValue && drop.Value.ItemId == 1004)
+                {
+                    ironHits++;
+                }
+            }
+            // 5% 期望 50 次，三 σ 区间约 ±2.4%，留 25~100 留余量
+            Assert.That(ironHits, Is.InRange(25, 100),
+                $"Zombie iron_ingot 5% 命中 1000 次应约 50 次（实际 {ironHits}/1000）");
+        }
     }
 }

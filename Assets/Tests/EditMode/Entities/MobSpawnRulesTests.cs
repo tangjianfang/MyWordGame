@@ -43,19 +43,28 @@ namespace MyWorld.Core.Tests.Entities
         }
 
         [Test]
-        public void Zombie_SpawnsInAllConfiguredBiomes()
+        public void Zombie_NotInDesert()
         {
-            // brief JSON 给 Zombie 配置 4 个 biome——任选其一 + lightLevel=0 都应至少触发一次
+            // Fix-up X4：review-final.md important #4——Spec D3 明确「Desert 不生成 zombie」，
+            // 但 spawn_rules.json 历史配置包含 Desert。本测试断言 Zombie 不能在 Desert 刷怪。
+            // 期望 weight=5 → 25% 命中，100 个 seed 应有部分命中，但 Desert 必须返回 0。
             var rules = MobSpawnRules.Load(SpawnRulesPath());
-            int totalSpawns = 0;
-            foreach (Biome biome in new[] { Biome.Plains, Biome.Desert, Biome.Forest, Biome.Mountains })
+            int plainsSpawns = 0, desertSpawns = 0, forestSpawns = 0, mountainsSpawns = 0;
+            for (int i = 0; i < 100; i++)
             {
-                for (int i = 0; i < 100; i++)
-                    if (rules.ShouldSpawn(biome, MobKind.Zombie, lightLevel: 0, seed: i)) totalSpawns++;
+                if (rules.ShouldSpawn(Biome.Plains, MobKind.Zombie, lightLevel: 0, seed: i)) plainsSpawns++;
+                if (rules.ShouldSpawn(Biome.Desert, MobKind.Zombie, lightLevel: 0, seed: i)) desertSpawns++;
+                if (rules.ShouldSpawn(Biome.Forest, MobKind.Zombie, lightLevel: 0, seed: i)) forestSpawns++;
+                if (rules.ShouldSpawn(Biome.Mountains, MobKind.Zombie, lightLevel: 0, seed: i)) mountainsSpawns++;
             }
-            // 4 biome × 100 seed = 400 次尝试，weight=5 → ~25% → 期望 ~100 次 spawn
-            Assert.That(totalSpawns, Is.GreaterThan(50),
-                $"Zombie 应在 4 个 biome 都刷（实际 {totalSpawns}/400）");
+            Assert.That(desertSpawns, Is.EqualTo(0),
+                $"Zombie 不应在 Desert 刷怪（实际 {desertSpawns}/100）");
+            Assert.That(plainsSpawns, Is.GreaterThan(0),
+                $"Zombie 应在 Plains 刷怪（实际 {plainsSpawns}/100）");
+            Assert.That(forestSpawns, Is.GreaterThan(0),
+                $"Zombie 应在 Forest 刷怪（实际 {forestSpawns}/100）");
+            Assert.That(mountainsSpawns, Is.GreaterThan(0),
+                $"Zombie 应在 Mountains 刷怪（实际 {mountainsSpawns}/100）");
         }
 
         [Test]
