@@ -91,6 +91,10 @@ namespace MyWorld.Core.Tests.Persistence
 
             ushort beforeDig = worldA.GetBlock(8, digY, 8);
             Assert.That(beforeDig, Is.Not.EqualTo(BlockIds.Air), "前置条件：挖掘点原本是实心方块");
+            // 放置点取地表上方一格：若该点天然已有方块（未来 seed/生成器变化），
+            // "放下的还在"断言会空通过，所以先断言前置为空气。
+            Assert.That(worldA.GetBlock(10, digY + 1, 8), Is.EqualTo(BlockIds.Air),
+                "前置条件：放置点原本应是空气（否则「放下的还在」断言无效）");
             worldA.SetBlock(8, digY, 8, BlockIds.Air);                        // 挖
             worldA.SetBlock(10, digY + 1, 8, BlockIds.Bedrock);               // 放（原空气处放基岩）
             ushort untouchedA = worldA.GetBlock(12, digY, 12);
@@ -133,6 +137,7 @@ namespace MyWorld.Core.Tests.Persistence
                 "没动过的方块应与 seed 生成一致（overlay 不污染未改动位置）");
 
             // === 断言：level.dat 层（玩家/熔炉/掉落物/时间）===
+            Assert.That(ctxB.Inventory.GetSlot(0).ItemId, Is.EqualTo(1000), "快捷栏物品 id 在");
             Assert.That(ctxB.Inventory.GetSlot(0).Count, Is.EqualTo(12), "快捷栏物品在");
             Assert.That(ctxB.Inventory.GetSlot(1).Metadata, Is.EqualTo((ushort)0x0503), "工具耐久 Metadata 无损");
             Assert.That(ctxB.Inventory.GetSlot(9).Count, Is.EqualTo(3), "背包区物品在");
@@ -147,6 +152,9 @@ namespace MyWorld.Core.Tests.Persistence
             Assert.That(ctxB.ItemDrops[0].Content.Value.ItemId, Is.EqualTo(1008), "第一个掉落物内容正确");
             Assert.That(ctxB.ItemDrops[1].Content.Value.Count, Is.EqualTo(1), "第二个掉落物数量正确");
             Assert.That(ctxB.ItemDrops[0].Position, Is.EqualTo(new Float3(5f, 71f, 6f)), "掉落物位置接续");
+            // 裸 Time 会先解析到 MyWorld.Core.Time 命名空间，必须写全限定 UnityEngine.Time
+            Assert.That(ctxB.ItemDrops[0].SpawnTime, Is.EqualTo(UnityEngine.Time.time),
+                "掉落物宽限期应重计（SpawnTime=恢复时刻）");
             Assert.That(ctxB.Time.CurrentTick, Is.EqualTo(9000f), "时间接续");
         }
     }
