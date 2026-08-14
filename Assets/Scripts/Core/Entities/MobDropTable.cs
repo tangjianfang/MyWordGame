@@ -60,17 +60,17 @@ namespace MyWorld.Core.Entities
     /// 同一 mob 多条 entry 时按顺序累计 chance；总和 &lt; 1 时未命中返回 null。
     /// </para>
     /// </summary>
-    public class ItemDropTable
+    public class MobDropTable
     {
         private readonly Dictionary<MobKind, List<DropEntry>> _table;
 
-        private ItemDropTable(Dictionary<MobKind, List<DropEntry>> table)
+        private MobDropTable(Dictionary<MobKind, List<DropEntry>> table)
         {
             _table = table;
         }
 
         /// <summary>从 JSON 文件加载。文件不存在或格式错误抛 <see cref="InvalidDataException"/>。</summary>
-        public static ItemDropTable Load(string jsonPath)
+        public static MobDropTable Load(string jsonPath)
         {
             if (!File.Exists(jsonPath))
             {
@@ -97,7 +97,7 @@ namespace MyWorld.Core.Entities
                 }
                 dict[kind] = kv.Value;
             }
-            return new ItemDropTable(dict);
+            return new MobDropTable(dict);
         }
 
         /// <summary>

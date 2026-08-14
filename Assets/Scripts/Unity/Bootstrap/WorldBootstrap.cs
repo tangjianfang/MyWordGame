@@ -132,7 +132,7 @@ namespace MyWorld.Unity.Bootstrap
                 var dropPath = Path.Combine(Application.streamingAssetsPath, "mobs", "drop_tables.json");
                 if (File.Exists(dropPath))
                 {
-                    MobAI.DropTable = MyWorld.Core.Entities.ItemDropTable.Load(dropPath);
+                    MobAI.DropTable = MyWorld.Core.Entities.MobDropTable.Load(dropPath);
                 }
                 else
                 {

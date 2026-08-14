@@ -11,7 +11,7 @@ namespace MyWorld.Core.Entities
     /// <para>
     /// Phase D 扩展（spec line 171）：加 <c>MobKind.Pig / Cow / Chicken / Zombie</c> switch，
     /// type-specific 行为——猪/牛/鸡 走 Passive 流（wander + 玩家靠近 Flee），
-    /// 新僵尸走 Hostile 流（chase 32 格 + attack 8 格）+ 死亡自动触发 <see cref="ItemDropTable"/>。
+    /// 新僵尸走 Hostile 流（chase 32 格 + attack 8 格）+ 死亡自动触发 <see cref="MobDropTable"/>。
     /// 既有 mobTypeId 1-5（Passive/Hostile/Neutral 分类）行为不变。
     /// </para>
     /// </summary>
@@ -31,12 +31,12 @@ namespace MyWorld.Core.Entities
         public const float DefaultDeathTimer = 0.5f;
 
         /// <summary>
-        /// X4.5：JSON 驱动的概率掉落表（<c>Entities.ItemDropTable</c>）。
+        /// X4.5：JSON 驱动的概率掉落表（<c>Entities.MobDropTable</c>）。
         /// 由 <c>WorldBootstrap</c> 在 Awake 末尾从 <c>StreamingAssets/mobs/drop_tables.json</c>
         /// 加载并注入；null 时 <see cref="Tick"/> 回退到静态 <c>Items.ItemDropTable.Drop</c>
         /// （legacy 路径，保证 MobAI.cs:48 的历史契约仍可独立单测）。
         /// </summary>
-        public static ItemDropTable DropTable { get; set; }
+        public static MobDropTable DropTable { get; set; }
 
         public static void Tick(Mob mob, Float3 playerPos, World world, TimeOfDay time, float dt)
         {
@@ -46,7 +46,7 @@ namespace MyWorld.Core.Entities
 
             // Phase D 新增：自动死亡检测。若 Health 已经降到 0 但 State 还没转 Dying
             // （旧代码路径由 Unity 侧 CombatController.DoAttack 直接置 Dying；这里兜住
-            // 测试/Core-only 路径），转 Dying + 调 ItemDropTable 写入 LastDrops。
+            // 测试/Core-only 路径），转 Dying + 调 MobDropTable 写入 LastDrops。
             // X4.5：优先用 JSON 驱动的 DropTable（RollAll 独立掷每条 entry，支持
             // Pig 1-3 porkchop / Zombie 0-2 rotten_flesh + 5% iron_ingot）；未注入时
             // 回退到静态 Items.ItemDropTable.Drop（legacy count=1，保持单测/旧场景）。
@@ -288,7 +288,7 @@ namespace MyWorld.Core.Entities
         }
 
         /// <summary>
-        /// X4.5：为 <see cref="ItemDropTable.RollAll"/> 派生确定性整数种子。
+        /// X4.5：为 <see cref="MobDropTable.RollAll"/> 派生确定性整数种子。
         /// 用 mob.EntityId（生产由 MobManager 唯一分配）+ mob.Position 三轴整数 cast，
         /// 跨平台 hash 一致；同位置同 ID 必出同一结果（replay-safe），不同 mob 不会耦合。
         /// </summary>

@@ -1,7 +1,7 @@
 # Mob 数据文件格式
 
 这个目录里的 JSON 文件定义 Mob 的行为数据，由 Core 层的
-`MyWorld.Core.Entities.ItemDropTable` 和 `MyWorld.Core.Entities.MobSpawnRules`
+`MyWorld.Core.Entities.MobDropTable` 和 `MyWorld.Core.Entities.MobSpawnRules`
 在启动时加载。当前两个文件：
 - `drop_tables.json`：死亡掉落
 - `spawn_rules.json`：自然刷新规则
@@ -51,12 +51,12 @@
 1. 在 `Assets/Scripts/Core/Entities/MobKind.cs` 加 enum 值
 2. 在 `Assets/Scripts/Core/Entities/Mob.cs` 加 `Mob.Create(mobTypeId, ...)` 分支
 3. 在本目录的 `drop_tables.json` / `spawn_rules.json` 加键
-4. 跑 `dotnet test` 确认 `ItemDropTableTests` + `MobSpawnRulesTests` 通过
+4. 跑 `dotnet test` 确认 `MobDropTableTests` + `MobSpawnRulesTests` 通过
 
 ## 改完怎么验证
 
 ```bash
-dotnet test --filter "FullyQualifiedName~ItemDropTableTests|FullyQualifiedName~MobSpawnRulesTests"
+dotnet test --filter "FullyQualifiedName~MobDropTableTests|FullyQualifiedName~MobSpawnRulesTests"
 ```
 
 错误会立刻报：找不到 JSON 路径、JSON 非法、MobKind 名打错、biome 字符串拼错。

@@ -5,9 +5,8 @@ using MyWorld.Core.Items;
 using NUnit.Framework;
 
 // 测试所在 namespace 是 MyWorld.Core.Tests.Entities，与 Entities 同名段冲突，
-// 用别名区分两个 ItemDropTable：CoreItemDropTable（Items/静态）+ MobDropTable（Entities/JSON 实例）。
+// 用别名区分掉落表：CoreItemDropTable（Items/静态）+ MobDropTable（Entities/JSON 实例，F6 重命名）。
 using CoreItemDropTable = MyWorld.Core.Items.ItemDropTable;
-using MobDropTable = MyWorld.Core.Entities.ItemDropTable;
 
 namespace MyWorld.Core.Tests.Entities
 {
@@ -17,7 +16,7 @@ namespace MyWorld.Core.Tests.Entities
     /// <see cref="MobDropTable.Roll"/> 根据每条 <see cref="DropEntry.Chance"/> 概率掉落。
     /// </summary>
     [TestFixture]
-    public class ItemDropTableTests
+    public class MobDropTableTests
     {
         private static string DropTablesPath()
         {

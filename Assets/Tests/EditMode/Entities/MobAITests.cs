@@ -6,7 +6,7 @@ using MyWorld.Core.Time;
 using NUnit.Framework;
 
 // JSON 驱动掉落表 (Entities) vs 静态 Items.ItemDropTable：测试用 alias 区分。
-using JsonDropTable = MyWorld.Core.Entities.ItemDropTable;
+using JsonDropTable = MyWorld.Core.Entities.MobDropTable;
 
 namespace MyWorld.Core.Tests.Entities
 {

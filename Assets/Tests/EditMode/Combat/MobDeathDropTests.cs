@@ -11,8 +11,8 @@ using MyWorld.Unity.Combat;
 using MyWorld.Unity.Gameplay;
 using NUnit.Framework;
 using UnityEngine;
-// Core/Items 与 Core/Entities 各有一个 ItemDropTable：前者是 MobAI.cs:48 用的静态表，
-// 后者是 JSON 驱动的概率表（Entities/ItemDropTable）。本测试只关心前者（写 LastDrops 的）。
+// Core/Items 与 Core/Entities 各有一个掉落表：前者是 MobAI.cs:48 用的静态 Items.ItemDropTable，
+// 后者是 JSON 驱动的概率表（Entities/MobDropTable）。本测试只关心前者（写 LastDrops 的）。
 using ItemDropTable = MyWorld.Core.Items.ItemDropTable;
 
 namespace MyWorld.Core.Tests.Combat
