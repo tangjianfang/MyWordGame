@@ -24,23 +24,22 @@ namespace MyWorld.Core.Persistence
                 try
                 {
                     var region = LoadOrCreate(group.Key, regionsDir);
+                    int stored = 0;
                     foreach (ChunkPos chunk in group.Value)
                     {
                         if (world.TryGetChunk(chunk, out var column))
                         {
                             region.StoreChunk(chunk, column);
-                            saved++; // 区块还在内存里才算保存成功
+                            stored++; // 只统计真正进 region 的块；卸载区块的数据已随卸载丢失，不计
                         }
-                        // 区块已卸载：数据随卸载丢失，不计入 saved，但 stale 脏标记下面一并清掉
                     }
-                    using (var fs = File.Create(Path.Combine(regionsDir, FileName(group.Key))))
-                    {
-                        region.Save(fs);
-                    }
+                    AtomicWrite(Path.Combine(regionsDir, FileName(group.Key)), region);
+                    // saved 计数与清脏都必须在文件成功落盘之后：写失败则保持 dirty 下轮重试，且不能虚报 saved
                     foreach (ChunkPos chunk in group.Value)
                     {
-                        world.ClearDirty(chunk); // 卸载区块的 stale 标记也在这里清，避免永远卡在待保存
+                        world.ClearDirty(chunk); // 卸载区块的 stale 标记也一并清掉，避免永远卡在待保存
                     }
+                    saved += stored;
                 }
                 catch (Exception e) when (e is IOException || e is InvalidDataException)
                 {
@@ -90,6 +89,31 @@ namespace MyWorld.Core.Persistence
                 list.Add(chunk);
             }
             return groups;
+        }
+
+        /// <summary>
+        /// 原子写（与 <see cref="LevelDataCodec.Save"/> 同款）：先写 .tmp 再顶替。
+        /// 不能 File.Create 直接覆写目标——写到一半崩溃会把合并来的旧记录
+        /// （同 region 其它区块）也写坏，违反「合并不丢旧记录」约束。
+        /// </summary>
+        private static void AtomicWrite(string path, RegionFile region)
+        {
+            string tmp = path + ".tmp";
+            using (var fs = File.Create(tmp))
+            {
+                region.Save(fs);
+            }
+            // netstandard2.1 没有 File.Move(src, dst, overwrite) 重载（.NET Core 3.0 才加入）。
+            // 目标已存在时用 File.Replace（底层 Win32 ReplaceFile，原子顶替，不留空窗）；
+            // 首次写入目标不存在，直接改名即可。
+            if (File.Exists(path))
+            {
+                File.Replace(tmp, path, destinationBackupFileName: null);
+            }
+            else
+            {
+                File.Move(tmp, path);
+            }
         }
 
         private static RegionFile LoadOrCreate(ChunkPos regionPos, string regionsDir)

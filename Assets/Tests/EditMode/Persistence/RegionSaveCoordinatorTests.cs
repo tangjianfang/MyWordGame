@@ -128,6 +128,34 @@ namespace MyWorld.Core.Tests.Persistence
         }
 
         [Test]
+        public void SaveDirty_RegionWriteFailure_KeepsDirty_AndDoesNotCount()
+        {
+            string dir = TempDir();
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var world = BuildWorldWithEdits((3, 64, 5), (20, 64, 600)); // chunk (0,0) 与 (1,37)，两个 region
+
+                // 用独占句柄锁住 region (0,0) 的 .tmp 文件，让 AtomicWrite 的 File.Create 抛 IOException
+                string tmp = Path.Combine(dir, "r.0.0.mwr.tmp");
+                using (new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    int saved = RegionSaveCoordinator.SaveDirty(world, dir);
+                    Assert.That(saved, Is.EqualTo(1),
+                        "只有写成功的 region 计入 saved；写失败的 region 不能虚报");
+                    Assert.That(world.DirtyChunks, Is.EquivalentTo(new[] { new ChunkPos(0, 0) }),
+                        "写失败的 region 保持脏，下轮保存重试");
+                }
+
+                // 解锁后重试：脏区块补写成功
+                int savedRetry = RegionSaveCoordinator.SaveDirty(world, dir);
+                Assert.That(savedRetry, Is.EqualTo(1), "重试成功后补计入 saved");
+                Assert.That(world.DirtyChunks, Is.Empty, "补写成功后脏标记清空");
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Test]
         public void SaveDirty_UnloadedChunk_ClearsStaleDirty_WithoutCounting()
         {
             string dir = TempDir();
