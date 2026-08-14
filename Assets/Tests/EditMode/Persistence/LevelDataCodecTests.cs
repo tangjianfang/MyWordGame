@@ -94,6 +94,33 @@ namespace MyWorld.Core.Tests.Persistence
         }
 
         [Test]
+        public void Save_Twice_SecondSaveWinsAndNoTmpLeftover()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), $"lv-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(dir);
+            string path = Path.Combine(dir, "level.dat");
+            try
+            {
+                // 第一次保存（level.dat 不存在 → Move 分支）
+                var first = BuildSample();
+                LevelDataCodec.Save(first, path);
+
+                // 第二次保存（level.dat 已存在 → File.Replace 分支），改关键字段验证新档生效
+                first.Player.HealthCurrent = 3.25f;
+                first.Player.Slots[0].Count = 7;
+                first.Drops.Add(new DropSnapshot { ItemId = 1009, Count = 1, Metadata = 0, X = -1f, Y = 72f, Z = 0f });
+                LevelDataCodec.Save(first, path);
+
+                var reloaded = LevelDataCodec.Load(path);
+                Assert.That(reloaded.Player.HealthCurrent, Is.EqualTo(3.25f), "第二次保存必须生效（Replace 分支）");
+                Assert.That(reloaded.Player.Slots[0].Count, Is.EqualTo(7));
+                Assert.That(reloaded.Drops.Count, Is.EqualTo(2));
+                Assert.That(File.Exists(path + ".tmp"), Is.False, "保存完成后 tmp 必须被改名掉，不能残留");
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Test]
         public void Load_CorruptFile_ThrowsInvalidData()
         {
             string path = Path.Combine(Path.GetTempPath(), $"level-{Guid.NewGuid():N}.dat");
