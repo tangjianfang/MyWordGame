@@ -43,6 +43,8 @@ namespace MyWorld.Core.Persistence
         public SlotSnapshot Fuel;
         public SlotSnapshot Output;
         public float Progress;
+        /// <summary>剩余燃料燃烧时间（秒）。不存的话读档后火会灭，得重新投燃料——行为错误。</summary>
+        public float FuelRemaining;
     }
 
     /// <summary>地面掉落物快照。</summary>

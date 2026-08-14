@@ -35,7 +35,7 @@ namespace MyWorld.Core.Persistence
             }
         }
 
-        /// <summary>熔炉状态转快照。空槽为 null。</summary>
+        /// <summary>熔炉状态转快照。空槽为 null。剩余燃料一并保存，否则读档后火会灭。</summary>
         public static FurnaceSnapshot SnapshotFurnace(FurnaceSystem furnace)
         {
             return new FurnaceSnapshot
@@ -44,6 +44,7 @@ namespace MyWorld.Core.Persistence
                 Fuel = ToSnap(furnace.Fuel),
                 Output = ToSnap(furnace.Output),
                 Progress = furnace.Progress,
+                FuelRemaining = furnace.FuelRemaining,
             };
         }
 
@@ -52,7 +53,7 @@ namespace MyWorld.Core.Persistence
         {
             if (snapshot == null) return;
             furnace.Restore(FromSnap(snapshot.Input), FromSnap(snapshot.Fuel),
-                FromSnap(snapshot.Output), snapshot.Progress);
+                FromSnap(snapshot.Output), snapshot.Progress, snapshot.FuelRemaining);
         }
 
         /// <summary>地面掉落物列表转快照。</summary>

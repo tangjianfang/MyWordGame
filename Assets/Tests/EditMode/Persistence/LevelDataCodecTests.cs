@@ -38,6 +38,7 @@ namespace MyWorld.Core.Tests.Persistence
                     Fuel = new SlotSnapshot { ItemId = 1007, Count = 5, Metadata = 0 },
                     Output = null,
                     Progress = 12.7f,
+                    FuelRemaining = 3.25f,
                 },
                 Drops = new List<DropSnapshot>
                 {
@@ -64,6 +65,8 @@ namespace MyWorld.Core.Tests.Persistence
                 Assert.That(loaded.Player.Slots[1].Metadata, Is.EqualTo((ushort)0x0503),
                     "Metadata 必须无损——工具耐久存在这里");
                 Assert.That(loaded.Furnace.Progress, Is.EqualTo(12.7f));
+                Assert.That(loaded.Furnace.FuelRemaining, Is.EqualTo(3.25f),
+                    "剩余燃烧时间必须无损——读档后火不能灭");
                 Assert.That(loaded.Furnace.Fuel.Count, Is.EqualTo(5));
                 Assert.That(loaded.Furnace.Output, Is.Null);
                 Assert.That(loaded.Drops.Count, Is.EqualTo(1));

@@ -39,13 +39,18 @@ namespace MyWorld.Core.Items
             return true;
         }
 
-        /// <summary>存档恢复专用：直接覆写三个槽位与烧炼进度（运行时不要调用）。</summary>
-        public void Restore(ItemStack? input, ItemStack? fuel, ItemStack? output, float progress)
+        /// <summary>剩余燃料燃烧时间（秒）。Tick 每秒扣 1，归零后停止烧炼（只读，改值走 <see cref="Restore"/>）。</summary>
+        public float FuelRemaining => _fuelRemaining;
+
+        /// <summary>存档恢复专用：直接覆写三个槽位、烧炼进度与剩余燃料（运行时不要调用）。</summary>
+        public void Restore(ItemStack? input, ItemStack? fuel, ItemStack? output, float progress, float fuelRemaining)
         {
             Input = input;
             Fuel = fuel;
             Output = output;
             Progress = progress;
+            _fuelRemaining = fuelRemaining;
+            _hasFuel = _fuelRemaining > 0f;
         }
 
         public ItemStack? TakeOutput()

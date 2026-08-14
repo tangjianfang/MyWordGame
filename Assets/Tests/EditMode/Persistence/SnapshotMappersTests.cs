@@ -38,16 +38,22 @@ namespace MyWorld.Core.Tests.Persistence
         {
             var furnace = new FurnaceSystem(coalFuelValue: 8, smeltTimeSeconds: 30f);
             // 注意：AddFuel 只累计 _fuelRemaining、不写 Fuel 属性（Fuel 槽由存档恢复专用路径管理），
-            // 所以这里直接用 Restore 灌三个槽位 + 进度。
-            furnace.Restore(new ItemStack(1004, 3), new ItemStack(1007, 2), null, 17.3f);
+            // 所以这里直接用 Restore 灌三个槽位 + 进度 + 剩余燃料。
+            furnace.Restore(new ItemStack(1004, 3), new ItemStack(1007, 2), null, 17.3f, 5.5f);
 
             FurnaceSnapshot snapshot = SnapshotMappers.SnapshotFurnace(furnace);
+            Assert.That(snapshot.FuelRemaining, Is.EqualTo(5.5f), "剩余燃料必须进快照");
 
             var fresh = new FurnaceSystem(8, 30f);
             SnapshotMappers.RestoreFurnace(fresh, snapshot);
             Assert.That(fresh.Progress, Is.EqualTo(17.3f), "烧炼进度必须接续，不能从头烧");
+            Assert.That(fresh.FuelRemaining, Is.EqualTo(5.5f), "剩余燃料必须接续，读档后火不能灭");
             Assert.That(fresh.Input.Value.Count, Is.EqualTo(3));
             Assert.That(fresh.Fuel.Value.ItemId, Is.EqualTo(1007));
+
+            // 剩余燃料有效：Tick 后进度继续往前走（火还在烧），而不是因燃料归零停摆。
+            fresh.Tick(1f);
+            Assert.That(fresh.Progress, Is.EqualTo(18.3f), "读档后熔炉应继续燃烧，进度继续累加");
         }
 
         [Test]
