@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using MyWorld.Core.Entities;
+using MyWorld.Core.Items;
 using MyWorld.Core.Math;
 using MyWorld.Core.Time;
 using MyWorld.Core.Voxel;
@@ -120,6 +121,13 @@ namespace MyWorld.Unity.Combat
                 {
                     m.DeathTimer -= dt;
                     if (m.DeathTimer <= 0) m.State = MobState.Dead;
+                    // X1 fix-up：MobAI.Tick 写入 mob.LastDrops；Unity 侧负责把每条
+                    // 实例化为 ItemDropEntity 并加到 PlayerContext.ItemDrops，让玩家可以拾取。
+                    // SpawnDropsForMob 自身幂等（清空 LastDrops 后 no-op），所以多次 tick 安全。
+                    if (m.LastDrops != null)
+                    {
+                        SpawnDropsForMob(m);
+                    }
                 }
             }
 
@@ -273,6 +281,27 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Villager: return 10;
                 default: return 1;
             }
+        }
+
+        /// <summary>
+        /// X1 fix-up：把 Dying mob 的 <c>LastDrops</c> 实例化为 <see cref="ItemDropEntity"/>
+        /// 并加到 <see cref="PlayerContext.ItemDrops"/>，让玩家能拾起（走 <c>PlayerController.PickupNearbyDrops</c>）。
+        /// 调用后把 <c>mob.LastDrops</c> 置 null，实现幂等——Update 每帧调也不会重复出掉。
+        /// <para>
+        /// 无 PlayerContext（早期 / 测试场景）或 LastDrops 已为 null/空数组时为 no-op。
+        /// </para>
+        /// </summary>
+        public void SpawnDropsForMob(Mob mob)
+        {
+            if (mob == null || mob.LastDrops == null || mob.LastDrops.Length == 0) return;
+            var ctx = PlayerContext.Instance;
+            if (ctx == null) return;
+            foreach (var stack in mob.LastDrops)
+            {
+                if (stack.IsEmpty) continue;
+                ctx.ItemDrops.Add(new ItemDropEntity(stack, mob.Position));
+            }
+            mob.LastDrops = null;
         }
 
         private static int FindSurfaceY(World world, int x, int z)
