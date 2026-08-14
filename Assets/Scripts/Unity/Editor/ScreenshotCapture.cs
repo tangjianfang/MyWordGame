@@ -76,6 +76,15 @@ namespace MyWorld.Unity.EditorTools
             }
         }
 
+        [MenuItem("MyWorld/截图：五种生物群系")]
+        public static void CaptureBiomesMenu()
+        {
+            string path = Path.Combine("Builds", "screenshots",
+                $"biomes-{DateTime.Now:HHmmss}");
+            CaptureBiomes(path);
+            Debug.Log($"[ScreenshotCapture] {path}");
+        }
+
         [MenuItem("MyWorld/截图：第三人称玩家")]
         public static void CaptureThirdPersonMenu()
         {
@@ -193,6 +202,90 @@ namespace MyWorld.Unity.EditorTools
             DriveBootstrapForCapture();
             Capture(Path.Combine(outputDir, "overworld.png"));
             CaptureThirdPerson(Path.Combine(outputDir, "third-person.png"));
+        }
+
+        /// <summary>
+        /// F3 follow-up（spec C6）：按生物群系各拍一张第一人称截图，作为群系视觉基线。
+        /// 做法：用与 bootstrap 相同的 seed 建一个只读 <see cref="MyWorld.Core.WorldGen.WorldGenerator"/>
+        /// （确定性生成，biome 与游戏内完全一致），为每个 biome 扫一个海平面以上的采样列，
+        /// 反射替换 PlayerController 的 <c>_state</c> 整体传送玩家（transform 每帧会被
+        /// <c>ApplyToTransform</c> 从 state 覆写，只动 transform 不生效），再驱动若干帧让
+        /// ChunkStreamer 把新位置的区块建好，最后从主相机拍摄。
+        /// </summary>
+        public static void CaptureBiomes(string outputDir)
+        {
+            Directory.CreateDirectory(outputDir);
+            DriveBootstrapForCapture();
+
+            var bootstrap = UnityEngine.Object.FindObjectOfType<WorldBootstrap>();
+            if (bootstrap == null)
+            {
+                Debug.LogError("[ScreenshotCapture] 场景里没有 WorldBootstrap，无法按群系截图");
+                return;
+            }
+
+            // seed 是 [SerializeField] private long，反射读取（与 Awake 里建 WorldGenerator 用的同一值）
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            long seed = 42;
+            var seedField = typeof(WorldBootstrap).GetField("seed", flags);
+            if (seedField != null) seed = (long)seedField.GetValue(bootstrap);
+            var generator = new MyWorld.Core.WorldGen.WorldGenerator((int)seed);
+
+            var player = UnityEngine.Object.FindObjectOfType<PlayerController>();
+            var stateField = typeof(PlayerController).GetField("_state", flags);
+            if (player == null || stateField == null)
+            {
+                Debug.LogError("[ScreenshotCapture] 找不到 PlayerController._state，无法传送玩家");
+                return;
+            }
+
+            // 一次网格扫描为全部 5 个 biome 各找一个海平面以上的采样列（步长 32，半径 1024）
+            var targets = new System.Collections.Generic.Dictionary<MyWorld.Core.WorldGen.Biome, (int x, int z, int y)>();
+            for (int x = -1024; x < 1024 && targets.Count < 5; x += 32)
+            {
+                for (int z = -1024; z < 1024; z += 32)
+                {
+                    var biome = generator.BiomeAt(x, z);
+                    if (targets.ContainsKey(biome)) continue;
+                    int surfaceY = generator.SurfaceHeightAt(x, z);
+                    if (surfaceY <= MyWorld.Core.WorldGen.WorldGenerator.SeaLevel) continue; // 水下采样点没有群系地表可看
+                    targets[biome] = (x, z, surfaceY);
+                    if (targets.Count >= 5) break;
+                }
+            }
+
+            foreach (var kv in targets)
+            {
+                var (x, z, surfaceY) = kv.Value;
+                // 整体替换 _state（PlayerState 是 readonly struct，Position 不可单独改）
+                stateField.SetValue(player, MyWorld.Core.Player.PlayerState.AtRest(
+                    new MyWorld.Core.Math.Float3(x + 0.5f, surfaceY + 2f, z + 0.5f)));
+                player.transform.position = new Vector3(x + 0.5f, surfaceY + 2f, z + 0.5f);
+
+                // 驱动足够帧数：ChunkStreamer 建新区块 + 玩家落地 + 相机跟随
+                DriveAllMonoBehavioursWithPhysics(240);
+
+                string path = Path.Combine(outputDir, $"biome-{kv.Key}.png");
+                Capture(path);
+                Debug.Log($"[ScreenshotCapture] biome-{kv.Key}: 采样列 ({x}, {z}) 地表 y={surfaceY} -> {path}");
+            }
+
+            if (targets.Count < 5)
+            {
+                Debug.LogWarning($"[ScreenshotCapture] 只找到 {targets.Count}/5 个 biome 的采样列（seed={seed}），缺的群系没有出图");
+            }
+        }
+
+        /// <summary>
+        /// 无 args 重载，给 <c>-executeMethod</c> 调用：输出到 <c>Builds/screenshots</c>。
+        /// </summary>
+        public static void CaptureBiomesDefault()
+        {
+            if (!EditorSceneManager.GetSceneByPath(DefaultScenePath).IsValid())
+            {
+                EditorSceneManager.OpenScene(DefaultScenePath, OpenSceneMode.Single);
+            }
+            CaptureBiomes(Path.Combine("Builds", "screenshots"));
         }
 
         /// <summary>

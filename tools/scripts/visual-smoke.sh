@@ -68,6 +68,24 @@ if [[ ! -f Builds/screenshots/overworld.png ]] || [[ ! -f Builds/screenshots/thi
 fi
 ok "截图已落地 Builds/screenshots/"
 
+# --- 1b. 按生物群系截图（F3 / spec C6）---
+step "按生物群系截图（CaptureBiomesDefault）"
+LOG_BIOME_SHOT='Builds/logs/visual-smoke-biome-screenshot.log'
+"$UNITY_EXE" -batchmode -projectPath . -quit \
+    -executeMethod MyWorld.Unity.EditorTools.ScreenshotCapture.CaptureBiomesDefault \
+    -logFile "$LOG_BIOME_SHOT"
+
+BIOME_COUNT=0
+for b in Plains Desert Forest Mountains Snow; do
+    if [[ -f "Builds/screenshots/biome-$b.png" ]]; then
+        BIOME_COUNT=$((BIOME_COUNT+1))
+    fi
+done
+if [[ "$BIOME_COUNT" -lt 5 ]]; then
+    fail "群系截图不齐（$BIOME_COUNT/5，看 $LOG_BIOME_SHOT，期望 biome-{Plains,Desert,Forest,Mountains,Snow}.png）"
+fi
+ok "5 张群系截图已落地 Builds/screenshots/"
+
 # --- 2. 跑 Unity EditMode 视觉回归测试 ---
 step "跑 Unity EditMode 视觉回归测试（VisualRegressionTests fixture）"
 # 视觉测试都在 #if UNITY_EDITOR 包裹里，dotnet 链会跳过滤掉；
