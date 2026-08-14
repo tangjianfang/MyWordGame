@@ -219,11 +219,11 @@ namespace MyWorld.Core.WorldGen
         {
             var lookup = new Dictionary<int, BiomeConfig>
             {
-                [(int)Biome.Plains]    = new BiomeConfig { Id = (int)Biome.Plains,    Name = "plains",    TreeDensity = 8,  CaveMultiplier = 1.0f },
-                [(int)Biome.Desert]    = new BiomeConfig { Id = (int)Biome.Desert,    Name = "desert",    TreeDensity = 0,  CaveMultiplier = 0.5f },
-                [(int)Biome.Forest]    = new BiomeConfig { Id = (int)Biome.Forest,    Name = "forest",    TreeDensity = 30, CaveMultiplier = 1.5f },
-                [(int)Biome.Mountains] = new BiomeConfig { Id = (int)Biome.Mountains, Name = "mountains", TreeDensity = 2,  CaveMultiplier = 2.0f },
-                [(int)Biome.Snow]      = new BiomeConfig { Id = (int)Biome.Snow,      Name = "snow",      TreeDensity = 1,  CaveMultiplier = 1.0f }
+                [(int)Biome.Plains]    = new BiomeConfig { Id = (int)Biome.Plains,    Name = "Plains",    TreeDensity = 8,  CaveMultiplier = 1.0f },
+                [(int)Biome.Desert]    = new BiomeConfig { Id = (int)Biome.Desert,    Name = "Desert",    TreeDensity = 0,  CaveMultiplier = 0.5f },
+                [(int)Biome.Forest]    = new BiomeConfig { Id = (int)Biome.Forest,    Name = "Forest",    TreeDensity = 30, CaveMultiplier = 1.5f },
+                [(int)Biome.Mountains] = new BiomeConfig { Id = (int)Biome.Mountains, Name = "Mountains", TreeDensity = 2,  CaveMultiplier = 2.0f },
+                [(int)Biome.Snow]      = new BiomeConfig { Id = (int)Biome.Snow,      Name = "Snow",      TreeDensity = 1,  CaveMultiplier = 1.0f }
             };
 
             if (configs != null)

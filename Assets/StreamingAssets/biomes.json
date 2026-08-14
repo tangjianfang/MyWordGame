@@ -1,7 +1,7 @@
 [
-  { "id": 0, "name": "plains",    "temperature": 0.5, "humidity": 0.5, "treeDensity": 8,  "caveMultiplier": 1.0 },
-  { "id": 1, "name": "desert",    "temperature": 0.9, "humidity": 0.2, "treeDensity": 0,  "caveMultiplier": 0.5 },
-  { "id": 2, "name": "forest",    "temperature": 0.4, "humidity": 0.8, "treeDensity": 30, "caveMultiplier": 1.5 },
-  { "id": 3, "name": "mountains", "temperature": 0.2, "humidity": 0.1, "treeDensity": 2,  "caveMultiplier": 2.0 },
-  { "id": 4, "name": "snow",      "temperature": 0.1, "humidity": 0.4, "treeDensity": 1,  "caveMultiplier": 1.0 }
+  { "id": 0, "name": "Plains",    "temperature": 0.5, "humidity": 0.5, "treeDensity": 8,  "caveMultiplier": 1.0 },
+  { "id": 1, "name": "Desert",    "temperature": 0.9, "humidity": 0.2, "treeDensity": 0,  "caveMultiplier": 0.5 },
+  { "id": 2, "name": "Forest",    "temperature": 0.4, "humidity": 0.8, "treeDensity": 30, "caveMultiplier": 1.5 },
+  { "id": 3, "name": "Mountains", "temperature": 0.2, "humidity": 0.1, "treeDensity": 2,  "caveMultiplier": 2.0 },
+  { "id": 4, "name": "Snow",      "temperature": 0.1, "humidity": 0.4, "treeDensity": 1,  "caveMultiplier": 1.0 }
 ]

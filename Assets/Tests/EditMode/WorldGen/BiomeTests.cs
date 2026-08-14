@@ -47,14 +47,14 @@ namespace MyWorld.Core.Tests.WorldGen
         public void BiomeConfigLoader_ParsesJson()
         {
             string json = @"[
-                { ""id"": 0, ""name"": ""plains"", ""temperature"": 0.5, ""humidity"": 0.5, ""treeDensity"": 8, ""caveMultiplier"": 1.0 },
-                { ""id"": 1, ""name"": ""desert"", ""temperature"": 0.9, ""humidity"": 0.2, ""treeDensity"": 0, ""caveMultiplier"": 0.5 }
+                { ""id"": 0, ""name"": ""Plains"", ""temperature"": 0.5, ""humidity"": 0.5, ""treeDensity"": 8, ""caveMultiplier"": 1.0 },
+                { ""id"": 1, ""name"": ""Desert"", ""temperature"": 0.9, ""humidity"": 0.2, ""treeDensity"": 0, ""caveMultiplier"": 0.5 }
             ]";
             string path = System.IO.Path.GetTempFileName();
             System.IO.File.WriteAllText(path, json);
             var configs = BiomeConfigLoader.Load(path);
             Assert.That(configs.Count, Is.EqualTo(2));
-            Assert.That(configs[0].Name, Is.EqualTo("plains"));
+            Assert.That(configs[0].Name, Is.EqualTo("Plains"), "biome 名统一 Title-case，与 spawn_rules.json 一致");
         }
     }
 }
