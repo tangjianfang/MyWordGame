@@ -110,11 +110,21 @@ namespace MyWorld.Core.Tests.Persistence
             string savedPath = svcA.LevelDataPath;
 
             var (ctxB, _, svcB) = BuildTree(43); // 当前 seed=43，档目录是 <saveRoot>/43/（另一处）
+            // 必须把 42 的档拷进 43 目录：否则 43 下无 level.dat，TryRestore 会在
+            // 「文件不存在」分支早退，seed 比较分支永远不执行（m4 终审 Important 1 修复）
+            string mismatchPath = svcB.LevelDataPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(mismatchPath));
+            File.Copy(savedPath, mismatchPath);
+            Assert.That(File.Exists(mismatchPath), Is.True, "前置：43 目录下应有拷贝来的 level.dat");
+
             Assert.That(svcB.TryRestore(), Is.False, "seed 不符应整档忽略");
             Assert.That(ctxB.Inventory.GetSlot(0).IsEmpty, Is.True, "背包保持全新");
             Assert.That(ctxB.Time.CurrentTick, Is.EqualTo(new TimeOfDay().CurrentTick), "时间保持默认");
-            Assert.That(File.Exists(savedPath), Is.True, "seed 不符只忽略、不重命名原档文件");
-            Assert.That(File.Exists(savedPath + ".corrupt"), Is.False, "seed 不符不应产生 .corrupt");
+            Assert.That(File.Exists(savedPath), Is.True, "seed 不符只忽略、不动 42 目录的原档文件");
+            Assert.That(File.Exists(savedPath + ".corrupt"), Is.False, "42 原档不应产生 .corrupt");
+            Assert.That(File.Exists(mismatchPath), Is.True, "seed 不符只忽略、不重命名 43 目录下的档文件");
+            Assert.That(File.Exists(mismatchPath + ".corrupt"), Is.False,
+                "seed 不符不是坏档，不应触发 .corrupt 降级");
         }
 
         [Test]
