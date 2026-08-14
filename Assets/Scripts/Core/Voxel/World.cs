@@ -9,6 +9,8 @@ namespace MyWorld.Core.Voxel
     {
         private readonly Dictionary<ChunkPos, ChunkColumn> _chunks = new Dictionary<ChunkPos, ChunkColumn>();
 
+        private readonly HashSet<ChunkPos> _dirtyChunks = new HashSet<ChunkPos>();
+
         public int LoadedChunkCount => _chunks.Count;
 
         /// <summary>读取不产生副作用：未加载区块一律视为空气，避免采样邻居时意外撑大内存。</summary>
@@ -30,7 +32,14 @@ namespace MyWorld.Core.Voxel
             }
 
             column.SetBlock(VoxelCoords.WorldToLocal(worldX), worldY, VoxelCoords.WorldToLocal(worldZ), blockId);
+            _dirtyChunks.Add(pos);
         }
+
+        /// <summary>自上次保存以来被 <see cref="SetBlock"/> 改过的区块（milestone-4 存档用）。</summary>
+        public IEnumerable<ChunkPos> DirtyChunks => _dirtyChunks;
+
+        /// <summary>单区块保存成功后清除其脏标记。</summary>
+        public void ClearDirty(ChunkPos pos) => _dirtyChunks.Remove(pos);
 
         public bool TryGetChunk(ChunkPos pos, out ChunkColumn column) => _chunks.TryGetValue(pos, out column);
 
