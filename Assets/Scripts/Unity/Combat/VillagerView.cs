@@ -37,6 +37,8 @@ namespace MyWorld.Unity.Combat
         public void ApplyColor(Color c)
         {
             if (Renderer == null) return;
+            // EditMode 测试里 AddComponent 不触发 Awake，_block 可能为 null → 懒初始化
+            if (_block == null) _block = new MaterialPropertyBlock();
             Renderer.GetPropertyBlock(_block);
             _block.SetColor(ColorId, c);
             Renderer.SetPropertyBlock(_block);

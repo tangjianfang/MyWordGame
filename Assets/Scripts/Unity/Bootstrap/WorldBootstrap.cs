@@ -150,8 +150,10 @@ namespace MyWorld.Unity.Bootstrap
             gameObject.AddComponent<MyWorld.Unity.UI.DeathScreenUi>();
 
             // 19. 村民 + 交易 UI（plan-3d）
+            // X3 fix-up：把 MobSpawnRules + WorldGenerator 也注入 VillagerManager，
+            // 让刷怪决策走 MobSpawnRules.PickKind 数据驱动（Plains+Forest 限制生效）。
             var villagerMgr = gameObject.AddComponent<MyWorld.Unity.Combat.VillagerManager>();
-            villagerMgr.Bind(_world, _playerContext.Time, transform);
+            villagerMgr.Bind(_world, _playerContext.Time, transform, generator, spawnRules);
             gameObject.AddComponent<MyWorld.Unity.UI.TradeUi>();
 
             // 20. 附魔 UI（plan-3d）
