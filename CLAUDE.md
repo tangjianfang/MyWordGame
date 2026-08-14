@@ -10,7 +10,7 @@ MyWordGame 是一个自研体素沙盒游戏（Unity 6 + 纯 C# Core 层），�
 全部在**仓库根目录**执行，**不需要安装 Unity**：
 
 ```bash
-dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 187 个）
+dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 409 个）
 dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTests"   # 单个测试类
 dotnet build tools/dotnet/MyWorld.Tools.sln              # 编译三个工程
 
@@ -79,8 +79,8 @@ Build 产物与日志在 `.gitignore` 内（`[Bb]uilds/` + `/unity-*.log`）。
 | 层 | 位置 | 状态 |
 | --- | --- | --- |
 | `MyWorld.Core` | `Assets/Scripts/Core` | 已实现 |
-| `MyWorld.Unity` | `Assets/Scripts/Unity` | 已实现渲染层（材质库、Mesh 上传、区块段视图、启动器） |
-| `MyWorld.Gameplay` | `Assets/Scripts/Gameplay` | **尚未创建**（玩家控制、交互、物品栏） |
+| `MyWorld.Unity` | `Assets/Scripts/Unity` | 已实现渲染层 + 玩家层 + 玩法接线（Bootstrap 启动器、Player 控制、Combat 生物、UI 物品栏/合成/熔炉/交易，均通过 `Gameplay/PlayerContext` 单例汇聚） |
+| `MyWorld.Gameplay` | `Assets/Scripts/Gameplay` | **尚未创建**（玩法逻辑目前分居 Core 各子系统 + Unity 侧接线，见上） |
 
 Core 层的约束由编译器强制，不是约定：
 
@@ -138,6 +138,22 @@ Core 层的约束由编译器强制，不是约定：
 `BlockDefinitionFilesTests` 会校验真实的 JSON 文件：解析、ID 冲突、numericId 与 `BlockIds` 一致、
 **以及引用的贴图是否都已在 `art/requests/blocks/` 下提过需求**。改 JSON 后跑 `dotnet test` 立刻能发现问题。
 
+## 其余数据驱动注册表
+
+StreamingAssets 下还有四张 JSON 数据表，模式与方块一致（`_format.md` 同目录说明 schema）：
+
+| 目录/文件 | 内容 | 加载者 | 要点 |
+| --- | --- | --- | --- |
+| `items/*.json` | 物品定义（numericId 1000 起） | `ItemDatabase.FromJson` | 跨表引用的 itemId 必须在此注册，否则加载抛 `InvalidDataException`（`BlockDropsTests` 有真实加载器集成测试守这条契约） |
+| `recipes/*.json` | 合成/熔炉配方 | `RecipeDatabase` | 2x2 口袋 / 3x3 工作台 / 熔炉按 `tier` 区分 |
+| `biomes.json` | 生物群系（温度/湿度/地表/树密度） | `BiomeConfig` | 群系名与 `spawn_rules.json` 引用需一致 |
+| `mobs/spawn_rules.json` | 各生物在哪些 biome/光照生成 | `MobSpawnRulesLoader` → `MobManager` / `VillagerManager` | 生成一律走 `MobSpawnRules.PickKind`，**不要在 Unity 侧写 `UnityEngine.Random`** |
+| `mobs/drop_tables.json` | 生物死亡掉落（`countMin`/`countMax` 区间 + `chance` 概率） | `MobDropTable.Load` → `MobAI.DropTable` | 掉落走 `MobDropTable.RollAll`（每条 entry 独立掷骰，整数哈希，确定性） |
+| `blocks/drops/block_drops.json` | 挖方块掉落 | `BlockDropsLoader` → `BlockInteraction` | 同样确定性哈希掷 count |
+
+**改这些 JSON 时两条铁律**：掉落/生成数量一律用整数哈希掷骰（参考 `BlockDrops.RollCount`），不持有
+随机数对象；itemId/biome 名等跨表引用改完必须跑 `dotnet test`，集成测试会抓住悬空引用。
+
 ## 美术资源流程
 
 `art/` 是图片资源的需求提出处，完整流程与硬性约束见 `art/README.md`。要点：
@@ -156,7 +172,8 @@ ASCII 示意（由 `MyWorld.Preview` 从真实数据渲染，不手绘）、可�
 ## Unity 侧
 
 **实际使用 Unity 2022.3.62f3c1（中国版）**，不是最初规划的 Unity 6。已实机验证
-187 个测试在 EditMode 下全部通过。这对架构无实质影响：Core 是 `netstandard2.1` + C# 9，
+dotnet 与 EditMode 两个测试集全绿（同一批测试文件，EditMode 侧还多 Unity 专属的
+MonoBehaviour 接线测试，数量比 dotnet 侧多近百个）。这对架构无实质影响：Core 是 `netstandard2.1` + C# 9，
 2022.3 完全支持；`Mesh.AllocateWritableMeshData`、Burst、Job System、URP Forward+ 也都具备。
 
 `Packages/manifest.json` 的版本已经实机解析验证，**不要改成 Unity 6 的版本号**（URP 17.x、
