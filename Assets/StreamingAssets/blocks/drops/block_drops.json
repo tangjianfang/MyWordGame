@@ -1,0 +1,49 @@
+[
+  {
+    "blockId": "stone",
+    "blockNumericId": 1,
+    "drops": [
+      { "itemId": "cobblestone", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "dirt",
+    "blockNumericId": 2,
+    "drops": [
+      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "grass",
+    "blockNumericId": 3,
+    "drops": [
+      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "sand",
+    "blockNumericId": 4,
+    "drops": [
+      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "bedrock",
+    "blockNumericId": 6,
+    "drops": []
+  },
+  {
+    "blockId": "log",
+    "blockNumericId": 1001,
+    "drops": [
+      { "itemId": "log", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "leaves",
+    "blockNumericId": 1002,
+    "drops": [
+      { "itemId": "stick", "countMin": 0, "countMax": 2 }
+    ]
+  }
+]

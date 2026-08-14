@@ -96,6 +96,16 @@ namespace MyWorld.Unity.Bootstrap
             // 9. 方块交互
             _interaction = GetComponent<BlockInteraction>() ?? gameObject.AddComponent<BlockInteraction>();
             _interaction.Bind(_world, _registry, _views, transform);
+            // X2 fix-up：把方块→物品掉落表注入 BlockInteraction，让挖方块 spawn ItemDropEntity。
+            // 数据来自 StreamingAssets/blocks/drops/block_drops.json。
+            try
+            {
+                _interaction.SetBlockDrops(BlockDropsLoader.Load(items));
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[WorldBootstrap] 加载 block_drops.json 失败：{ex.Message}。挖方块不掉落。");
+            }
 
             // 10. 手部
             _hand = gameObject.AddComponent<HandController>();

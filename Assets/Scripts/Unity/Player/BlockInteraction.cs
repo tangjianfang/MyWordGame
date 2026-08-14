@@ -1,10 +1,12 @@
 using MyWorld.Core.Blocks;
+using MyWorld.Core.Items;
 using MyWorld.Core.Math;
 using MyWorld.Core.Physics;
 using MyWorld.Core.Player;
 using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Audio;
+using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Rendering;
 using UnityEngine;
 
@@ -30,6 +32,7 @@ namespace MyWorld.Unity.Player
         private ChunkViewRegistry _views;
         private SelectionBox _selection;
         private PlayerAudioSystem _audio;
+        private BlockDrops _blockDrops;
 
         public void Bind(World world, BlockRegistry registry, ChunkViewRegistry views, Transform parent)
         {
@@ -53,6 +56,15 @@ namespace MyWorld.Unity.Player
             _selection.Hide();
         }
 
+        /// <summary>
+        /// X2 fix-up：注入方块→物品掉落表。无表时挖方块不产生掉落（保持旧行为）。
+        /// 由 <c>WorldBootstrap</c> 在 BlockDefinitionFilesTests + ItemDatabase 配齐后调用。
+        /// </summary>
+        public void SetBlockDrops(BlockDrops drops)
+        {
+            _blockDrops = drops;
+        }
+
         private void Update()
         {
             if (_world == null || _player.Eye == null)
@@ -73,10 +85,8 @@ namespace MyWorld.Unity.Player
 
                 if (Input.GetMouseButtonDown(0))
                 {
-                    // 挖：把命中格设为空气，标脏，重建
-                    _world.SetBlock(hit.X, hit.Y, hit.Z, BlockIds.Air);
-                    _views.MarkBlockChanged(hit.X, hit.Y, hit.Z);
-                    _audio?.PlayBreak();
+                    // 挖：把命中格设为空气，标脏，重建，并按 BlockDrops spawn ItemDropEntity
+                    BreakAt(hit.X, hit.Y, hit.Z);
                 }
                 else if (Input.GetMouseButtonDown(1))
                 {
@@ -98,6 +108,47 @@ namespace MyWorld.Unity.Player
         }
 
         private static Float3 ToFloat3(Vector3 v) => new Float3(v.x, v.y, v.z);
+
+        /// <summary>
+        /// X2 fix-up：在指定坐标挖方块。流程：<see cref="World.SetBlock"/> → 标脏 → 播放 break 音效 →
+        /// 按 <see cref="BlockDrops"/> 查询该方块的掉落物条目，每条实例化为
+        /// <see cref="MyWorld.Core.Items.ItemDropEntity"/> 并加入 <see cref="PlayerContext.ItemDrops"/>。
+        /// <para>
+        /// 暴露为 public 是为了让 EditMode 测试不依赖 <c>Input.GetMouseButtonDown</c>；
+        /// <c>Update</c> 与外部测试都走同一条路径。
+        /// </para>
+        /// <para>
+        /// 顺序与既有 <c>Update</c> 行为对齐：先清方块 → 标脏（让玩家视觉立刻看到破坏）→ 播音效 →
+        /// spawn 掉落。无 PlayerContext / 无 BlockDrops 表 / 挖空气 / drops 表里没条目均 no-op。
+        /// </para>
+        /// </summary>
+        public void BreakAt(int x, int y, int z)
+        {
+            if (_world == null) return;
+            ushort before = _world.GetBlock(x, y, z);
+            if (before == BlockIds.Air) return; // 挖空气是 no-op（与 review-final B7 不冲突）
+
+            _world.SetBlock(x, y, z, BlockIds.Air);
+            _views?.MarkBlockChanged(x, y, z);
+            _audio?.PlayBreak();
+
+            // X2 fix-up：spawn ItemDropEntity。BlockDrops 可能未注入（旧场景 / EditMode
+            // 单元测），缺了就 silently no-op，不破坏既有"挖 = 立即空一块"的视觉反馈。
+            if (_blockDrops == null) return;
+            ItemStack[] drops = _blockDrops.DropsFor(before);
+            if (drops == null || drops.Length == 0) return;
+
+            var ctx = PlayerContext.Instance;
+            if (ctx == null) return;
+
+            // 中心 = (x+0.5, y+0.5, z+0.5)，让 1.5m 拾取半径对准方块中心。
+            Float3 center = new Float3(x + 0.5f, y + 0.5f, z + 0.5f);
+            for (int i = 0; i < drops.Length; i++)
+            {
+                if (drops[i].IsEmpty) continue;
+                ctx.ItemDrops.Add(new ItemDropEntity(drops[i], center));
+            }
+        }
 
         /// <summary>
         /// 按 Biome 调整方块的挖掘耗时（秒）。
