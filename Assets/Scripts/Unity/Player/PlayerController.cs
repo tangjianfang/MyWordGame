@@ -41,6 +41,14 @@ namespace MyWorld.Unity.Player
         /// <summary>相机所在位置——射线拾取要用，所以公开出去。</summary>
         public Transform Eye => eye;
 
+        /// <summary>存档恢复专用（m4 B2）：整体替换 Core 运动状态并立即同步 transform。
+        /// 运行时不要调用——会跳过碰撞检测把玩家瞬移穿墙，仅供读档链路使用。</summary>
+        public void RestoreCoreState(PlayerState state)
+        {
+            _state = state;
+            ApplyToTransform();
+        }
+
         // ─── 公开 jump / 着地信号（A4：HandController 与无头驱动依赖） ──────────────
         // 绑定到世界后这两个值同步自 <see cref="PlayerState"/>——Core 在 <see cref="Tick"/>
         // 里做碰撞检测、重力累积；绑定前保留本地默认值，避免测试 / 预览场景拿不到信号。
