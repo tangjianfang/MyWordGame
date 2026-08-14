@@ -47,11 +47,21 @@ namespace MyWorld.Core.Tests.Entities
         }
 
         [Test]
-        public void Chicken_DropsFeather()
+        public void Chicken_DropsChicken()
         {
             var table = MobDropTable.Load(DropTablesPath());
             var drop = table.Roll(MobKind.Chicken, seed: 42);
             Assert.That(drop.HasValue, Is.True, "鸡死亡应掉出 ItemStack");
+            Assert.That(drop.Value.ItemId, Is.EqualTo(1017), "Chicken 应掉 chicken (1017)，不再是 iron_ingot 占位");
+        }
+
+        [Test]
+        public void Cow_DropsBeef()
+        {
+            var table = MobDropTable.Load(DropTablesPath());
+            var drop = table.Roll(MobKind.Cow, seed: 42);
+            Assert.That(drop.HasValue, Is.True, "牛死亡应掉出 ItemStack");
+            Assert.That(drop.Value.ItemId, Is.EqualTo(1016), "Cow 应掉 beef (1016)，不再是 cobblestone 占位");
         }
 
         [Test]

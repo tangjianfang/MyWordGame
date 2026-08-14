@@ -1,0 +1,8 @@
+{
+  "id": "chicken",
+  "displayName": "生鸡肉",
+  "numericId": 1017,
+  "maxStack": 64,
+  "texture": "chicken",
+  "healAmount": 2
+}

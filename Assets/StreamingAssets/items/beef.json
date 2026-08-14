@@ -1,0 +1,8 @@
+{
+  "id": "beef",
+  "displayName": "生牛肉",
+  "numericId": 1016,
+  "maxStack": 64,
+  "texture": "beef",
+  "healAmount": 3
+}
