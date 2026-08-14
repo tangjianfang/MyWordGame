@@ -125,6 +125,12 @@ Core 层的约束由编译器强制，不是约定：
 未改动的区块加载时由 seed 重新生成。`ChunkSerializer` 只写非空 section（用 32 位掩码标记），
 数据段 Deflate 压缩。改二进制布局必须同步 bump `FormatVersion` 并处理旧版本。
 
+**存档是双层结构（milestone-4 起接入实机）。** 每个世界一个目录：`level.dat`（JSON，
+seed/时间/玩家/熔炉/掉落物）+ `regions/*.mwr`（脏区块 overlay）。30s 自动保存 + 退出保存，
+均走 `SaveLoadService`；读取用 `TryRestore`，按时间→玩家→熔炉→掉落物的顺序恢复，
+任何一层失败跳过该层继续。坏 `level.dat` 重命名 `.corrupt` 后全新开始；写盘先落 `.tmp`
+再原子改名，杀进程不会留下半截档。
+
 ## 方块定义是数据驱动的
 
 `Assets/StreamingAssets/blocks/*.json`，一个文件一种方块，格式与字段说明见同目录 `_format.md`。
