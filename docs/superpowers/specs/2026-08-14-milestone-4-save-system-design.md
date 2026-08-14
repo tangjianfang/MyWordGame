@@ -52,7 +52,7 @@ seed 字段校验一致性。
 public class LevelData
 {
     public long Seed;                 // 与 bootstrap seed 校验一致才恢复
-    public long TimeTick;             // TimeOfDay.CurrentTick
+    public float TimeTick;            // TimeOfDay.CurrentTick（float，0..24000）
     public PlayerSnapshot Player;     // 见下
     public FurnaceSnapshot Furnace;   // 见下
     public List<DropSnapshot> Drops;  // 地面掉落物
@@ -68,7 +68,8 @@ public class PlayerSnapshot
     public List<SlotSnapshot> Inventory; // 背包格
 }
 
-public class SlotSnapshot { public int ItemId; public int Count; }
+// Metadata 必须保存：工具耐久（MaxDurabilityMask/CurDurabilityMask）存在这里
+public class SlotSnapshot { public int ItemId; public int Count; public ushort Metadata; }
 
 public class FurnaceSnapshot
 {
