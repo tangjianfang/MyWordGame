@@ -68,8 +68,10 @@ namespace MyWorld.Unity.Bootstrap
             Transform worldRoot = ResolveWorldRoot();
             _views = new ChunkViewRegistry(worldRoot, _world, _registry, _materials);
 
-            // 6. 流式加载器
-            _streamer = new ChunkStreamer(_world, generator, _registry, _views, seed);
+            // 6. 流式加载器（m4 B1：带存档 regionsDir，卸载前把脏区块落盘到 region 文件）
+            string saveRoot = Path.Combine(Application.persistentDataPath, "worlds");
+            string regionsDir = Path.Combine(saveRoot, seed.ToString(), "regions");
+            _streamer = new ChunkStreamer(_world, generator, _registry, _views, seed, regionsDir);
 
             // 7. 玩家上下文（背包 / 生命 / 时间 / 物品 / 经验 / 死亡）
             _playerContext = gameObject.AddComponent<PlayerContext>();
@@ -193,6 +195,13 @@ namespace MyWorld.Unity.Bootstrap
             var invUi = GetComponent<MyWorld.Unity.UI.CraftingInventoryUi>()
                         ?? gameObject.AddComponent<MyWorld.Unity.UI.CraftingInventoryUi>();
             if (_playerContext.Recipes != null) invUi.Bind(_playerContext.Recipes);
+
+            // 24. 存档服务（m4 B4：30s 自动 + 退出保存；启动时恢复玩家/时间/熔炉/掉落物）。
+            // 顺序关键：必须等 PlayerContext / player / FurnaceSystem 全部建好之后再 TryRestore——
+            // 恢复的位置 Y 直接用存档值，streamer 半径内的区块会在 warmup 内生成，玩家不会在空气里下落。
+            var saveLoad = gameObject.AddComponent<MyWorld.Unity.Persistence.SaveLoadService>();
+            saveLoad.Bind(_world, _playerContext, _player, seed, saveRoot);
+            saveLoad.TryRestore();
         }
 
         private void Update()
