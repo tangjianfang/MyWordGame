@@ -1,0 +1,7 @@
+{
+  "id": "dirt",
+  "displayName": "泥土",
+  "numericId": 1015,
+  "maxStack": 64,
+  "texture": "dirt"
+}

@@ -32,8 +32,16 @@ namespace MyWorld.Core.Blocks
         private BlockDrops() { }
 
         /// <summary>
-        /// 解析一段或多段 JSON 文档为 BlockDrops 表。每个 JSON 文档描述一个方块的掉落。
+        /// 解析一段或多段 JSON 文档为 BlockDrops 表。每个 JSON 文档描述一个或一组方块的掉落。
         /// 物品 id 用字符串（与 ItemDatabase 同款），通过 <paramref name="items"/> 转为 numericId。
+        /// <para>
+        /// 支持两种文档形态：
+        /// <list type="bullet">
+        /// <item>单个 <c>{ blockId, blockNumericId, drops[] }</c> 对象。</item>
+        /// <item>顶层数组 <c>[ {...}, {...} ]</c>——文件级多条目（与
+        /// <c>StreamingAssets/blocks/drops/block_drops.json</c> 的实际写法一致）。</item>
+        /// </list>
+        /// </para>
         /// <para>
         /// 失败模式（缺字段、引用未注册物品）抛 <see cref="InvalidDataException"/>，
         /// 与 <see cref="BlockRegistry"/> / <see cref="ItemDatabase"/> 同款严格解析。
@@ -60,16 +68,45 @@ namespace MyWorld.Core.Blocks
 
         private void Add(string document, ItemDatabase items)
         {
-            JObject root;
+            JToken token;
             try
             {
-                root = JObject.Parse(document);
+                token = JToken.Parse(document);
             }
             catch (Exception ex)
             {
                 throw new InvalidDataException($"block_drops 不是合法 JSON：{ex.Message}", ex);
             }
 
+            if (token is JArray array)
+            {
+                // 顶层数组：每个元素是一个 block entry。
+                int index = 0;
+                foreach (var element in array)
+                {
+                    if (element is JObject obj)
+                    {
+                        AddObject(obj, items);
+                    }
+                    else
+                    {
+                        throw new InvalidDataException(
+                            $"block_drops 顶层数组的第 {index} 个元素不是对象。");
+                    }
+                    index++;
+                }
+                return;
+            }
+            if (token is JObject root)
+            {
+                AddObject(root, items);
+                return;
+            }
+            throw new InvalidDataException("block_drops 文档必须是对象或对象数组。");
+        }
+
+        private void AddObject(JObject root, ItemDatabase items)
+        {
             // blockId 字符串（如 "stone"）—— 不是 numeric；只用于错误日志与可读性。
             string blockId = (string)root["blockId"];
             int? blockNumericId = (int?)root["blockNumericId"];
@@ -118,7 +155,11 @@ namespace MyWorld.Core.Blocks
             int countMax = (int?)entryObj["countMax"] ?? countMin;
             if (countMin < 0) countMin = 0;
             if (countMax < countMin) countMax = countMin;
-            if (countMax > 64) countMax = 64; // ItemStack 在构造时就把 count 限制到非负，不强制 < 64，留个软上限
+            // 上限跟物品注册表对齐：ItemStack 构造只把 count 截到非负，
+            // 不强制 ≤ MaxStack，所以这里显式取 def.MaxStack 作为软上限，避免生成
+            // 「超过最大堆叠」但构造时不报错的 ItemStack。
+            int stackCap = def.MaxStack > 0 ? def.MaxStack : 64;
+            if (countMax > stackCap) countMax = stackCap;
 
             int seed = ComputeSeed(blockId, itemId);
             int count = RollCount(seed, min: countMin, max: countMax);

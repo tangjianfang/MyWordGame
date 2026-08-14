@@ -1,6 +1,9 @@
+using System;
+using System.IO;
 using System.Linq;
 using MyWorld.Core.Blocks;
 using MyWorld.Core.Items;
+using MyWorld.Core.Voxel;
 using NUnit.Framework;
 
 namespace MyWorld.Core.Tests.Blocks
@@ -205,19 +208,123 @@ namespace MyWorld.Core.Tests.Blocks
         }
 
         [Test]
-        public void FromJson_BlockNumericIdMismatch_Throws()
+        public void FromJson_BlockNumericIdUnregistered_Allowed_EmptyDrops()
         {
-            string bad = @"{
+            // 旧命名 misleading："Mismatch_Throws" 实际断言不抛。
+            // 真实语义：blockNumericId=99 在 BlockRegistry 里没注册，但 BlockDrops
+            // 本身不依赖 BlockRegistry（数据驱动，只看 items + drops JSON），
+            // 因此允许——drops 为空时只把条目存进表，DropsFor 查到返回空数组。
+            string doc = @"{
                 ""blockId"": ""stone"",
                 ""blockNumericId"": 99,
                 ""drops"": []
             }";
             var items = StandardItemDatabase();
 
-            // 99 != stone 的真实 numericId (1)，应允许（只是冗余字段）——但 drops 为空时不应抱怨
-            // 关键不应抛：测试用 FromJson 应至少给空数组。
-            BlockDrops drops = BlockDrops.FromJson(new[] { bad }, items);
+            BlockDrops drops = BlockDrops.FromJson(new[] { doc }, items);
             Assert.That(drops.DropsFor(99).Length, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void FromJson_MalformedRoot_Throws()
+        {
+            // 真正的不抛测试：缺 blockNumericId 字段——BlockDrops 必须报错（与同仓其它
+            // 注册表一致：少字段 = 解析失败，不静默忽略）。
+            string bad = @"{
+                ""blockId"": ""stone"",
+                ""drops"": []
+            }";
+            var items = StandardItemDatabase();
+
+            Assert.Throws<System.IO.InvalidDataException>(
+                () => BlockDrops.FromJson(new[] { bad }, items),
+                "缺 blockNumericId 字段时应抛 InvalidDataException，不应静默通过");
+        }
+
+        /// <summary>
+        /// 集成测试（X2 review fix-up #important）：跑真实
+        /// <c>Assets/StreamingAssets/items/*.json</c> + <c>Assets/StreamingAssets/blocks/drops/block_drops.json</c>
+        /// 的端到端组合，验证数据契约在游戏启动时不抛、且 stone 至少掉 cobblestone。
+        /// <para>
+        /// 这是 X2 review 找到的 critical bug 的回归门：之前 mock ItemDatabase 用
+        /// 假 id 注册 "dirt"，从未跑到真实 Loader + 真实 JSON 这条路径，因此
+        /// 「dirt 不在物品库 → InvalidDataException → 静默吞掉 → 掉落全废」
+        /// 整条断链漏到了运行时。本测试守住它。
+        /// </para>
+        /// </summary>
+        [Test]
+        public void BlockDrops_RealLoaders_NoThrow_StoneDropsCobble()
+        {
+            string itemsDir = LocateItemsDirectory();
+            Assert.That(Directory.Exists(itemsDir), Is.True,
+                $"找不到物品 JSON 目录：{itemsDir}");
+
+            var itemDocs = Directory.GetFiles(itemsDir, "*.json").Select(File.ReadAllText);
+            var items = ItemDatabase.FromJson(itemDocs);
+
+            // 必须含 dirt——之前 review 的 critical bug 就是因为 block_drops.json 引用 dirt，
+            // 但 dirt 不在 items 里。补完 dirt.json 后这一条必须为真。
+            Assert.That(items.TryGetById("dirt", out _), Is.True,
+                "review X2 critical fix：StreamingAssets/items 必须含 dirt.json，否则" +
+                "BlockDropsLoader.Load 抛 InvalidDataException、WorldBootstrap 静默吞掉、" +
+                "运行时挖方块全不掉");
+
+            string dropsPath = LocateBlockDropsPath();
+            Assert.That(File.Exists(dropsPath), Is.True,
+                $"找不到 block_drops.json：{dropsPath}");
+
+            // 端到端：解析 real JSON，断言不抛、stone 掉 cobblestone。
+            BlockDrops drops = BlockDrops.FromJson(new[] { File.ReadAllText(dropsPath) }, items);
+
+            ItemStack[] stoneDrops = drops.DropsFor(BlockIds.Stone);
+            Assert.That(stoneDrops, Is.Not.Null);
+            Assert.That(stoneDrops.Length, Is.GreaterThanOrEqualTo(1),
+                "石头应至少有一个掉落条目（数据驱动：stone → cobblestone×1）");
+
+            Assert.That(items.TryGetById("cobblestone", out var cobbleDef), Is.True,
+                "cobblestone 应在真实物品库中");
+            Assert.That(stoneDrops[0].ItemId, Is.EqualTo(cobbleDef.NumericId),
+                "石头应掉 cobblestone，且 ItemId 等于 cobblestone.NumericId");
+            Assert.That(stoneDrops[0].Count, Is.InRange(1, cobbleDef.MaxStack),
+                "count 应在 [countMin, countMax ∩ def.MaxStack] 区间内");
+        }
+
+        private static string LocateItemsDirectory()
+        {
+#if UNITY_EDITOR
+            return Path.Combine(UnityEngine.Application.streamingAssetsPath, "items");
+#else
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null)
+            {
+                string candidate = Path.Combine(directory.FullName, "Assets", "StreamingAssets", "items");
+                if (Directory.Exists(candidate))
+                {
+                    return candidate;
+                }
+                directory = directory.Parent;
+            }
+            throw new DirectoryNotFoundException("未能从测试输出目录向上找到 Assets/StreamingAssets/items。");
+#endif
+        }
+
+        private static string LocateBlockDropsPath()
+        {
+#if UNITY_EDITOR
+            return Path.Combine(UnityEngine.Application.streamingAssetsPath, "blocks", "drops", "block_drops.json");
+#else
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null)
+            {
+                string candidate = Path.Combine(directory.FullName, "Assets", "StreamingAssets", "blocks", "drops", "block_drops.json");
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+                directory = directory.Parent;
+            }
+            throw new FileNotFoundException("未能从测试输出目录向上找到 block_drops.json。");
+#endif
         }
     }
 }

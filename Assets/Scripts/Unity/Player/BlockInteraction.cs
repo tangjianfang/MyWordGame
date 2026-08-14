@@ -59,9 +59,14 @@ namespace MyWorld.Unity.Player
         /// <summary>
         /// X2 fix-up：注入方块→物品掉落表。无表时挖方块不产生掉落（保持旧行为）。
         /// 由 <c>WorldBootstrap</c> 在 BlockDefinitionFilesTests + ItemDatabase 配齐后调用。
+        /// 传 null 也允许——和没注入表的行为一致——但会打 warning 让上游忘记注入更容易被发现。
         /// </summary>
         public void SetBlockDrops(BlockDrops drops)
         {
+            if (drops == null)
+            {
+                Debug.LogWarning("[BlockInteraction] SetBlockDrops 传入了 null，挖方块时不会产生掉落。");
+            }
             _blockDrops = drops;
         }
 
@@ -139,7 +144,13 @@ namespace MyWorld.Unity.Player
             if (drops == null || drops.Length == 0) return;
 
             var ctx = PlayerContext.Instance;
-            if (ctx == null) return;
+            if (ctx == null)
+            {
+                // 玩家视觉看到方块消失却没掉任何东西，没 log 也找不到原因——
+                // 加 warning 让「场景里没挂 PlayerContext」这种装配失误更容易定位。
+                Debug.LogWarning("[BlockInteraction] 挖方块掉落需要 PlayerContext，但当前为 null");
+                return;
+            }
 
             // 中心 = (x+0.5, y+0.5, z+0.5)，让 1.5m 拾取半径对准方块中心。
             Float3 center = new Float3(x + 0.5f, y + 0.5f, z + 0.5f);
