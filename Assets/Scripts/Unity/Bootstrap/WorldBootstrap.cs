@@ -12,6 +12,7 @@ using MyWorld.Unity.Player;
 using MyWorld.Unity.Rendering;
 using MyWorld.Unity.Streaming;
 using MyWorld.Unity.UI;
+using System.IO;
 using UnityEngine;
 
 namespace MyWorld.Unity.Bootstrap
@@ -129,9 +130,9 @@ namespace MyWorld.Unity.Bootstrap
             try
             {
                 var dropPath = Path.Combine(Application.streamingAssetsPath, "mobs", "drop_tables.json");
-                if (System.IO.File.Exists(dropPath))
+                if (File.Exists(dropPath))
                 {
-                    MobAI.DropTable = Entities.ItemDropTable.Load(dropPath);
+                    MobAI.DropTable = MyWorld.Core.Entities.ItemDropTable.Load(dropPath);
                 }
                 else
                 {

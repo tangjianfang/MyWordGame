@@ -18,6 +18,11 @@ namespace MyWorld.Core.Items
     /// </summary>
     public class ItemDropEntity
     {
+        /// <summary>拾取宽限期（秒）。Spec B7：掉落物生成后 <c>PickupGraceSeconds</c> 秒内
+        /// 不可拾取，让玩家有反应时间看到掉落物出现。<c>TryPickupBy</c> 在 spawn 后
+        /// 不足这个时长一律返回 false。</summary>
+        public const float PickupGraceSeconds = 0.5f;
+
         /// <summary>当前掉落物内容。被拾走后置 null。</summary>
         public ItemStack? Content { get; private set; }
 
@@ -27,11 +32,22 @@ namespace MyWorld.Core.Items
         /// <summary>Y 方向速度（米/秒），仅受重力影响，撞地板后归零。</summary>
         public float VelocityY { get; private set; }
 
+        /// <summary>
+        /// 生成时刻（Unity 侧应 set 为 <c>Time.time</c>，Core 单元测试保持 0 默认值）。
+        /// <para>
+        /// 0 = 未设置，宽限期检查自动失效——让 Core 单元测试不依赖时间注入也能验证
+        /// 范围判断逻辑。Unity 侧在 spawn 之后必须 set 一次（<c>Time.time</c> 在 batchmode
+        /// 第一帧后就 > 0），让 <c>TryPickupBy</c> 的 grace 检查真正生效。
+        /// </para>
+        /// </summary>
+        public float SpawnTime { get; set; }
+
         public ItemDropEntity(ItemStack content, Float3 position)
         {
             Content = content;
             Position = position;
             VelocityY = 0f;
+            SpawnTime = 0f;
         }
 
         /// <summary>
@@ -54,12 +70,25 @@ namespace MyWorld.Core.Items
 
         /// <summary>
         /// 玩家是否在拾取范围内（默认 1.5m 半径）；是则把 count 写到 out 并返回 true。
-        /// 已被拾走（Content=null）或超出范围都返回 false。
+        /// 已被拾走（Content=null）、超出范围、<b>或仍在 0.5s 拾取宽限期内</b>都返回 false。
+        /// <para>
+        /// <paramref name="currentTime"/> 与 <see cref="SpawnTime"/> 的差小于
+        /// <see cref="PickupGraceSeconds"/> 时拒绝拾取——spec B7 "0.5s 后可拾取" 的边界
+        /// 含等号（恰好 0.5s 即可拾取）。<see cref="SpawnTime"/> 为 0（Core 单元测试默认值）
+        /// 时跳过此检查，保留原范围判断行为。
+        /// </para>
         /// </summary>
-        public bool TryPickupBy(Float3 playerPosition, out int picked)
+        public bool TryPickupBy(Float3 playerPosition, float currentTime, out int picked)
         {
             picked = 0;
             if (Content == null) return false;
+
+            // 0.5s 拾取宽限期：SpawnTime > 0（已 set）才检查。
+            // SpawnTime = 0 时跳过，让 Core 单元测试不必注入时间也能验证范围逻辑。
+            if (SpawnTime > 0f && currentTime - SpawnTime < PickupGraceSeconds)
+            {
+                return false;
+            }
 
             float dx = Position.X - playerPosition.X;
             float dy = Position.Y - playerPosition.Y;

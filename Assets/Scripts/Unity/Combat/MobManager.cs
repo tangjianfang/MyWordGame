@@ -299,7 +299,9 @@ namespace MyWorld.Unity.Combat
             foreach (var stack in mob.LastDrops)
             {
                 if (stack.IsEmpty) continue;
-                ctx.ItemDrops.Add(new ItemDropEntity(stack, mob.Position));
+                var drop = new ItemDropEntity(stack, mob.Position);
+                drop.SpawnTime = Time.time; // F1 follow-up：spawn 时刻记录，TryPickupBy 据此判定 0.5s grace
+                ctx.ItemDrops.Add(drop);
             }
             mob.LastDrops = null;
         }

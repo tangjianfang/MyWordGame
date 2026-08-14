@@ -157,7 +157,9 @@ namespace MyWorld.Unity.Player
             for (int i = 0; i < drops.Length; i++)
             {
                 if (drops[i].IsEmpty) continue;
-                ctx.ItemDrops.Add(new ItemDropEntity(drops[i], center));
+                var drop = new ItemDropEntity(drops[i], center);
+                drop.SpawnTime = Time.time; // F1 follow-up：spawn 时刻记录，TryPickupBy 据此判定 0.5s grace
+                ctx.ItemDrops.Add(drop);
             }
         }
 

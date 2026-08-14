@@ -225,7 +225,7 @@ namespace MyWorld.Unity.Player
                     continue;
                 }
 
-                if (!drop.TryPickupBy(self, out int picked)) continue;
+                if (!drop.TryPickupBy(self, Time.time, out int picked)) continue;
 
                 var stack = drop.Content.Value;
                 if (ctx.Inventory.TryAdd(stack, out int leftover))
@@ -237,8 +237,10 @@ namespace MyWorld.Unity.Player
                 else if (leftover < picked)
                 {
                     // 背包只塞下一部分：掉落物按剩余量重建，等玩家腾格子后再捡
-                    ctx.ItemDrops[i] = new Core.Items.ItemDropEntity(
+                    var rebuilt = new Core.Items.ItemDropEntity(
                         stack.WithCount(leftover), drop.Position);
+                    rebuilt.SpawnTime = drop.SpawnTime; // F1 follow-up：保留原 spawn 时刻，宽限期不重置
+                    ctx.ItemDrops[i] = rebuilt;
                     total += picked - leftover;
                 }
             }
