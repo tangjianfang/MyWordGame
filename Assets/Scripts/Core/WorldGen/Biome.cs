@@ -5,6 +5,7 @@ namespace MyWorld.Core.WorldGen
         Plains = 0,
         Desert = 1,
         Forest = 2,
-        Mountains = 3
+        Mountains = 3,
+        Snow = 4
     }
 }

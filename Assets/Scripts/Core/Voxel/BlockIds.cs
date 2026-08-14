@@ -12,5 +12,8 @@ namespace MyWorld.Core.Voxel
         public const ushort Sand = 4;
         public const ushort Water = 5;
         public const ushort Bedrock = 6;
+
+        /// <summary>雪原地表方块。非 0–6 内置段，与 <c>blocks/snow.json</c> 的 numericId=1008 手动保持一致。</summary>
+        public const ushort Snow = 1008;
     }
 }

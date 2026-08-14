@@ -29,7 +29,7 @@ namespace MyWorld.Core.Tests.Visual
         public void WorldGenerator_ClimateNoise_HitsAllFourBiomesAcrossMultipleSeeds()
         {
             int[] seeds = { 1, 2, 3, 4, 5, 6, 7, 8, 42, 100, 999, 20260806 };
-            int[] biomeCounts = new int[4];  // Plains / Desert / Forest / Mountains
+            int[] biomeCounts = new int[5];  // Plains / Desert / Forest / Mountains / Snow
             foreach (var seed in seeds)
             {
                 // WorldGenerator._climateNoise 派生公式：seed ^ 0x4F1A2C3B
@@ -57,6 +57,8 @@ namespace MyWorld.Core.Tests.Visual
                 "应能看到 Forest biome");
             Assert.That(biomeCounts[(int)Biome.Mountains], Is.GreaterThan(0),
                 "应能看到 Mountains biome");
+            Assert.That(biomeCounts[(int)Biome.Snow], Is.GreaterThan(0),
+                "应能看到 Snow biome（F2：温度 < 0.15 的极寒区）");
         }
 
         /// <summary>
@@ -79,11 +81,17 @@ namespace MyWorld.Core.Tests.Visual
             Assert.That(BiomeSelector.Select(0.50f, 0.59f), Is.Not.EqualTo(Biome.Forest),
                 "刚不及 Forest 阈值 (t=0.50, h=0.59) 不应判为 Forest");
 
-            // Mountains 要求 t < 0.3 且 h < 0.3
+            // Mountains 要求 t < 0.3 且 h < 0.3（且 t >= 0.15，更冷归 Snow）
             Assert.That(BiomeSelector.Select(0.29f, 0.20f), Is.EqualTo(Biome.Mountains),
                 "刚过 Mountains 阈值 (t=0.29, h=0.20) 应判为 Mountains");
             Assert.That(BiomeSelector.Select(0.31f, 0.20f), Is.Not.EqualTo(Biome.Mountains),
                 "刚不及 Mountains 阈值 (t=0.31, h=0.20) 不应判为 Mountains");
+
+            // Snow 要求 t < 0.15（优先于 Mountains 判定）
+            Assert.That(BiomeSelector.Select(0.14f, 0.20f), Is.EqualTo(Biome.Snow),
+                "刚过 Snow 阈值 (t=0.14, h=0.20) 应判为 Snow");
+            Assert.That(BiomeSelector.Select(0.16f, 0.20f), Is.EqualTo(Biome.Mountains),
+                "刚不及 Snow 阈值 (t=0.16, h=0.20) 应回落到 Mountains");
 
             // 其它组合落回 Plains
             Assert.That(BiomeSelector.Select(0.50f, 0.50f), Is.EqualTo(Biome.Plains),

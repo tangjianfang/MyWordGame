@@ -34,6 +34,16 @@ namespace MyWorld.Core.Tests.WorldGen
         }
 
         [Test]
+        public void GetBiome_SnowAtVeryLowTemperature()
+        {
+            // 极寒（温度 < 0.15）优先于山地判定，无论湿度都应是雪原
+            Assert.That(BiomeSelector.Select(temperature: 0.05f, humidity: 0.5f), Is.EqualTo(Biome.Snow));
+            Assert.That(BiomeSelector.Select(temperature: 0.1f, humidity: 0.1f), Is.EqualTo(Biome.Snow));
+            // 0.15 边界之外仍走原有规则
+            Assert.That(BiomeSelector.Select(temperature: 0.2f, humidity: 0.1f), Is.EqualTo(Biome.Mountains));
+        }
+
+        [Test]
         public void BiomeConfigLoader_ParsesJson()
         {
             string json = @"[

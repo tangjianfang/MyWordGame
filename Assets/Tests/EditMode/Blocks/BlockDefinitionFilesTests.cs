@@ -33,8 +33,9 @@ namespace MyWorld.Core.Tests.Blocks
         public void AllDefinitionFiles_ParseAndValidate()
         {
             // 7 个内置方块（air/stone/dirt/grass/sand/water/bedrock）+ 里程碑-3 新增 8 个
-            // （planks/log/leaves/sapling/crafting_table/iron_door/lever/redstone_dust）= 15
-            Assert.That(_registry.Count, Is.EqualTo(15), "当前应有 7 个内置方块 + 8 个里程碑-3 新方块 = 15 个");
+            // （planks/log/leaves/sapling/crafting_table/iron_door/lever/redstone_dust）
+            // + F2 雪原 snow = 16
+            Assert.That(_registry.Count, Is.EqualTo(16), "当前应有 7 个内置方块 + 8 个里程碑-3 新方块 + 1 个雪方块 = 16 个");
         }
 
         [TestCase("air", BlockIds.Air)]
@@ -44,6 +45,7 @@ namespace MyWorld.Core.Tests.Blocks
         [TestCase("sand", BlockIds.Sand)]
         [TestCase("water", BlockIds.Water)]
         [TestCase("bedrock", BlockIds.Bedrock)]
+        [TestCase("snow", BlockIds.Snow)]
         public void NumericIds_MatchTheConstantsUsedByTheGenerator(string id, ushort expected)
         {
             Assert.That(_registry.GetById(id).NumericId, Is.EqualTo(expected),

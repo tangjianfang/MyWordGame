@@ -199,6 +199,7 @@ namespace MyWorld.Preview
                 case BlockIds.Sand: return ':';
                 case BlockIds.Water: return '~';
                 case BlockIds.Bedrock: return '_';
+                case BlockIds.Snow: return '*';
                 default: return ' ';
             }
         }

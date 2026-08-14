@@ -18,7 +18,8 @@ namespace MyWorld.Core.WorldGen
     {
         private const float TerrainScale = 0.008f;
         private const float ClimateScale = 0.004f;
-        private const int SeaLevel = 62;
+        /// <summary>海平面高度。公开给地表方块映射的单测与运行时查询。</summary>
+        public const int SeaLevel = 62;
         private const int BaseHeight = 68;
         private const int HeightAmplitude = 40;
         private const int DirtDepth = 4;
@@ -62,7 +63,7 @@ namespace MyWorld.Core.WorldGen
                     // 以世界坐标而非区块内坐标采样，接缝两侧自然对齐
                     int surfaceY = SurfaceHeightAt(originX + localX, originZ + localZ);
                     surfaceYs[localX, localZ] = surfaceY;
-                    FillColumn(column, localX, localZ, surfaceY);
+                    FillColumn(column, localX, localZ, surfaceY, BiomeAt(originX + localX, originZ + localZ));
                 }
             }
 
@@ -165,7 +166,23 @@ namespace MyWorld.Core.WorldGen
             }
         }
 
-        private static void FillColumn(ChunkColumn column, int localX, int localZ, int surfaceY)
+        /// <summary>
+        /// biome-aware 地表方块选择（spec C4：plains/forest=grass、desert=sand、snow=snow）。
+        /// 海平面及以下不分群系统一沙子——岸线/水下行为沿用旧规则。
+        /// 纯函数、无状态，单测直接覆盖映射表。
+        /// </summary>
+        public static ushort SurfaceBlockFor(Biome biome, int surfaceY)
+        {
+            if (surfaceY <= SeaLevel) return BlockIds.Sand;
+            switch (biome)
+            {
+                case Biome.Desert: return BlockIds.Sand;
+                case Biome.Snow: return BlockIds.Snow;
+                default: return BlockIds.Grass;
+            }
+        }
+
+        private static void FillColumn(ChunkColumn column, int localX, int localZ, int surfaceY, Biome biome)
         {
             column.SetBlock(localX, VoxelCoords.MinY, localZ, BlockIds.Bedrock);
 
@@ -174,7 +191,7 @@ namespace MyWorld.Core.WorldGen
                 ushort block;
                 if (y == surfaceY)
                 {
-                    block = surfaceY <= SeaLevel ? BlockIds.Sand : BlockIds.Grass;
+                    block = SurfaceBlockFor(biome, surfaceY);
                 }
                 else if (y > surfaceY - DirtDepth)
                 {
@@ -205,7 +222,8 @@ namespace MyWorld.Core.WorldGen
                 [(int)Biome.Plains]    = new BiomeConfig { Id = (int)Biome.Plains,    Name = "plains",    TreeDensity = 8,  CaveMultiplier = 1.0f },
                 [(int)Biome.Desert]    = new BiomeConfig { Id = (int)Biome.Desert,    Name = "desert",    TreeDensity = 0,  CaveMultiplier = 0.5f },
                 [(int)Biome.Forest]    = new BiomeConfig { Id = (int)Biome.Forest,    Name = "forest",    TreeDensity = 30, CaveMultiplier = 1.5f },
-                [(int)Biome.Mountains] = new BiomeConfig { Id = (int)Biome.Mountains, Name = "mountains", TreeDensity = 2,  CaveMultiplier = 2.0f }
+                [(int)Biome.Mountains] = new BiomeConfig { Id = (int)Biome.Mountains, Name = "mountains", TreeDensity = 2,  CaveMultiplier = 2.0f },
+                [(int)Biome.Snow]      = new BiomeConfig { Id = (int)Biome.Snow,      Name = "snow",      TreeDensity = 1,  CaveMultiplier = 1.0f }
             };
 
             if (configs != null)

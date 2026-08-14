@@ -28,6 +28,13 @@
     ]
   },
   {
+    "blockId": "snow",
+    "blockNumericId": 1008,
+    "drops": [
+      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
     "blockId": "bedrock",
     "blockNumericId": 6,
     "drops": []

@@ -1,0 +1,10 @@
+{
+  "id": "snow",
+  "displayName": "雪",
+  "numericId": 1008,
+  "textures": { "all": "snow" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 0.4
+}
