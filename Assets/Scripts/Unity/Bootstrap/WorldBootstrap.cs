@@ -122,6 +122,27 @@ namespace MyWorld.Unity.Bootstrap
             var spawnRules = MobSpawnRulesLoader.TryLoad();
             _mobManager.Bind(_world, _playerContext.Time, transform, generator, spawnRules);
 
+            // X4.5 fix-up：把 JSON 驱动的概率掉落表（mobs/drop_tables.json）注入 MobAI。
+            // 之前 MobAI.cs:48 走静态 Items.ItemDropTable.Drop（count=1 hardcoded），僵尸死亡
+            // 拿不到 [0,2] rotten_flesh + 5% iron_ingot（spec D4/D5 实际未生效）。TryLoad 找不到
+            // 文件时回退到静态路径，保证游戏可启动但掉落仍按旧规则——与 BlockDropsLoader 风格一致。
+            try
+            {
+                var dropPath = Path.Combine(Application.streamingAssetsPath, "mobs", "drop_tables.json");
+                if (System.IO.File.Exists(dropPath))
+                {
+                    MobAI.DropTable = Entities.ItemDropTable.Load(dropPath);
+                }
+                else
+                {
+                    Debug.LogWarning($"[WorldBootstrap] 未找到 {dropPath}，运行时 MobAI 走静态 Items.ItemDropTable.Drop");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[WorldBootstrap] 加载 drop_tables.json 失败：{ex.Message}。运行时 MobAI 走静态路径。");
+            }
+
             // 13. 时间 + 水
             var sun = GameObject.Find("方向光");
             if (sun != null)

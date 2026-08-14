@@ -165,5 +165,71 @@ namespace MyWorld.Core.Tests.Entities
             Assert.That(ironHits, Is.InRange(25, 100),
                 $"Zombie iron_ingot 5% 命中 1000 次应约 50 次（实际 {ironHits}/1000）");
         }
+
+        /// <summary>
+        /// X4.5 fix-up：<see cref="MobDropTable.RollAll"/> 与 <see cref="MobDropTable.Roll"/> 的核心区别——
+        /// 每条 entry 独立掷 chance，可同时命中多条。Zombie 200 次 RollAll 中 rotten_flesh
+        /// 命中 ≥ 1 + iron_ingot 命中 ≥ 1 应同时出现，证明两条 entry 是独立的骰子
+        /// （而非互斥的单一掷骰）。Zombie 累计 chance=0.5 + 0.05，200 次双零概率约
+        /// e^(-200×0.5) × e^(-200×0.05) ≈ 0，留大余量。
+        /// </summary>
+        [Test]
+        public void RollAll_Zombie_RottenAndIronIndependent()
+        {
+            var table = MobDropTable.Load(DropTablesPath());
+            int rottenHits = 0, ironHits = 0;
+            for (int i = 0; i < 200; i++)
+            {
+                var drops = table.RollAll(MobKind.Zombie, seed: i);
+                foreach (var stack in drops)
+                {
+                    if (stack.ItemId == 1010) rottenHits++;
+                    else if (stack.ItemId == 1004) ironHits++;
+                }
+            }
+            Assert.That(rottenHits, Is.GreaterThan(0),
+                $"200 次 RollAll Zombie 应至少出 1 次 rotten_flesh（实际 {rottenHits}）");
+            Assert.That(ironHits, Is.GreaterThan(0),
+                $"200 次 RollAll Zombie 应至少出 1 次 iron_ingot（实际 {ironHits}）");
+            // 独立掷骰：iron_ingot 命中数 ≈ 200×0.05 = 10，留 5σ 余量
+            Assert.That(ironHits, Is.LessThanOrEqualTo(50),
+                $"iron_ingot 命中不应超 50（实际 {ironHits}）");
+        }
+
+        /// <summary>
+        /// X4.5 fix-up：<see cref="MobDropTable.RollAll"/> 对未配置的 MobKind（Villager 等）
+        /// 返回空数组，不抛异常。Unity 侧 MobAI.Tick 写到 LastDrops 时不能假设非空。
+        /// </summary>
+        [Test]
+        public void RollAll_UnknownKind_ReturnsEmpty()
+        {
+            var table = MobDropTable.Load(DropTablesPath());
+            var drops = table.RollAll(MobKind.Villager, seed: 42);
+            Assert.That(drops, Is.Not.Null, "RollAll 不应返回 null");
+            Assert.That(drops.Length, Is.EqualTo(0), "Villager 不在 JSON 表中，应返回空数组");
+        }
+
+        /// <summary>
+        /// X4.5 fix-up：<see cref="MobDropTable.RollAll"/> 对 Pig（chance=1.0）每次都至少返回 1 个
+        /// stack，且 stack 的 count 仍在 [countMin, countMax] 区间——独立掷骰不能改变 count 范围。
+        /// </summary>
+        [Test]
+        public void RollAll_Pig_AlwaysReturnsSingleStackInRange()
+        {
+            var table = MobDropTable.Load(DropTablesPath());
+            for (int i = 0; i < 50; i++)
+            {
+                var drops = table.RollAll(MobKind.Pig, seed: i);
+                Assert.That(drops.Length, Is.GreaterThanOrEqualTo(1),
+                    $"Pig seed={i} RollAll 应至少 1 个 stack（chance=1.0 必命中）");
+                foreach (var stack in drops)
+                {
+                    Assert.That(stack.ItemId, Is.EqualTo(1008),
+                        $"Pig stack 应是 porkchop (1008)，实际 {stack.ItemId}（seed={i}）");
+                    Assert.That(stack.Count, Is.InRange(1, 3),
+                        $"Pig count 应在 [1, 3]（seed={i}, count={stack.Count}）");
+                }
+            }
+        }
     }
 }

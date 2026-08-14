@@ -30,6 +30,14 @@ namespace MyWorld.Core.Entities
         public const float FleeSpeed = 5f;
         public const float DefaultDeathTimer = 0.5f;
 
+        /// <summary>
+        /// X4.5：JSON 驱动的概率掉落表（<c>Entities.ItemDropTable</c>）。
+        /// 由 <c>WorldBootstrap</c> 在 Awake 末尾从 <c>StreamingAssets/mobs/drop_tables.json</c>
+        /// 加载并注入；null 时 <see cref="Tick"/> 回退到静态 <c>Items.ItemDropTable.Drop</c>
+        /// （legacy 路径，保证 MobAI.cs:48 的历史契约仍可独立单测）。
+        /// </summary>
+        public static ItemDropTable DropTable { get; set; }
+
         public static void Tick(Mob mob, Float3 playerPos, World world, TimeOfDay time, float dt)
         {
             if (!mob.IsAlive) return;
@@ -38,14 +46,19 @@ namespace MyWorld.Core.Entities
 
             // Phase D 新增：自动死亡检测。若 Health 已经降到 0 但 State 还没转 Dying
             // （旧代码路径由 Unity 侧 CombatController.DoAttack 直接置 Dying；这里兜住
-            // 测试/Core-only 路径），转 Dying + 调 ItemDropTable.Drop 写入 LastDrops。
+            // 测试/Core-only 路径），转 Dying + 调 ItemDropTable 写入 LastDrops。
+            // X4.5：优先用 JSON 驱动的 DropTable（RollAll 独立掷每条 entry，支持
+            // Pig 1-3 porkchop / Zombie 0-2 rotten_flesh + 5% iron_ingot）；未注入时
+            // 回退到静态 Items.ItemDropTable.Drop（legacy count=1，保持单测/旧场景）。
             if (mob.Health.IsDead)
             {
                 mob.State = MobState.Dying;
                 if (mob.DeathTimer <= 0f) mob.DeathTimer = DefaultDeathTimer;
                 if (mob.LastDrops == null)
                 {
-                    mob.LastDrops = Items.ItemDropTable.Drop(mob.Kind);
+                    mob.LastDrops = DropTable != null
+                        ? DropTable.RollAll(mob.Kind, ComputeDropSeed(mob))
+                        : Items.ItemDropTable.Drop(mob.Kind);
                 }
                 return;
             }
@@ -272,6 +285,28 @@ namespace MyWorld.Core.Entities
         {
             float dx = a.X - b.X, dy = a.Y - b.Y, dz = a.Z - b.Z;
             return dx * dx + dy * dy + dz * dz;
+        }
+
+        /// <summary>
+        /// X4.5：为 <see cref="ItemDropTable.RollAll"/> 派生确定性整数种子。
+        /// 用 mob.EntityId（生产由 MobManager 唯一分配）+ mob.Position 三轴整数 cast，
+        /// 跨平台 hash 一致；同位置同 ID 必出同一结果（replay-safe），不同 mob 不会耦合。
+        /// </summary>
+        public static int ComputeDropSeed(Mob mob)
+        {
+            unchecked
+            {
+                int ix = (int)mob.Position.X;
+                int iy = (int)mob.Position.Y;
+                int iz = (int)mob.Position.Z;
+                // EntityId 决定生产唯一性；Position 给测试（EntityId=0）一个区分维度
+                // 用 uint 装 Knuth 黄金比 2654435761（> int.MaxValue），最后截 int 即可
+                uint h = (uint)mob.EntityId * 73856093u;
+                h ^= (uint)ix * 19349663u;
+                h ^= (uint)iy * 83492791u;
+                h ^= (uint)iz * 2654435761u;
+                return (int)h;
+            }
         }
 
         private static System.Random _rng = new System.Random(0xC0FFEE);

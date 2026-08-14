@@ -138,6 +138,42 @@ namespace MyWorld.Core.Entities
         }
 
         /// <summary>
+        /// X4.5：每条 entry 独立掷 chance，返回该 mob 死亡时应掉落的全部物品栈。
+        /// 与 <see cref="Roll"/> 的「单一掷骰只命中一条」不同：本方法对每条 entry 用不同 hash
+        /// 单独判定 chance，能同时命中多条（如 Zombie rotten_flesh + iron_ingot 5%）。
+        /// <para>
+        /// 命中后 count 仍由 <see cref="RollCount"/> 在 [countMin, countMax] 区间派生。
+        /// 未配置 mob 或全未命中返回空数组；非空数组可能含 count=0 的空栈（Minecraft 风格：
+        /// chance 命中但 roll count=0 等于不掉），由消费者（如 MobManager.SpawnDropsForMob）
+        /// 通过 <see cref="ItemStack.IsEmpty"/> 过滤。
+        /// </para>
+        /// </summary>
+        public ItemStack[] RollAll(MobKind kind, int seed)
+        {
+            if (!_table.TryGetValue(kind, out var entries) || entries == null || entries.Count == 0)
+            {
+                return System.Array.Empty<ItemStack>();
+            }
+
+            var results = new List<ItemStack>(entries.Count);
+            int entryIndex = 0;
+            foreach (var e in entries)
+            {
+                // 每条 entry 用 (seed + entryIndex) 派生独立 hash，避免 chance 互相耦合
+                uint h = unchecked((uint)((seed + entryIndex * 31) * 2654435761u));
+                float roll = (h & 0xFFFF) / 65535f;
+                if (roll < e.Chance)
+                {
+                    int countSeed = unchecked(seed * 31 + entryIndex * 17 + 1);
+                    int count = RollCount(countSeed, e.CountMin, e.CountMax);
+                    results.Add(new ItemStack(e.ItemId, count));
+                }
+                entryIndex++;
+            }
+            return results.ToArray();
+        }
+
+        /// <summary>
         /// 给定整数种子计算 [min, max] 区间内的伪随机 count（闭区间，含两端）。
         /// 用整数哈希，与 <see cref="MyWorld.Core.Blocks.BlockDrops"/> 同款风格，跨机器一致。
         /// </summary>
