@@ -91,7 +91,9 @@ public sealed class QuestSystem
     public QuestState SaveState();           // 进 m4 level.dat 新字段
     public void Restore(QuestState state);
 }
-public readonly struct QuestEvent { public QuestEventType Type; public int ItemId; public int Count; public string Flag; }
+public readonly struct QuestEvent { public QuestEventType Type; public int ItemId; public int Count; }
+// 勘误（m6 C1 评审）：原稿多列了 string Flag 字段，首章四类条件用不到，已从交付物移除——
+// C2/C3/C4 按本行（三字段）起草，勿引用幻影 Flag 字段。
 ```
 
 - 完成条件类型（首章够用）：`ObtainItem`（背包拥有 N 个 X）、`CraftItem`（合成产出 X）、`SmeltItem`（熔炉产出 X）、`SurviveNight`（跨过一次日出）
