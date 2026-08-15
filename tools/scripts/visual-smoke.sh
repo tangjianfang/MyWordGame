@@ -86,14 +86,57 @@ if [[ "$BIOME_COUNT" -lt 5 ]]; then
 fi
 ok "5 张群系截图已落地 Builds/screenshots/"
 
+# --- 1c. UI 截图（--ui-shot standalone，可拍 IMGUI）---
+# Camera.Render 拍不到 OnGUI 内容（IMGUI 事件驱动、不进相机管线，B1 已证），
+# UI 截图必须走 standalone 的 ScreenCapture.CaptureScreenshot（抓完整 backbuffer 含 IMGUI）。
+# 无 build 产物时优雅跳过——本步骤只在完整流水线（build-and-run.sh → 本脚本）后生效。
+LOG_UI_SHOT='Builds/logs/visual-smoke-ui-shot.log'
+if [[ -f Builds/Windows/MyWordGame.exe ]]; then
+    step "UI 截图（--ui-shot standalone，可拍 IMGUI）"
+    # 先清旧哨兵：下面的轮询靠 ui.done 判断完成，上一次运行的残留会让循环立即误判
+    rm -f Builds/screenshots/ui.done
+    # 分辨率参数只是意图声明：本 build 的 Fullscreen Window 模式按原生分辨率跑，
+    # B2 实测截出的是 1920×1080（1280×720 不生效）。像素断言
+    # （UiScreenshotPixelTests）的坐标按截图实际尺寸换算，分辨率无关，不受此影响
+    ./Builds/Windows/MyWordGame.exe -screen-width 1280 -screen-height 720 \
+        -screen-fullscreen 0 --ui-shot > "$LOG_UI_SHOT" 2>&1 &
+    UI_SHOT_PID=$!
+    # 轮询 ui.done（最多 60s；后台启动，超时杀进程而不是干等挂死）
+    UI_DONE=0
+    for i in $(seq 1 60); do
+        if [[ -f Builds/screenshots/ui.done ]]; then UI_DONE=1; break; fi
+        sleep 1
+    done
+    if [[ "$UI_DONE" != "1" ]]; then
+        kill "$UI_SHOT_PID" 2>/dev/null || true
+        fail "60s 内未见 ui.done（看 $LOG_UI_SHOT）"
+    fi
+    # exe 写完 ui.done 后会自行 Application.Quit；等它退干净再校验 PNG，宽限 10s 后兜底杀
+    for i in $(seq 1 10); do
+        if ! kill -0 "$UI_SHOT_PID" 2>/dev/null; then break; fi
+        sleep 1
+    done
+    kill "$UI_SHOT_PID" 2>/dev/null || true
+    for f in ui-hotbar.png ui-inventory.png ui-workbench.png; do
+        if [[ ! -f "Builds/screenshots/$f" ]]; then
+            fail "UI 截图缺失: $f（看 $LOG_UI_SHOT）"
+        fi
+    done
+    ok "3 张 UI 截图落地"
+else
+    step "跳过 UI 截图（无 build 产物——完整流水线 build-and-run.sh 里生效）"
+fi
+
 # --- 2. 跑 Unity EditMode 视觉回归测试 ---
-step "跑 Unity EditMode 视觉回归测试（VisualRegressionTests fixture）"
+step "跑 Unity EditMode 视觉回归测试（VisualRegressionTests + UiScreenshotPixelTests）"
 # 视觉测试都在 #if UNITY_EDITOR 包裹里，dotnet 链会跳过滤掉；
 # 必须用 Unity EditMode 跑（E1 已验证 VisualRegressionTests 4/4 全 pass）。
-# Unity 2022 -testFilter 直接接类名（class 或 class.method），不接 FullyQualifiedName~ 前缀
+# Unity 2022 -testFilter 直接接类名（class 或 class.method，分号分隔多个），
+# 不接 FullyQualifiedName~ 前缀。
+# UiScreenshotPixelTests 读上面 1c 刚产出的 ui-*.png 做像素断言（产物缺失时 Ignore 不算失败）
 "$UNITY_EXE" -batchmode -projectPath . \
     -runTests -testPlatform EditMode \
-    -testFilter 'VisualRegressionTests' \
+    -testFilter 'VisualRegressionTests;UiScreenshotPixelTests' \
     -testResults "$LOG_EDITMODE_XML" \
     -logFile "$LOG_EDITMODE" \
     || true   # Unity 批处理退出码不可信，必须看 XML
