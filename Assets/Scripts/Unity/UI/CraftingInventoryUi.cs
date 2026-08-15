@@ -80,9 +80,12 @@ namespace MyWorld.Unity.UI
             if (ctx == null) return;
 
             float bgW = (CraftWidth + 1) * (SlotSize + 4) + 40;
-            float bgH = 240;
+            // m6 A2：240 装不下实际内容——27 格主背包占 y=180..312，hotbar 行再 +8 到 y=360，
+            // 背景框必须 ≥380 才能把全部格子框住（此前底部两行画在框外）
+            const float bgH = 380;
             var bg = new Rect(20, 20, bgW, bgH);
-            GUI.Box(bg, "背包 (E 关闭)");
+            GUI.Box(bg, GUIContent.none);
+            GUI.Label(new Rect(30, 24, 200, 18), "背包 (E 关闭)", ItemSlotDrawer.WhiteStyle());
 
             // 2x2 crafting 区
             for (int y = 0; y < CraftHeight; y++)
@@ -115,12 +118,18 @@ namespace MyWorld.Unity.UI
 
         private void DrawSlot(Rect r, ItemStack s)
         {
+            // m6 A2：底框 + 公共物品格（图标 + 数量角标）替换旧的黑字 Label
             GUI.Box(r, GUIContent.none);
-            if (s.IsEmpty) return;
             var ctx = PlayerContext.Instance;
-            if (ctx != null && ctx.Items != null && ctx.Items.TryGetByNumericId(s.ItemId, out var def))
+            ItemSlotDrawer.Draw(r, s, ctx != null ? ctx.Items : null, false);
+
+            // 悬停 tooltip：在格子上方显示物品中文名（旧实现只有一格黑字，认不出是什么）
+            if (!s.IsEmpty && Event.current != null
+                && r.Contains(Event.current.mousePosition)
+                && ctx != null && ctx.Items != null
+                && ctx.Items.TryGetByNumericId(s.ItemId, out var def))
             {
-                GUI.Label(r, def.DisplayName + " ×" + s.Count);
+                GUI.Label(new Rect(r.x, r.y - 20, 140, 18), def.DisplayName, ItemSlotDrawer.WhiteStyle());
             }
         }
     }

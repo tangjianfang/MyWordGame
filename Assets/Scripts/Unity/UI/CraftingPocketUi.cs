@@ -27,14 +27,16 @@ namespace MyWorld.Unity.UI
 
             float cx = Screen.width / 2f;
             float cy = Screen.height / 2f;
-            var bgRect = new Rect(cx - 80, cy - 30, 160, 60);
-            GUI.Box(bgRect, "口袋合成 (1×1)");
+            // m6 A2：旧框高 60 罩不住 48px 的槽位（槽下缘 cy+48 已出框），框高改 100 全部框住
+            var bgRect = new Rect(cx - 80, cy - 30, 160, 100);
+            GUI.Box(bgRect, GUIContent.none);
+            GUI.Label(new Rect(cx - 70, cy - 26, 140, 18), "口袋合成 (B 关闭)", ItemSlotDrawer.WhiteStyle());
 
             // 输入槽
             var inputRect = new Rect(cx - 60, cy, SlotSize, SlotSize);
             DrawSlot(inputRect, _input);
             // 箭头
-            GUI.Label(new Rect(cx - 10, cy + 14, 30, 20), "→");
+            GUI.Label(new Rect(cx - 10, cy + 14, 30, 20), "→", ItemSlotDrawer.WhiteStyle());
             // 输出槽
             var outputRect = new Rect(cx + 20, cy, SlotSize, SlotSize);
             DrawSlot(outputRect, _output);
@@ -72,13 +74,10 @@ namespace MyWorld.Unity.UI
 
         private void DrawSlot(Rect r, ItemStack s)
         {
+            // m6 A2：底框 + 公共物品格（图标 + 数量角标）替换旧的黑字 Label
             GUI.Box(r, GUIContent.none);
-            if (s.IsEmpty) return;
             var ctx = PlayerContext.Instance;
-            if (ctx != null && ctx.Items != null && ctx.Items.TryGetByNumericId(s.ItemId, out var def))
-            {
-                GUI.Label(r, def.DisplayName + " ×" + s.Count);
-            }
+            ItemSlotDrawer.Draw(r, s, ctx != null ? ctx.Items : null, false);
         }
     }
 }

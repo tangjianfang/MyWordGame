@@ -70,15 +70,31 @@ namespace MyWorld.Unity.UI
 
             float w = 360, h = 280;
             var bg = new Rect((Screen.width - w) / 2, (Screen.height - h) / 2, w, h);
-            GUI.Box(bg, $"与 {_activeVillager.Profession} 交易 (V 关闭)");
+            GUI.Box(bg, GUIContent.none);
+            GUI.Label(new Rect(bg.x + 20, bg.y + 6, w - 40, 18),
+                $"与 {_activeVillager.Profession} 交易 (V 关闭)", ItemSlotDrawer.WhiteStyle());
 
+            var white = ItemSlotDrawer.WhiteStyle();
             for (int i = 0; i < _activeVillager.Offers.Count; i++)
             {
                 var o = _activeVillager.Offers[i];
-                int idx = i;
                 var row = new Rect(bg.x + 20, bg.y + 40 + i * 50, w - 40, 40);
+                GUI.Box(row, GUIContent.none);
 
-                GUI.Box(row, $"{o.BuyCount} × {o.BuyItem}  →  {o.SellCount} × {o.SellItem}    (用 {o.Uses}/{o.MaxUses})");
+                // m6 A2：buy/sell 槽换 ItemSlotDrawer 图标（旧实现是一行黑字叠深色 Box 不可读）
+                const int iconSize = 32;
+                float midY = row.y + (row.height - iconSize) * 0.5f;
+                var buyRect = new Rect(row.x + 8, midY, iconSize, iconSize);
+                var sellRect = new Rect(row.x + 130, midY, iconSize, iconSize);
+                GUI.Label(new Rect(row.x + 44, midY + 7, 44, 18), "×" + o.BuyCount, white);
+                GUI.Label(new Rect(row.x + 92, midY + 7, 32, 18), "→", white);
+                GUI.Label(new Rect(row.x + 166, midY + 7, 44, 18), "×" + o.SellCount, white);
+                if (ctx.Items.TryGetById(o.BuyItem, out var buyDef))
+                    ItemSlotDrawer.Draw(buyRect, new ItemStack(buyDef.NumericId, o.BuyCount), ctx.Items, false);
+                if (ctx.Items.TryGetById(o.SellItem, out var sellDef))
+                    ItemSlotDrawer.Draw(sellRect, new ItemStack(sellDef.NumericId, o.SellCount), ctx.Items, false);
+
+                GUI.Label(new Rect(row.x + 214, midY + 7, 44, 18), $"{o.Uses}/{o.MaxUses}", white);
 
                 // 交易按钮（按 buy 物品必须有库存，否则禁用）
                 int haveBuy = CountItem(ctx, o.BuyItem);

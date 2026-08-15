@@ -30,7 +30,10 @@ namespace MyWorld.Unity.UI
             var ctx = PlayerContext.Instance;
             if (ctx == null) return;
 
-            GUI.Box(new Rect(200, 100, 200, 240), "工作台 (P 关闭)");
+            // m6 A2：旧框 200×240 装不下——输出槽右缘 x=400、hotbar 行右缘 x=612、
+            // 下缘 y=340，全部格子必须框在背景内，框宽改 420、高 380
+            GUI.Box(new Rect(200, 100, 420, 380), GUIContent.none);
+            GUI.Label(new Rect(210, 104, 200, 18), "工作台 (P 关闭)", ItemSlotDrawer.WhiteStyle());
 
             for (int y = 0; y < 3; y++)
             for (int x = 0; x < 3; x++)
@@ -54,13 +57,10 @@ namespace MyWorld.Unity.UI
 
         private void DrawSlot(Rect r, ItemStack s)
         {
+            // m6 A2：底框 + 公共物品格（图标 + 数量角标）替换旧的黑字 Label
             GUI.Box(r, GUIContent.none);
-            if (s.IsEmpty) return;
             var ctx = PlayerContext.Instance;
-            if (ctx != null && ctx.Items != null && ctx.Items.TryGetByNumericId(s.ItemId, out var def))
-            {
-                GUI.Label(r, def.DisplayName + " ×" + s.Count);
-            }
+            ItemSlotDrawer.Draw(r, s, ctx != null ? ctx.Items : null, false);
         }
     }
 }
