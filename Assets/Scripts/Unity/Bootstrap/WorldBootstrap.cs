@@ -51,6 +51,11 @@ namespace MyWorld.Unity.Bootstrap
 
         private void Awake()
         {
+            // 0. 自适应物理屏全屏（m5 B3）：ProjectSettings 固定 1920×1080 + FullScreenWindow，
+            // 非 16:9 物理屏（如 2560×1600）两侧会出现 pillarbox 黑边。启动时按物理屏
+            // 原生分辨率 SetResolution，画面铺满整屏。编辑器下无效但无害。
+            ApplyAdaptiveFullscreen();
+
             // 1. 方块注册表
             _registry = BlockRegistryLoader.Load();
 
@@ -224,6 +229,32 @@ namespace MyWorld.Unity.Bootstrap
             _materials?.Dispose();
             _materials = null;
             if (CurrentWorld == _world) CurrentWorld = null;
+        }
+
+        /// <summary>
+        /// 按物理屏系统分辨率把窗口设为无边框全屏，修非 16:9 显示器两侧的黑边（m5 B3 #5）。
+        /// 计算部分抽到 <see cref="ComputeAdaptiveResolution"/> 纯函数，EditMode 可测。
+        /// </summary>
+        private static void ApplyAdaptiveFullscreen()
+        {
+            var display = Display.main;
+            // systemWidth/Height 是操作系统报告的物理屏分辨率（与当前窗口无关）；
+            // 批处理 / 无头环境下可能拿不到有效值，纯函数返回 null 时跳过。
+            var resolution = ComputeAdaptiveResolution(display.systemWidth, display.systemHeight);
+            if (resolution == null) return;
+            Screen.SetResolution(resolution.Value.Width, resolution.Value.Height, resolution.Value.Mode);
+        }
+
+        /// <summary>
+        /// 由物理屏系统分辨率算启动分辨率与全屏模式：直接返回原生值 + FullScreenWindow，
+        /// 让画面铺满整屏（不缩放、不出 pillarbox 黑边）。宽或高非正（0/负，常见于无头环境）
+        /// 返回 null，调用方应跳过 SetResolution、沿用 ProjectSettings 默认值。
+        /// </summary>
+        public static (int Width, int Height, FullScreenMode Mode)? ComputeAdaptiveResolution(
+            int systemWidth, int systemHeight)
+        {
+            if (systemWidth <= 0 || systemHeight <= 0) return null;
+            return (systemWidth, systemHeight, FullScreenMode.FullScreenWindow);
         }
 
         /// <summary>拿到区块 GameObject 的父节点。由 <see cref="MyWorld.Unity.EditorTools.PreviewSceneBuilder"/> 在场景里建一个名为 <c>世界</c> 的空 GameObject，这里按名查找。</summary>
