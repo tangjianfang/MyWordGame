@@ -24,6 +24,9 @@ namespace MyWorld.Unity.UI
             if (Input.GetKeyDown(ToggleKey)) _open = !_open;
         }
 
+        /// <summary>m6 B1：程序化开关工作台（--ui-shot 截图管线用）。不影响 Update 里的按键开关。</summary>
+        public void SetOpen(bool open) => _open = open;
+
         private void OnGUI()
         {
             if (!_open) return;

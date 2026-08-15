@@ -33,6 +33,9 @@ namespace MyWorld.Unity.UI
             if (Input.GetKeyDown(ToggleKey)) _open = !_open;
         }
 
+        /// <summary>m6 B1：程序化开关背包（--ui-shot 截图管线用）。不影响 Update 里的按键开关。</summary>
+        public void SetOpen(bool open) => _open = open;
+
         /// <summary>B6：显式绑定 RecipeDatabase；null = 解绑，回退到 PlayerContext。</summary>
         public void Bind(RecipeDatabase db)
         {

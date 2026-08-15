@@ -214,6 +214,11 @@ namespace MyWorld.Unity.Bootstrap
             var saveLoad = gameObject.AddComponent<MyWorld.Unity.Persistence.SaveLoadService>();
             saveLoad.Bind(_world, _playerContext, _player, seed, saveRoot);
             saveLoad.TryRestore();
+
+            // 25. UI 截图验证（m6 B1）：--ui-shot 启动参数 → 挂自动截图组件。
+            // 无参数时 ShouldCapture 读一次 args 即返回 false，零开销。
+            if (MyWorld.Unity.UiScreenshotOnArg.ShouldCapture(System.Environment.GetCommandLineArgs()))
+                gameObject.AddComponent<MyWorld.Unity.UiScreenshotOnArg>();
         }
 
         private void Update()
