@@ -6,6 +6,7 @@ using MyWorld.Unity.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 namespace MyWorld.Unity.EditorTools
@@ -22,6 +23,13 @@ namespace MyWorld.Unity.EditorTools
         public static void Build()
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            // m5 B2：环境光 Flat——Skybox 模式下 RenderSettings.ambientLight 是 no-op
+            // （DayNightCycle 每帧写了画面也不吃），Flat 让它真正参与光照。
+            // 场景默认给白天环境光 0.7 灰：EditMode 截图流水线没有 PlayerContext 单例，
+            // DayNightCycle.Update 不跑，画面亮度全靠这里序列化进场景的值。
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = MyWorld.Unity.Environment.DayNightCycle.DayAmbient;
 
             CreateLight();
             CreateWorld();
@@ -57,7 +65,9 @@ namespace MyWorld.Unity.EditorTools
             var gameObject = new GameObject("方向光");
             Light light = gameObject.AddComponent<Light>();
             light.type = LightType.Directional;
-            light.intensity = 1f;
+            // m5 B2：白天太阳强度 1.3（Linear 色彩空间下的 spec 校准值，
+            // 与 DayNightCycle.DaySunIntensity 同源，别改成一个魔数）
+            light.intensity = MyWorld.Unity.Environment.DayNightCycle.DaySunIntensity;
             gameObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
         }
 
