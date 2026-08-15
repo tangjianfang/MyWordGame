@@ -351,6 +351,94 @@ namespace MyWorld.Core.Tests.Quests
             Assert.That(_bus.Quests.Current, Is.Null, "两夜任务链走完");
         }
 
+        // ─── 4.5) m6 C2 fix1：合成网格点击交互 + 口袋产出 leftover 修复 ───────
+
+        [Test]
+        public void 工作台点击交互_放四块木板造工作台_点输出入包并发CraftItem事件()
+        {
+            string path = WriteChapter(@"[
+                { ""id"": ""w3"", ""name"": ""造工作台"", ""desc"": ""..."",
+                  ""condition"": { ""type"": ""CraftItem"", ""itemId"": 1700, ""count"": 1 }, ""rewardExp"": 10 } ]");
+            _bus.Bind(_ctx, QuestSystem.LoadChapter(path));
+            _ctx.Items = ItemDatabaseLoader.Load();
+            _ctx.Recipes = ItemDatabaseLoader.LoadRecipes(_ctx.Items); // planks_to_crafting_table：workbench 档
+            var ui = _host.AddComponent<CraftingWorkbenchUi>();
+
+            _ctx.Inventory.SetSlot(0, new ItemStack(1001, 4)); // 4 块木板在手上
+            _ctx.Inventory.SelectedHotbarIndex = 0;
+
+            Assert.That(ui.ClickGridCell(0), Is.True, "点空格：从选中 hotbar 格放 1 块木板");
+            Assert.That(ui.ClickGridCell(1), Is.True);
+            Assert.That(ui.ClickGridCell(2), Is.True);
+            Assert.That(ui.ClickGridCell(3), Is.True, "shapeless 配方：四格各 1 块即匹配");
+            Assert.That(_ctx.Inventory.GetSelected().IsEmpty, Is.True, "4 块全部入格后手上清零");
+
+            ui.CraftForTest();
+            Assert.That(ui.LastOutput.HasValue, Is.True, "网格变化后配方匹配应刷新输出格");
+            Assert.That(ui.LastOutput.Value.ItemId, Is.EqualTo(1700), "4 板 → 工作台");
+
+            Assert.That(ui.TryTakeCraftOutput(), Is.True, "点输出格：拿走产出");
+            Assert.That(_ctx.Inventory.CountOf(1700), Is.EqualTo(1), "工作台 +1 进包");
+            Assert.That(_ctx.Inventory.CountOf(1001), Is.EqualTo(0), "网格里的 4 块板被配方消耗，不复制");
+            Assert.That(ui.GetCellForTest(0).IsEmpty, Is.True, "取产出后网格清空");
+            Assert.That(_bus.Quests.CompletedCount, Is.EqualTo(1), "CraftItem(crafting_table,1) 事件应完成任务");
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(10), "奖励经验 10 入账");
+        }
+
+        [Test]
+        public void 合成格点击_空格放1个再点取回_背包满则取不回留在格子里()
+        {
+            _ctx.Items = ItemDatabaseLoader.Load();
+            _ctx.Recipes = ItemDatabaseLoader.LoadRecipes(_ctx.Items);
+            var ui = _host.AddComponent<CraftingInventoryUi>();
+
+            _ctx.Inventory.SetSlot(0, new ItemStack(1000, 3));
+            _ctx.Inventory.SelectedHotbarIndex = 0;
+
+            Assert.That(ui.ClickGridCell(0), Is.True, "空格点击：放 1 个");
+            Assert.That(_ctx.Inventory.GetSelected().Count, Is.EqualTo(2), "手上 3 → 2");
+            Assert.That(ui.GetCellForTest(0).ItemId, Is.EqualTo(1000), "网格格里是刚放的物品");
+
+            Assert.That(ui.ClickGridCell(0), Is.True, "再点同一格：取回 1 个");
+            Assert.That(_ctx.Inventory.CountOf(1000), Is.EqualTo(3), "取回后背包回到 3");
+            Assert.That(ui.GetCellForTest(0).IsEmpty, Is.True, "格子清空");
+
+            // 背包对格内物品零空间时取不回（物品留在格子里，不凭空消失）
+            for (int i = 0; i < PlayerInventory.TotalSize; i++)
+                _ctx.Inventory.SetSlot(i, new ItemStack(5000 + i, 64)); // 每格互不相同且叠满
+            _ctx.Inventory.SelectedHotbarIndex = 0;
+            Assert.That(ui.ClickGridCell(1), Is.True, "满包仍可放格（放是手上 -1，不占背包）");
+            _ctx.Inventory.SetSlot(0, new ItemStack(5000, 64)); // 手上补回满 → 对格内物品零空间
+            Assert.That(ui.ClickGridCell(1), Is.False, "背包零空间：取回失败");
+            Assert.That(ui.GetCellForTest(1).ItemId, Is.EqualTo(5000), "物品应留在格子里");
+        }
+
+        [Test]
+        public void 口袋合成_背包满时拿取失败_产出不丢_事件不发()
+        {
+            // 链首放 CraftItem（链式解锁，ObtainItem 在前会挡住断言）
+            string path = WriteChapter(@"[
+                { ""id"": ""p2"", ""name"": ""合成木板"", ""desc"": ""..."",
+                  ""condition"": { ""type"": ""CraftItem"", ""itemId"": 1001, ""count"": 4 }, ""rewardExp"": 5 } ]");
+            _bus.Bind(_ctx, QuestSystem.LoadChapter(path));
+            _ctx.Items = ItemDatabaseLoader.Load();
+            _ctx.Recipes = ItemDatabaseLoader.LoadRecipes(_ctx.Items); // log_to_planks：pocket 档
+            var ui = _host.AddComponent<CraftingPocketUi>();
+            ui.SetInputForTest(new ItemStack(1000, 1));
+
+            for (int i = 0; i < PlayerInventory.TotalSize; i++)
+                _ctx.Inventory.SetSlot(i, new ItemStack(6000 + i, 64)); // 全满：对木板零空间
+
+            Assert.That(ui.TryTakeCraftOutput(), Is.False, "背包装不下产出：拿取应失败");
+            Assert.That(_ctx.Inventory.CountOf(1001), Is.EqualTo(0), "没有木板凭空进包");
+            Assert.That(_bus.Quests.CompletedCount, Is.EqualTo(0), "拿取失败不应发 CraftItem 事件（旧 bug：丢了产出还发事件）");
+
+            _ctx.Inventory.SetSlot(0, ItemStack.Empty); // 腾一格
+            Assert.That(ui.TryTakeCraftOutput(), Is.True, "腾出空间后重试应成功——也证明失败尝试没有消耗输入");
+            Assert.That(_ctx.Inventory.CountOf(1001), Is.EqualTo(4), "4 块木板这时才进包");
+            Assert.That(_bus.Quests.CompletedCount, Is.EqualTo(1), "此时才发 CraftItem(plank,4) 事件");
+        }
+
         // ─── 5) 真实首章数据集成 ─────────────────────────────────────────────
 
         [Test]

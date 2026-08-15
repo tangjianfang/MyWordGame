@@ -56,8 +56,8 @@ namespace MyWorld.Unity.UI
         }
 
         /// <summary>B6：测试用。当前网格跑 FindMatch，匹配则把输出 ItemStack 写到 LastOutput。
-        /// <para>m6 C2：匹配到产出即发 CraftItem 任务事件——这是本 UI 的产出解析点
-        /// （网格目前只有测试钩子能填充；将来加点击合成时沿同一入口发事件即可）。</para></summary>
+        /// <para>m6 C2 fix1：纯解析——不消耗网格、不发事件（发事件的是
+        /// <see cref="TryTakeCraftOutput"/>，那是真正的合成落地路径）。</para></summary>
         public void CraftForTest()
         {
             EnsureGrid();
@@ -67,14 +67,69 @@ namespace MyWorld.Unity.UI
             var recipe = db.FindMatch(_craft, CraftWidth, CraftHeight);
             if (recipe == null) return;
             LastOutput = recipe.Output;
+        }
 
-            // m6 C2：产出解析成功 = 合成落地。Count 用本次产出数量
+        /// <summary>
+        /// m6 C2 fix1：模拟点击合成格（OnGUI 的点击处理与 EditMode 测试共用这一入口）。
+        /// 空格 = 从选中 hotbar 格放 1 个；有物品 = 取回 1 个进背包（背包满则留在格子里）。
+        /// </summary>
+        public bool ClickGridCell(int cellIndex)
+        {
+            EnsureGrid();
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Inventory == null) return false;
+            if (cellIndex < 0 || cellIndex >= _craft.Length) return false;
+
+            return _craft[cellIndex].IsEmpty
+                ? CraftGridInteraction.PutSelectedOne(ctx.Inventory, ref _craft[cellIndex])
+                : CraftGridInteraction.TakeBackOne(ctx.Inventory, ref _craft[cellIndex]);
+        }
+
+        /// <summary>m6 C2 fix1：测试读网格格（断言点击交互的中间状态）。</summary>
+        internal ItemStack GetCellForTest(int cellIndex)
+        {
+            EnsureGrid();
+            return cellIndex >= 0 && cellIndex < _craft.Length ? _craft[cellIndex] : ItemStack.Empty;
+        }
+
+        /// <summary>
+        /// m6 C2 fix1：取走输出格的合成产出——容量预检（<see cref="PlayerInventory.SpaceFor"/>）
+        /// 通过才拿：产出进背包、按 <see cref="CraftingMatrix.Consume"/> 精确扣掉网格里配方
+        /// 消耗的物品，并发 CraftItem 任务事件。装不下 / 无匹配配方返回 false，网格与背包都不动。
+        /// </summary>
+        public bool TryTakeCraftOutput()
+        {
+            EnsureGrid();
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Inventory == null) return false;
+
+            var db = _recipes != null ? _recipes : ctx.Recipes;
+            var recipe = db != null ? db.FindMatch(_craft, CraftWidth, CraftHeight) : null;
+            if (recipe == null) return false;
+
+            var output = recipe.Output;
+            if (ctx.Inventory.SpaceFor(output.ItemId) < output.Count)
+            {
+                return false; // 背包装不下：整单失败，产出留在输出格、网格不消耗
+            }
+
+            ctx.Inventory.TryAdd(output, out _); // 预检过，leftover 必为 0
+            int[] consumed = CraftingMatrix.Consume(recipe, _craft, CraftWidth);
+            for (int i = 0; i < _craft.Length; i++)
+            {
+                if (consumed[i] <= 0) continue;
+                var s = _craft[i];
+                _craft[i] = s.Count > consumed[i] ? s.WithCount(s.Count - consumed[i]) : ItemStack.Empty;
+            }
+            LastOutput = output;
+
             QuestEventBus.Instance?.Raise(new QuestEvent
             {
                 Type = QuestEventType.CraftItem,
-                ItemId = recipe.Output.ItemId,
-                Count = recipe.Output.Count,
+                ItemId = output.ItemId,
+                Count = output.Count,
             });
+            return true;
         }
 
         private void EnsureGrid()
@@ -101,18 +156,27 @@ namespace MyWorld.Unity.UI
             GUI.Box(bg, GUIContent.none);
             GUI.Label(new Rect(30, 24, 200, 18), "背包 (E 关闭)", ItemSlotDrawer.WhiteStyle());
 
-            // 2x2 crafting 区
+            // 2x2 crafting 区（m6 C2 fix1：点击放/取，见 CraftGridInteraction）
             for (int y = 0; y < CraftHeight; y++)
             for (int x = 0; x < CraftWidth; x++)
             {
                 var r = new Rect(40 + x * (SlotSize + 4), 60 + y * (SlotSize + 4), SlotSize, SlotSize);
-                DrawSlot(r, _craft[y * CraftWidth + x]);
+                int idx = y * CraftWidth + x;
+                DrawSlot(r, _craft[idx]);
+                if (CraftGridInteraction.IsLeftClickIn(r) && ClickGridCell(idx))
+                {
+                    Event.current.Use();
+                }
             }
-            // 输出
+            // 输出（每次重绘用当前网格重跑 FindMatch——网格变化后输出格自动刷新）
             var outRect = new Rect(40 + (CraftWidth + 1) * (SlotSize + 4), 60 + SlotSize / 2, SlotSize, SlotSize);
             var db = _recipes != null ? _recipes : ctx.Recipes;
             var recipe = db != null ? db.FindMatch(_craft, CraftWidth, CraftHeight) : null;
             DrawSlot(outRect, recipe != null ? recipe.Output : ItemStack.Empty);
+            if (CraftGridInteraction.IsLeftClickIn(outRect) && TryTakeCraftOutput())
+            {
+                Event.current.Use();
+            }
 
             // 主背包
             for (int i = 0; i < PlayerInventory.MainSize; i++)

@@ -1,6 +1,5 @@
 using UnityEngine;
 using MyWorld.Core.Items;
-using MyWorld.Core.Math;
 using MyWorld.Core.Quests;
 using MyWorld.Unity.Gameplay;
 
@@ -74,8 +73,10 @@ namespace MyWorld.Unity.UI
         }
 
         /// <summary>
-        /// 取走输出槽的烧炼产出：整组进背包、清空输出槽并返回 true；没有产出返回 false。
-        /// 背包塞不下的剩余量掉在脚下（掉落物），不凭空消失。
+        /// 取走输出槽的烧炼产出：容量预检（<see cref="PlayerInventory.SpaceFor"/>）通过才取——
+        /// 产出整组进背包、清空输出槽并返回 true；没有产出或背包装不下返回 false（产出留在炉里）。
+        /// <para>m6 C2 fix1：与三个合成 UI 的拿产出同款预检，替代旧的
+        /// 「先 TakeOutput 再 TryAdd、塞不下的掉脚下」——统一为装不下就整单不取。</para>
         /// <para>取出的那一刻发 SmeltItem 任务事件（Count=本次取出数量）。</para>
         /// </summary>
         public bool TryTakeOutput()
@@ -84,27 +85,20 @@ namespace MyWorld.Unity.UI
             if (_furnace == null || ctx == null || ctx.Inventory == null) return false;
             if (_furnace.Output == null || _furnace.Output.Value.IsEmpty) return false;
 
-            var taken = _furnace.TakeOutput().Value;
-            ctx.Inventory.TryAdd(taken, out int leftover);
-            if (leftover > 0)
+            var taken = _furnace.Output.Value;
+            if (ctx.Inventory.SpaceFor(taken.ItemId) < taken.Count)
             {
-                var p = transform.position;
-                ctx.ItemDrops.Add(new ItemDropEntity(
-                    taken.WithCount(leftover), new Float3(p.x, p.y + 0.5f, p.z)));
+                return false; // 背包装不下：产出留在熔炉输出槽，等玩家腾格子
             }
 
-            int entered = taken.Count - leftover;
-            if (entered <= 0)
-            {
-                // 背包满到一格都塞不下：产出已整组掉在脚下（可再拾取），不算取出
-                return false;
-            }
+            _furnace.TakeOutput();
+            ctx.Inventory.TryAdd(taken, out _); // 预检过，leftover 必为 0
 
             QuestEventBus.Instance?.Raise(new QuestEvent
             {
                 Type = QuestEventType.SmeltItem,
                 ItemId = taken.ItemId,
-                Count = entered,
+                Count = taken.Count,
             });
             return true;
         }

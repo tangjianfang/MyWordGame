@@ -118,5 +118,25 @@ namespace MyWorld.Core.Tests.Player
 
             Assert.That(inv.CountOf(1003), Is.EqualTo(2), "移除后现存量同步扣减");
         }
+
+        // ---- m6 C2 fix1：SpaceFor——拿合成/烧炼产出前的容量预检 ----
+
+        [Test]
+        public void SpaceFor_按同类格剩余空间加空格容量计()
+        {
+            var inv = new PlayerInventory();
+            Assert.That(inv.SpaceFor(1000), Is.EqualTo(PlayerInventory.TotalSize * 64),
+                "空背包对任意物品 = 36 格 × 64");
+
+            inv.TryAdd(new ItemStack(1000, 64), out _); // 第 0 格叠满
+            Assert.That(inv.SpaceFor(1000), Is.EqualTo(35 * 64), "对同物品少了一格容量");
+            Assert.That(inv.SpaceFor(1003), Is.EqualTo(35 * 64), "空格对其它物品同样计整格容量");
+
+            // 每格塞一种互不相同且叠满的物品 → 对任意 id 零空间
+            for (int i = 0; i < PlayerInventory.TotalSize; i++)
+                inv.SetSlot(i, new ItemStack(7000 + i, 64));
+            Assert.That(inv.SpaceFor(1000), Is.EqualTo(0), "无空格且无同类格：零空间");
+            Assert.That(inv.SpaceFor(0), Is.EqualTo(0), "空气 id 恒为 0");
+        }
     }
 }

@@ -9,21 +9,21 @@
   {
     "id": "ch1_02_craft_planks",
     "name": "合成木板",
-    "desc": "按 E 打开背包，把原木放进 2x2 合成格",
+    "desc": "按 B 打开口袋合成，放 1 根原木进去，点右边输出拿 4 块木板",
     "condition": { "type": "CraftItem", "itemId": 1001, "count": 4 },
     "rewardExp": 5
   },
   {
     "id": "ch1_03_craft_table",
     "name": "造工作台",
-    "desc": "用 4 块木板合成工作台，放到地上按 P 打开 3x3 合成",
+    "desc": "按 P 打开工作台，把 4 块木板放进合成格，点输出合成工作台",
     "condition": { "type": "CraftItem", "itemId": 1700, "count": 1 },
     "rewardExp": 10
   },
   {
     "id": "ch1_04_craft_wooden_pickaxe",
     "name": "做木镐",
-    "desc": "3 块木板 + 2 根木棍，合成一把木镐",
+    "desc": "按 P 开工作台，用 3 块木板 + 2 根木棍合成木镐（木棍可在 E 背包用 2 块木板合成）",
     "condition": { "type": "CraftItem", "itemId": 1400, "count": 1 },
     "rewardExp": 10
   },
@@ -44,7 +44,7 @@
   {
     "id": "ch1_07_smelt_iron",
     "name": "炼一根铁锭",
-    "desc": "往熔炉投入矿石和燃料，烧出 1 根铁锭",
+    "desc": "按 F 打开熔炉，投入圆石和煤，烧出铁锭后点输出格取出",
     "condition": { "type": "SmeltItem", "itemId": 1004, "count": 1 },
     "rewardExp": 20
   },

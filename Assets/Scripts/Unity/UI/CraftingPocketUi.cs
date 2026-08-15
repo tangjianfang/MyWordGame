@@ -28,19 +28,43 @@ namespace MyWorld.Unity.UI
         }
 
         /// <summary>
+        /// m6 C2 fix1：模拟点击口袋输入格（OnGUI 的点击处理与 EditMode 测试共用这一入口）。
+        /// 空格 = 从选中 hotbar 格放 1 个；有物品 = 取回 1 个进背包（背包满则留在格子里）。
+        /// </summary>
+        public bool ClickInputCell()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Inventory == null) return false;
+
+            return _input.IsEmpty
+                ? CraftGridInteraction.PutSelectedOne(ctx.Inventory, ref _input)
+                : CraftGridInteraction.TakeBackOne(ctx.Inventory, ref _input);
+        }
+
+        /// <summary>
         /// 取走输出槽：按当前输入重算配方，匹配则产出进背包、清空输入并返回 true。
         /// OnGUI 的点击取料与测试都走这一条路径；产出进包后发 CraftItem 事件。
+        /// <para>
+        /// m6 C2 fix1：先做容量预检（<see cref="PlayerInventory.SpaceFor"/>）——
+        /// 背包装不下时整单失败：输入不消耗、产出退回输出格，**不再**出现
+        /// 「产出凭空消失还照发任务事件」的旧 bug。
+        /// </para>
         /// </summary>
         public bool TryTakeCraftOutput()
         {
             var ctx = PlayerContext.Instance;
-            if (ctx == null || ctx.Recipes == null) return false;
+            if (ctx == null || ctx.Recipes == null || ctx.Inventory == null) return false;
 
             var r = ctx.Recipes.FindMatch(new[] { _input }, 1, 1);
             if (r == null) return false;
 
             var output = r.Output;
-            ctx.Inventory.TryAdd(output, out _);
+            if (ctx.Inventory.SpaceFor(output.ItemId) < output.Count)
+            {
+                return false; // 背包装不下：拿取失败，输入与输出格都保持原样
+            }
+
+            ctx.Inventory.TryAdd(output, out _); // 预检过，leftover 必为 0
             _input = ItemStack.Empty;
             _output = ItemStack.Empty;
 
@@ -75,32 +99,21 @@ namespace MyWorld.Unity.UI
             // 输出槽
             var outputRect = new Rect(cx + 20, cy, SlotSize, SlotSize);
 
-            // 重新计算 output
+            // 重新计算 output（输入格变化后输出格自动刷新）
             var slots = new[] { _input };
             var r = ctx.Recipes.FindMatch(slots, 1, 1);
             _output = r != null ? r.Output : ItemStack.Empty;
             DrawSlot(outputRect, _output);
 
             // 拿输出
-            if (Event.current.type == EventType.MouseDown && Event.current.button == 0
-                && outputRect.Contains(Event.current.mousePosition))
+            if (CraftGridInteraction.IsLeftClickIn(outputRect) && !_output.IsEmpty && TryTakeCraftOutput())
             {
-                if (!_output.IsEmpty && TryTakeCraftOutput())
-                {
-                    Event.current.Use();
-                }
+                Event.current.Use();
             }
-            // 拿输入
-            if (Event.current.type == EventType.MouseDown && Event.current.button == 0
-                && inputRect.Contains(Event.current.mousePosition))
+            // 输入格：空格放 1 个 / 有物品取回 1 个（m6 C2 fix1，与其它合成网格同款）
+            if (CraftGridInteraction.IsLeftClickIn(inputRect) && ClickInputCell())
             {
-                if (!_input.IsEmpty)
-                {
-                    var take = _input;
-                    _input = ItemStack.Empty;
-                    ctx.Inventory.TryAdd(take, out _);
-                    Event.current.Use();
-                }
+                Event.current.Use();
             }
         }
 

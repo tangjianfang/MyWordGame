@@ -90,6 +90,25 @@ namespace MyWorld.Core.Player
             return total;
         }
 
+        /// <summary>
+        /// 背包还能装下多少个指定物品：同类格的剩余叠放空间 + 空格的整格容量。
+        /// m6 C2 fix1 起作为拿合成 / 烧炼产出前的容量预检——不够就整单失败，
+        /// 避免 <see cref="TryAdd"/> 半途写入一部分后难以回滚的窘境。
+        /// </summary>
+        public int SpaceFor(int itemId)
+        {
+            if (itemId == 0) return 0;
+            int max = MaxStackFor(itemId);
+            int space = 0;
+            for (int i = 0; i < TotalSize; i++)
+            {
+                var s = _slots[i];
+                if (s.IsEmpty) space += max;
+                else if (s.ItemId == itemId) space += max - s.Count;
+            }
+            return space;
+        }
+
         /// <summary>从任意槽扣指定物品数量（合并计数）。不够返回 false。</summary>
         public bool TryRemoveCount(int itemId, int count)
         {
