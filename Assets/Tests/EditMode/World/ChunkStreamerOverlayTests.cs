@@ -142,6 +142,66 @@ namespace MyWorld.Core.Tests.WorldStreaming
         }
 
         [Test]
+        public void RepeatedTick_AtSamePosition_DoesNotDuplicateEnqueue()
+        {
+            // m5 C1：EnqueueMissing 改为复用成员容器后，同一位置反复 Tick 不得重复入队
+            // （scratch 未 Clear / 排序状态残留都会让重复区块进 _generateQueue，
+            // 表现为 LoadedChunkCount 涨过 9 或 Tick 卡死）。
+            var world = new World();
+            var streamer = NewStreamer(world, saveRegionsDir: null);
+            var origin = new Float3(0.5f, 100f, 0.5f);
+
+            // 比加载完成所需（1 帧）多 Tick 9 次，观察是否有重复入队
+            TickUntilLoaded(streamer, origin, maxTicks: 10);
+            TickUntilLoaded(streamer, origin, maxTicks: 9);
+
+            Assert.That(world.LoadedChunkCount, Is.EqualTo(9),
+                "同一位置反复 Tick 不应产生重复区块，恰好 LoadRadius=1 的 3×3 共 9 根");
+            for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                Assert.That(world.TryGetChunk(new ChunkPos(dx, dz), out _), Is.True,
+                    $"3×3 内的列 ({dx},{dz}) 都应被加载");
+            }
+        }
+
+        [Test]
+        public void EnqueueOrder_NearToFar_ChebyshevThenDistanceThenTiebreak()
+        {
+            // m5 C1：排序语义等价断言。ChunksPerFrame=1 逐帧生成，前 k 帧 LoadedChunkCount
+            // 恰为 k，且已加载集合必须等于期望序的前 k 项——Chebyshev 主键 + 平方距离 +
+            // (dz, dx) 两级 tiebreaker，与复用容器前的闭包 Sort 完全一致。
+            var world = new World();
+            var streamer = NewStreamer(world, saveRegionsDir: null);
+            streamer.ChunksPerFrame = 1;
+
+            // 手工推导的中心 (0,0)、LoadRadius=1 的完整加载序（见 EnqueueMissing 注释）：
+            // 中心列 → 同环按平方距离 → (dz,dx) 字典序
+            ChunkPos[] expectedOrder =
+            {
+                new ChunkPos(0, 0),
+                new ChunkPos(0, -1), new ChunkPos(-1, 0), new ChunkPos(1, 0), new ChunkPos(0, 1),
+                new ChunkPos(-1, -1), new ChunkPos(1, -1), new ChunkPos(-1, 1), new ChunkPos(1, 1),
+            };
+
+            var loaded = new System.Collections.Generic.HashSet<ChunkPos>();
+            var origin = new Float3(0.5f, 100f, 0.5f);
+            for (int k = 0; k < expectedOrder.Length; k++)
+            {
+                streamer.Tick(origin);
+                loaded.Clear();
+                loaded.UnionWith(world.ChunkPositions);
+                Assert.That(loaded.Count, Is.EqualTo(k + 1),
+                    $"第 {k + 1} 次 Tick 后应恰好加载 {k + 1} 根列（每帧预算 1 且不重复入队）");
+                for (int j = 0; j <= k; j++)
+                {
+                    Assert.That(loaded.Contains(expectedOrder[j]), Is.True,
+                        $"前 {k + 1} 根必须按距中心由近到远加载，缺第 {j + 1} 项 {expectedOrder[j]}");
+                }
+            }
+        }
+
+        [Test]
         public void UnloadDistant_NoDirtyChunks_DoesNotWriteFiles()
         {
             string dir = TempDir();

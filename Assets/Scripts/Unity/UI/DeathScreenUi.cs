@@ -19,6 +19,12 @@ namespace MyWorld.Unity.UI
 
         private bool _visible;
 
+        /// <summary>m5 C1：死亡画面期间 OnGUI 每帧跑，原先每帧 new 2-3 个 GUIStyle
+        /// （标题 / 按钮 / 倒计时），改为只构造一次缓存复用，消除该状态下的 GC 分配。</summary>
+        private GUIStyle _bigStyle;
+        private GUIStyle _btnStyle;
+        private GUIStyle _subStyle;
+
         private void Awake()
         {
             // 把自身挂到 PlayerContext 上，方便 PlayerController 在 HP=0 时反查 Show()，
@@ -94,22 +100,33 @@ namespace MyWorld.Unity.UI
             GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            // 文字
-            var bigStyle = new GUIStyle(GUI.skin.label)
+            // 文字（样式首帧构造一次缓存复用，见字段注释）
+            if (_bigStyle == null)
             {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 48,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white }
-            };
-            GUI.Label(new Rect(0, Screen.height / 2 - 80, Screen.width, 80), "你死了", bigStyle);
+                _bigStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleCenter,
+                    fontSize = 48,
+                    fontStyle = FontStyle.Bold,
+                    normal = { textColor = Color.white }
+                };
+            }
+            GUI.Label(new Rect(0, Screen.height / 2 - 80, Screen.width, 80), "你死了", _bigStyle);
 
             // 复活按钮（Dying 时不可点；Respawning 时可点）
             if (death.Phase == DeathPhase.Respawning)
             {
-                var btnStyle = new GUIStyle(GUI.skin.button) { fontSize = 22, fixedWidth = 200, fixedHeight = 50 };
+                if (_btnStyle == null)
+                {
+                    _btnStyle = new GUIStyle(GUI.skin.button)
+                    {
+                        fontSize = 22,
+                        fixedWidth = 200,
+                        fixedHeight = 50,
+                    };
+                }
                 GUI.backgroundColor = Color.white;
-                if (GUI.Button(new Rect(Screen.width / 2 - 100, Screen.height / 2 + 20, 200, 50), "复活", btnStyle))
+                if (GUI.Button(new Rect(Screen.width / 2 - 100, Screen.height / 2 + 20, 200, 50), "复活", _btnStyle))
                 {
                     // 把 PhaseTimer 强制为 0，让 Tick 下一帧把 Respawning → Alive，
                     // Update 会在同一帧 / 下一帧检测到转换并 TriggerRespawn。
@@ -121,14 +138,17 @@ namespace MyWorld.Unity.UI
             }
             else
             {
-                var subStyle = new GUIStyle(GUI.skin.label)
+                if (_subStyle == null)
                 {
-                    alignment = TextAnchor.MiddleCenter,
-                    fontSize = 18,
-                    normal = { textColor = Color.white }
-                };
+                    _subStyle = new GUIStyle(GUI.skin.label)
+                    {
+                        alignment = TextAnchor.MiddleCenter,
+                        fontSize = 18,
+                        normal = { textColor = Color.white }
+                    };
+                }
                 GUI.Label(new Rect(0, Screen.height / 2 + 20, Screen.width, 30),
-                    $"复活倒计时 {Mathf.CeilToInt(death.PhaseTimer)}", subStyle);
+                    $"复活倒计时 {Mathf.CeilToInt(death.PhaseTimer)}", _subStyle);
             }
         }
     }

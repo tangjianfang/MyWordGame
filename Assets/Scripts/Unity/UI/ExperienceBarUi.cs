@@ -14,6 +14,11 @@ namespace MyWorld.Unity.UI
         public int BarHeight = 8;
         public int BottomMargin = 12;
 
+        /// <summary>m5 C1：两个样式只构造一次缓存复用——原先 OnGUI 每帧 new 两个
+        /// GUIStyle，是 IMGUI 侧稳定的 GC 来源。</summary>
+        private GUIStyle _fillStyle;
+        private GUIStyle _labelStyle;
+
         private void OnGUI()
         {
             var ctx = PlayerContext.Instance;
@@ -25,14 +30,25 @@ namespace MyWorld.Unity.UI
             // 背景
             GUI.Box(new Rect(x - 1, y - 1, BarWidth + 2, BarHeight + 2), GUIContent.none);
             // 绿色填充
+            if (_fillStyle == null)
+            {
+                // 首帧构造一次（GUI.skin 只在 OnGUI 内可用），之后逐帧复用
+                _fillStyle = new GUIStyle(GUI.skin.box);
+                _fillStyle.normal.background = MakeColorTexture(new Color(0.3f, 0.85f, 0.3f));
+            }
             int fill = Mathf.RoundToInt(BarWidth * xp.Fraction);
-            var fillStyle = new GUIStyle(GUI.skin.box);
-            fillStyle.normal.background = MakeColorTexture(new Color(0.3f, 0.85f, 0.3f));
-            GUI.Box(new Rect(x, y, fill, BarHeight), GUIContent.none, fillStyle);
+            GUI.Box(new Rect(x, y, fill, BarHeight), GUIContent.none, _fillStyle);
 
             // 等级标签
-            var labelStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 11 };
-            GUI.Label(new Rect(x, y - 14, BarWidth, 14), $"Lv {xp.Level}", labelStyle);
+            if (_labelStyle == null)
+            {
+                _labelStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleCenter,
+                    fontSize = 11,
+                };
+            }
+            GUI.Label(new Rect(x, y - 14, BarWidth, 14), $"Lv {xp.Level}", _labelStyle);
         }
 
         private static Texture2D _tex;

@@ -24,6 +24,10 @@ namespace MyWorld.Unity.UI
         private readonly System.Collections.Generic.Dictionary<string, Texture2D> _texCache =
             new System.Collections.Generic.Dictionary<string, Texture2D>();
 
+        /// <summary>m5 C1：数量角标样式只构造一次缓存复用——原先在 OnGUI 里每槽每帧
+        /// new GUIStyle，9 个槽连续分配是 IMGUI 侧稳定的 GC 来源。</summary>
+        private GUIStyle _countStyle;
+
         private void EnsureTextures()
         {
             if (_slotBg != null) return;
@@ -126,12 +130,18 @@ namespace MyWorld.Unity.UI
                         // 黑底白字：1×1 独立黑底（85% 不透明）+ 上方 16 号粗体白字。
                         var bgRect = new Rect(rect.x + SlotSize - 22, rect.y + SlotSize - 20, 20, 18);
                         GUI.DrawTexture(bgRect, _countBg);
-                        var style = new GUIStyle(GUI.skin.label);
-                        style.fontSize = 16;
-                        style.fontStyle = FontStyle.Bold;
-                        style.normal.textColor = Color.white;
+                        if (_countStyle == null)
+                        {
+                            // 首帧构造一次（GUI.skin 只在 OnGUI 内可用），之后逐帧复用
+                            _countStyle = new GUIStyle(GUI.skin.label)
+                            {
+                                fontSize = 16,
+                                fontStyle = FontStyle.Bold,
+                            };
+                            _countStyle.normal.textColor = Color.white;
+                        }
                         GUI.Label(new Rect(rect.x + SlotSize - 20, rect.y + SlotSize - 19, 18, 16),
-                            stack.Count.ToString(), style);
+                            stack.Count.ToString(), _countStyle);
                     }
                 }
 
