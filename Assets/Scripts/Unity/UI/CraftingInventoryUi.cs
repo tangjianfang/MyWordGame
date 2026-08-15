@@ -1,5 +1,6 @@
 using MyWorld.Core.Items;
 using MyWorld.Core.Player;
+using MyWorld.Core.Quests;
 using MyWorld.Unity.Gameplay;
 using UnityEngine;
 
@@ -54,7 +55,9 @@ namespace MyWorld.Unity.UI
             }
         }
 
-        /// <summary>B6：测试用。当前网格跑 FindMatch，匹配则把输出 ItemStack 写到 LastOutput。</summary>
+        /// <summary>B6：测试用。当前网格跑 FindMatch，匹配则把输出 ItemStack 写到 LastOutput。
+        /// <para>m6 C2：匹配到产出即发 CraftItem 任务事件——这是本 UI 的产出解析点
+        /// （网格目前只有测试钩子能填充；将来加点击合成时沿同一入口发事件即可）。</para></summary>
         public void CraftForTest()
         {
             EnsureGrid();
@@ -64,6 +67,14 @@ namespace MyWorld.Unity.UI
             var recipe = db.FindMatch(_craft, CraftWidth, CraftHeight);
             if (recipe == null) return;
             LastOutput = recipe.Output;
+
+            // m6 C2：产出解析成功 = 合成落地。Count 用本次产出数量
+            QuestEventBus.Instance?.Raise(new QuestEvent
+            {
+                Type = QuestEventType.CraftItem,
+                ItemId = recipe.Output.ItemId,
+                Count = recipe.Output.Count,
+            });
         }
 
         private void EnsureGrid()

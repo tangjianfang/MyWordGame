@@ -1,6 +1,7 @@
 using MyWorld.Core.Blocks;
 using MyWorld.Core.Math;
 using MyWorld.Core.Player;
+using MyWorld.Core.Quests;
 using MyWorld.Core.Voxel;
 using MyWorld.Unity.Audio;
 using MyWorld.Unity.Gameplay;
@@ -218,7 +219,12 @@ namespace MyWorld.Unity.Player
 
         /// <summary>把 <see cref="PlayerContext.ItemDrops"/> 里落在拾取半径内的掉落物收进背包，
         /// 返回本次实际拾取的物品总数。背包塞不下时**保留**掉落物（部分塞入的按剩余量回写），
-        /// 玩家腾出格子后还能再捡。</summary>
+        /// 玩家腾出格子后还能再捡。
+        /// <para>
+        /// m6 C2：物品真正进包的这一刻发 ObtainItem 事件（Count=背包现存量）。
+        /// 挖方块（<see cref="BlockInteraction.BreakAt"/>）spawn 的掉落物也走这里进包，
+        /// 所以 ObtainItem **只在拾取点发一次**——挖矿路径天然被覆盖且不会双计。
+        /// </para></summary>
         public int PickupNearbyDrops()
         {
             var ctx = GetComponent<PlayerContext>();
@@ -255,6 +261,19 @@ namespace MyWorld.Unity.Player
                     ctx.ItemDrops[i] = rebuilt;
                     total += picked - leftover;
                 }
+                else
+                {
+                    continue; // 一个都没塞进去：不发事件，掉落物原地保留
+                }
+
+                // m6 C2：ObtainItem 的 Count 语义是「背包现存量」（跨槽合并），
+                // 由 PlayerInventory.CountOf 取数——不是本次拾取量
+                QuestEventBus.Instance?.Raise(new QuestEvent
+                {
+                    Type = QuestEventType.ObtainItem,
+                    ItemId = stack.ItemId,
+                    Count = ctx.Inventory.CountOf(stack.ItemId),
+                });
             }
 
             return total;

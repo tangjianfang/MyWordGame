@@ -137,6 +137,11 @@ namespace MyWorld.Unity.Player
         /// 顺序与既有 <c>Update</c> 行为对齐：先清方块 → 标脏（让玩家视觉立刻看到破坏）→ 播音效 →
         /// spawn 掉落。无 PlayerContext / 无 BlockDrops 表 / 挖空气 / drops 表里没条目均 no-op。
         /// </para>
+        /// <para>
+        /// m6 C2 决策：这里**不发** ObtainItem 任务事件——掉落物还没进背包，
+        /// 真正进包（<see cref="PlayerController.PickupNearbyDrops"/>）的那一刻才发，
+        /// 挖矿场景由拾取路径覆盖且不会双计（QuestEventBusTests 有断言守着）。
+        /// </para>
         /// </summary>
         public void BreakAt(int x, int y, int z)
         {

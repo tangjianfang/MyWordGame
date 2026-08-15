@@ -1,5 +1,7 @@
 using UnityEngine;
 using MyWorld.Core.Items;
+using MyWorld.Core.Math;
+using MyWorld.Core.Quests;
 using MyWorld.Unity.Gameplay;
 
 namespace MyWorld.Unity.UI
@@ -10,6 +12,8 @@ namespace MyWorld.Unity.UI
     /// 文本换白字缓存样式，深色 Box 上直接可读。
     /// m6 A2 fix2：老 bug——本类自创建（7051b08）起就没有开关、Bind 后常驻左上角。
     /// 现在与背包 E / 工作台 P 同款：F 键开关（E/P/B/V/X 已被其它 UI 占用）。
+    /// m6 C2：补三槽点击交互（此前只有显示）——输入/燃料从手上（选中 hotbar 格）整组投入、
+    /// 输出整组取走；取出烧炼产出的那一刻发 SmeltItem 任务事件（首章任务 7 的源头）。
     /// </summary>
     public class CraftingFurnaceUi : MonoBehaviour
     {
@@ -37,6 +41,74 @@ namespace MyWorld.Unity.UI
             if (_furnace != null) CurrentProgress = _furnace.Progress;
         }
 
+        /// <summary>玩家上下文：优先单例（运行时），EditMode 下退回同物体组件（Awake 不跑）。</summary>
+        private PlayerContext Ctx =>
+            PlayerContext.Instance != null ? PlayerContext.Instance : GetComponent<PlayerContext>();
+
+        /// <summary>
+        /// 把手上（选中 hotbar 格）的整组物品投入熔炉输入槽（圆石烧铁锭）。
+        /// 投入成功后手上清空。返回是否成功。
+        /// </summary>
+        public bool DepositSelectedAsInput()
+        {
+            var ctx = Ctx;
+            if (_furnace == null || ctx == null || ctx.Inventory == null) return false;
+            var sel = ctx.Inventory.GetSelected();
+            if (sel.IsEmpty || !_furnace.AddInput(sel)) return false;
+            ctx.Inventory.SetSlot(ctx.Inventory.SelectedHotbarIndex, ItemStack.Empty);
+            return true;
+        }
+
+        /// <summary>
+        /// 把手上的整组物品投入燃料槽（只有煤合法，见 <see cref="FurnaceSystem.CoalItemId"/>）。
+        /// 投入成功后手上清空。返回是否成功。
+        /// </summary>
+        public bool DepositSelectedAsFuel()
+        {
+            var ctx = Ctx;
+            if (_furnace == null || ctx == null || ctx.Inventory == null) return false;
+            var sel = ctx.Inventory.GetSelected();
+            if (sel.IsEmpty || !_furnace.AddFuel(sel)) return false;
+            ctx.Inventory.SetSlot(ctx.Inventory.SelectedHotbarIndex, ItemStack.Empty);
+            return true;
+        }
+
+        /// <summary>
+        /// 取走输出槽的烧炼产出：整组进背包、清空输出槽并返回 true；没有产出返回 false。
+        /// 背包塞不下的剩余量掉在脚下（掉落物），不凭空消失。
+        /// <para>取出的那一刻发 SmeltItem 任务事件（Count=本次取出数量）。</para>
+        /// </summary>
+        public bool TryTakeOutput()
+        {
+            var ctx = Ctx;
+            if (_furnace == null || ctx == null || ctx.Inventory == null) return false;
+            if (_furnace.Output == null || _furnace.Output.Value.IsEmpty) return false;
+
+            var taken = _furnace.TakeOutput().Value;
+            ctx.Inventory.TryAdd(taken, out int leftover);
+            if (leftover > 0)
+            {
+                var p = transform.position;
+                ctx.ItemDrops.Add(new ItemDropEntity(
+                    taken.WithCount(leftover), new Float3(p.x, p.y + 0.5f, p.z)));
+            }
+
+            int entered = taken.Count - leftover;
+            if (entered <= 0)
+            {
+                // 背包满到一格都塞不下：产出已整组掉在脚下（可再拾取），不算取出
+                return false;
+            }
+
+            QuestEventBus.Instance?.Raise(new QuestEvent
+            {
+                Type = QuestEventType.SmeltItem,
+                ItemId = taken.ItemId,
+                Count = entered,
+            });
+            return true;
+        }
+
         private void OnGUI()
         {
             if (!_open || _furnace == null) return;
@@ -49,15 +121,35 @@ namespace MyWorld.Unity.UI
 
             const int size = 40;
             // 左列：上=输入、下=燃料；右列：输出
-            ItemSlotDrawer.Draw(new Rect(24, 110, size, size), _furnace.Input ?? ItemStack.Empty, items, false);
-            ItemSlotDrawer.Draw(new Rect(24, 160, size, size), _furnace.Fuel ?? ItemStack.Empty, items, false);
-            ItemSlotDrawer.Draw(new Rect(110, 135, size, size), _furnace.Output ?? ItemStack.Empty, items, false);
+            var inputRect = new Rect(24, 110, size, size);
+            var fuelRect = new Rect(24, 160, size, size);
+            var outputRect = new Rect(110, 135, size, size);
+            ItemSlotDrawer.Draw(inputRect, _furnace.Input ?? ItemStack.Empty, items, false);
+            ItemSlotDrawer.Draw(fuelRect, _furnace.Fuel ?? ItemStack.Empty, items, false);
+            ItemSlotDrawer.Draw(outputRect, _furnace.Output ?? ItemStack.Empty, items, false);
 
             // 烧炼进度条：输出槽下方，宽度按进度填充（Progress 达到烧炼时长即重置，clamp 防瞬时越界）
             var bar = new Rect(110, 190, 84, 10);
             GUI.Box(bar, GUIContent.none);
             float fillW = bar.width * Mathf.Clamp01(CurrentProgress);
             if (fillW > 0.5f) GUI.DrawTexture(new Rect(bar.x, bar.y, fillW, bar.height), Texture2D.whiteTexture);
+
+            // m6 C2：三槽点击交互（与口袋合成同款左键取/放）
+            if (Event.current.type == EventType.MouseDown && Event.current.button == 0)
+            {
+                if (inputRect.Contains(Event.current.mousePosition))
+                {
+                    if (DepositSelectedAsInput()) Event.current.Use();
+                }
+                else if (fuelRect.Contains(Event.current.mousePosition))
+                {
+                    if (DepositSelectedAsFuel()) Event.current.Use();
+                }
+                else if (outputRect.Contains(Event.current.mousePosition))
+                {
+                    if (TryTakeOutput()) Event.current.Use();
+                }
+            }
         }
     }
 }

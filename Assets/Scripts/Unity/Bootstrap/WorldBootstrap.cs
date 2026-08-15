@@ -215,12 +215,36 @@ namespace MyWorld.Unity.Bootstrap
             saveLoad.Bind(_world, _playerContext, _player, seed, saveRoot);
             saveLoad.TryRestore();
 
-            // 25. UI 截图验证（m6 B1）：--ui-shot 启动参数 → 挂自动截图组件。
+            // 25. 任务事件总线（m6 C2）：挂在 PlayerContext 同物体上，加载首章任务链。
+            // 挖/拾/合/烧/夜五事件源经 QuestEventBus.Instance?.Raise 喂给它；
+            // 链文件缺失 / 坏 JSON 只 warn，Quests 保持 null = 事件转发 no-op，游戏照常玩。
+            // 必须放在 TryRestore **之后**：Bind 里的跨夜观察基线取恢复后的时刻，
+            // 否则「存档正午 → 读档深夜」的第一帧会被误判成跨过日出，白发一次 SurviveNight。
+            // （任务进度的存档恢复是 C4 的活，届时从 level.dat 的 QuestState 恢复到 bus.Quests。）
+            var questBus = gameObject.AddComponent<MyWorld.Unity.Gameplay.QuestEventBus>();
+            try
+            {
+                string chapterPath = Path.Combine(Application.streamingAssetsPath, "quests", "chapter1.json");
+                questBus.Bind(_playerContext, File.Exists(chapterPath)
+                    ? MyWorld.Core.Quests.QuestSystem.LoadChapter(chapterPath)
+                    : null);
+                if (!File.Exists(chapterPath))
+                {
+                    Debug.LogWarning($"[WorldBootstrap] 未找到 {chapterPath}，任务链不生效（事件转发 no-op）。");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                questBus.Bind(_playerContext, null);
+                Debug.LogWarning($"[WorldBootstrap] 加载 chapter1.json 失败：{ex.Message}。任务链不生效。");
+            }
+
+            // 26. UI 截图验证（m6 B1）：--ui-shot 启动参数 → 挂自动截图组件。
             // 无参数时 ShouldCapture 读一次 args 即返回 false，零开销。
             if (MyWorld.Unity.UiScreenshotOnArg.ShouldCapture(System.Environment.GetCommandLineArgs()))
                 gameObject.AddComponent<MyWorld.Unity.UiScreenshotOnArg>();
 
-            // 26. 帮助菜单（m6 B3）：H 键开关「怎么玩 + 设置」两页。挂玩家身上：
+            // 27. 帮助菜单（m6 B3）：H 键开关「怎么玩 + 设置」两页。挂玩家身上：
             // 打开时经 BlockInteraction.InputLocked 抑制挖/放，灵敏度乘数也从这里找到 PlayerController。
             gameObject.AddComponent<MyWorld.Unity.UI.HelpMenuUi>();
         }

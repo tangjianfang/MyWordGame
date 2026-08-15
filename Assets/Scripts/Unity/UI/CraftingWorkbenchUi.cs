@@ -1,10 +1,14 @@
 using MyWorld.Core.Items;
+using MyWorld.Core.Quests;
 using MyWorld.Unity.Gameplay;
 using UnityEngine;
 
 namespace MyWorld.Unity.UI
 {
-    /// <summary>对 crafting_table 按 E 打开 3×3 workbench。简化版：按 P 切换。</summary>
+    /// <summary>对 crafting_table 按 E 打开 3×3 workbench。简化版：按 P 切换。
+    /// <para>m6 C2：加 CraftForTest/SetGridForTest（与 CraftingInventoryUi 对称的产出解析点），
+    /// 匹配到产出即发 CraftItem 任务事件。网格目前只有测试钩子能填充；
+    /// 将来加点击合成时沿同一入口发事件即可。</para></summary>
     public sealed class CraftingWorkbenchUi : MonoBehaviour
     {
         public KeyCode ToggleKey = KeyCode.P;
@@ -12,6 +16,9 @@ namespace MyWorld.Unity.UI
 
         private bool _open;
         private ItemStack[] _craft;
+
+        /// <summary>m6 C2：最近一次 CraftForTest 的输出；null 表示未匹配 / 未绑定配方表。</summary>
+        public ItemStack? LastOutput { get; private set; }
 
         private void Awake()
         {
@@ -26,6 +33,37 @@ namespace MyWorld.Unity.UI
 
         /// <summary>m6 B1：程序化开关工作台（--ui-shot 截图管线用）。不影响 Update 里的按键开关。</summary>
         public void SetOpen(bool open) => _open = open;
+
+        /// <summary>m6 C2：测试用。按 itemId 数组写入 3×3 合成网格（0 或越界 = 空）。</summary>
+        public void SetGridForTest(int[] items)
+        {
+            int n = items != null ? items.Length : 0;
+            for (int i = 0; i < _craft.Length; i++)
+            {
+                int id = i < n ? items[i] : 0;
+                _craft[i] = id == 0 ? ItemStack.Empty : new ItemStack(id, 1);
+            }
+        }
+
+        /// <summary>
+        /// m6 C2：当前 3×3 网格跑 FindMatch，匹配则把输出写到 LastOutput 并发 CraftItem 事件
+        /// （产出 itemId + 本次数量）。EditMode 测试与将来的点击合成共用这一入口。
+        /// </summary>
+        public void CraftForTest()
+        {
+            LastOutput = null;
+            var db = PlayerContext.Instance != null ? PlayerContext.Instance.Recipes : null;
+            var recipe = db != null ? db.FindMatch(_craft, 3, 3) : null;
+            if (recipe == null) return;
+            LastOutput = recipe.Output;
+
+            QuestEventBus.Instance?.Raise(new QuestEvent
+            {
+                Type = QuestEventType.CraftItem,
+                ItemId = recipe.Output.ItemId,
+                Count = recipe.Output.Count,
+            });
+        }
 
         private void OnGUI()
         {

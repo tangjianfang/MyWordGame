@@ -92,5 +92,31 @@ namespace MyWorld.Core.Tests.Player
             Assert.That(inv.GetSlot(5).Count, Is.EqualTo(15));
             Assert.That(inv.GetSlot(0).IsEmpty, Is.True);
         }
+
+        // ---- m6 C2：CountOf——ObtainItem 事件的「背包现存量」取数口径 ----
+
+        [Test]
+        public void CountOf_跨槽合并计数_不含其它物品()
+        {
+            var inv = new PlayerInventory();
+            inv.TryAdd(new ItemStack(1000, 64), out _); // 第 0 格叠满
+            inv.TryAdd(new ItemStack(1000, 20), out _); // 溢到第 1 格
+            inv.TryAdd(new ItemStack(1003, 5), out _);
+
+            Assert.That(inv.CountOf(1000), Is.EqualTo(84), "两格 log 应合并计数 84");
+            Assert.That(inv.CountOf(1003), Is.EqualTo(5), "其它物品只数自己的");
+            Assert.That(inv.CountOf(9999), Is.EqualTo(0), "背包里没有的物品计 0");
+            Assert.That(inv.CountOf(0), Is.EqualTo(0), "空气 id 恒为 0");
+        }
+
+        [Test]
+        public void CountOf_TryRemoveCount后_数量同步扣减()
+        {
+            var inv = new PlayerInventory();
+            inv.TryAdd(new ItemStack(1003, 3), out _);
+            inv.TryRemoveCount(1003, 1);
+
+            Assert.That(inv.CountOf(1003), Is.EqualTo(2), "移除后现存量同步扣减");
+        }
     }
 }

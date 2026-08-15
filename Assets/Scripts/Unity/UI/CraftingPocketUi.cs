@@ -1,11 +1,13 @@
 using System.Collections.Generic;
 using MyWorld.Core.Items;
+using MyWorld.Core.Quests;
 using MyWorld.Unity.Gameplay;
 using UnityEngine;
 
 namespace MyWorld.Unity.UI
 {
-    /// <summary>1×1 口袋合成。按 B 打开，输入槽 + 输出槽。</summary>
+    /// <summary>1×1 口袋合成。按 B 打开，输入槽 + 输出槽。
+    /// <para>m6 C2：取产出的消费点发 CraftItem 任务事件（产出 itemId + 本次数量）。</para></summary>
     public sealed class CraftingPocketUi : MonoBehaviour
     {
         public KeyCode ToggleKey = KeyCode.B;
@@ -17,6 +19,39 @@ namespace MyWorld.Unity.UI
         private void Update()
         {
             if (Input.GetKeyDown(ToggleKey)) _open = !_open;
+        }
+
+        /// <summary>m6 C2：测试用——直接写入口袋输入槽（EditMode 没法模拟鼠标点击）。</summary>
+        public void SetInputForTest(ItemStack input)
+        {
+            _input = input;
+        }
+
+        /// <summary>
+        /// 取走输出槽：按当前输入重算配方，匹配则产出进背包、清空输入并返回 true。
+        /// OnGUI 的点击取料与测试都走这一条路径；产出进包后发 CraftItem 事件。
+        /// </summary>
+        public bool TryTakeCraftOutput()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Recipes == null) return false;
+
+            var r = ctx.Recipes.FindMatch(new[] { _input }, 1, 1);
+            if (r == null) return false;
+
+            var output = r.Output;
+            ctx.Inventory.TryAdd(output, out _);
+            _input = ItemStack.Empty;
+            _output = ItemStack.Empty;
+
+            // m6 C2：产出进包 = 合成落地。Count 用本次产出数量（不是背包现存量）
+            QuestEventBus.Instance?.Raise(new QuestEvent
+            {
+                Type = QuestEventType.CraftItem,
+                ItemId = output.ItemId,
+                Count = output.Count,
+            });
+            return true;
         }
 
         private void OnGUI()
@@ -39,22 +74,19 @@ namespace MyWorld.Unity.UI
             GUI.Label(new Rect(cx - 10, cy + 14, 30, 20), "→", ItemSlotDrawer.WhiteStyle());
             // 输出槽
             var outputRect = new Rect(cx + 20, cy, SlotSize, SlotSize);
-            DrawSlot(outputRect, _output);
 
             // 重新计算 output
             var slots = new[] { _input };
             var r = ctx.Recipes.FindMatch(slots, 1, 1);
             _output = r != null ? r.Output : ItemStack.Empty;
+            DrawSlot(outputRect, _output);
 
             // 拿输出
             if (Event.current.type == EventType.MouseDown && Event.current.button == 0
                 && outputRect.Contains(Event.current.mousePosition))
             {
-                if (!_output.IsEmpty)
+                if (!_output.IsEmpty && TryTakeCraftOutput())
                 {
-                    ctx.Inventory.TryAdd(_output, out _);
-                    _input = ItemStack.Empty;
-                    _output = ItemStack.Empty;
                     Event.current.Use();
                 }
             }

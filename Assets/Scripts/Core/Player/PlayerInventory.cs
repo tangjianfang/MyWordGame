@@ -75,6 +75,21 @@ namespace MyWorld.Core.Player
             return true;
         }
 
+        /// <summary>
+        /// 统计背包里指定物品的总数（跨槽合并计数）。m6 C2 的任务系统用它取
+        ///「背包现存量」——ObtainItem 事件的 Count 语义，见 <c>QuestCondition</c>。
+        /// </summary>
+        public int CountOf(int itemId)
+        {
+            if (itemId == 0) return 0;
+            int total = 0;
+            for (int i = 0; i < TotalSize; i++)
+            {
+                if (_slots[i].ItemId == itemId) total += _slots[i].Count;
+            }
+            return total;
+        }
+
         /// <summary>从任意槽扣指定物品数量（合并计数）。不够返回 false。</summary>
         public bool TryRemoveCount(int itemId, int count)
         {

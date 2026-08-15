@@ -14,8 +14,9 @@ namespace MyWorld.Core.Tests.UI
             var go = new GameObject("FurnaceUI");
             var ui = go.AddComponent<CraftingFurnaceUi>();
             var f = new FurnaceSystem(coalFuelValue: 8, smeltTimeSeconds: 1f);
-            f.AddInput(new ItemStack(1, 1));
-            f.AddFuel(new ItemStack(10, 1));
+            // m6 C2 起用真实物品 id：圆石(1003)入料、煤(1007)燃料（占位 1/10 已修）
+            f.AddInput(new ItemStack(FurnaceSystem.SmeltInputItemId, 1));
+            f.AddFuel(new ItemStack(FurnaceSystem.CoalItemId, 1));
             ui.Bind(f);
             f.Tick(0.5f);
             ui.TickForTest();

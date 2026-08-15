@@ -4,6 +4,18 @@ namespace MyWorld.Core.Items
 {
     public class FurnaceSystem
     {
+        /// <summary>唯一合法燃料：真煤（items/coal.json，numericId 1007）。
+        /// m3 占位时期写死 10（物品表里不存在），实机永远投不进燃料——m6 C2 修正。</summary>
+        public const int CoalItemId = 1007;
+
+        /// <summary>烧炼输入：圆石（items/cobblestone.json，numericId 1003）。
+        /// 物品表 / 方块表里都没有 iron_ore，圆石是「挖石头」直接产出的最近似矿石物品。</summary>
+        public const int SmeltInputItemId = 1003;
+
+        /// <summary>烧炼输出：铁锭（items/iron_ingot.json，numericId 1004）——
+        /// 首章任务 7 要求 SmeltItem iron_ingot(1004)。</summary>
+        public const int SmeltOutputItemId = 1004;
+
         public ItemStack? Input { get; private set; }
         public ItemStack? Fuel { get; private set; }
         public ItemStack? Output { get; private set; }
@@ -32,8 +44,8 @@ namespace MyWorld.Core.Items
 
         public bool AddFuel(ItemStack stack)
         {
-            // 简化：coal 是唯一燃料（itemId=10）
-            if (stack.ItemId != 10) return false;
+            // 简化：coal 是唯一燃料（真实 numericId 见 CoalItemId）
+            if (stack.ItemId != CoalItemId) return false;
             _fuelRemaining += _coalFuelValue * stack.Count;
             _hasFuel = _fuelRemaining > 0;
             return true;
@@ -71,8 +83,9 @@ namespace MyWorld.Core.Items
 
             if (Progress >= _smeltTimeSeconds)
             {
-                // 简化：iron_ore → iron_ingot（itemId 1 → 2）
-                int outputId = (Input.Value.ItemId == 1) ? 2 : Input.Value.ItemId;
+                // 圆石 → 铁锭（真实物品 id，m6 C2 修正 m3 占位映射 1→2）；
+                // 其它物品照旧原样「烧成自己」，保持旧 passthrough 行为不变
+                int outputId = (Input.Value.ItemId == SmeltInputItemId) ? SmeltOutputItemId : Input.Value.ItemId;
                 Output = new ItemStack(outputId, 1);
                 Input = (Input.Value.Count > 1) ? new ItemStack(Input.Value.ItemId, Input.Value.Count - 1) : (ItemStack?)null;
                 Progress = 0f;

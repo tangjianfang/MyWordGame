@@ -106,12 +106,12 @@ namespace MyWorld.Core.Tests.Persistence
             ctxA.Inventory.SetSlot(9, new ItemStack(1004, 3));            // 背包区（第 10 槽起）
             ctxA.Health.Current = 13.5f;
             ctxA.Time.CurrentTick = 9000f;
-            ctxA.FurnaceSystem.AddInput(new ItemStack(1004, 3));
-            ctxA.FurnaceSystem.AddFuel(new ItemStack(10, 2));             // coal 是唯一合法燃料（itemId=10）
+            ctxA.FurnaceSystem.AddInput(new ItemStack(FurnaceSystem.SmeltInputItemId, 3));
+            ctxA.FurnaceSystem.AddFuel(new ItemStack(FurnaceSystem.CoalItemId, 2));   // 煤是唯一合法燃料（m6 C2 起真实 id 1007）
             // 烧到一半：进度 17.3s、剩余燃料 45.5s。注意 AddFuel 只累计 _fuelRemaining、
             // 不写 Fuel 槽（Fuel 槽由 Restore 专管，见 SnapshotMappersTests 的注释），所以燃料槽在这里显式给。
             ctxA.FurnaceSystem.Restore(
-                ctxA.FurnaceSystem.Input, new ItemStack(10, 2), null, 17.3f, 45.5f);
+                ctxA.FurnaceSystem.Input, new ItemStack(FurnaceSystem.CoalItemId, 2), null, 17.3f, 45.5f);
             ctxA.ItemDrops.Add(new ItemDropEntity(new ItemStack(1008, 2), new Float3(5f, 71f, 6f)));
             ctxA.ItemDrops.Add(new ItemDropEntity(new ItemStack(1010, 1), new Float3(6f, 71f, 7f)));
             playerA.RestoreCoreState(PlayerState.AtRest(new Float3(8.5f, digY + 2, 8.5f)));
