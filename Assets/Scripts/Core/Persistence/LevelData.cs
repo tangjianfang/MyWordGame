@@ -13,6 +13,9 @@ namespace MyWorld.Core.Persistence
         public FurnaceSnapshot Furnace;
         /// <summary>地面掉落物。SpawnTime 不存——恢复时统一赋当前时间，宽限期重新计时。</summary>
         public List<DropSnapshot> Drops;
+        /// <summary>引导任务链进度（m6 C4）。旧档缺此字段时 Newtonsoft 反序列化得 null，
+        /// 恢复侧按 null 跳过 = 任务链全新开始，天然向后兼容。</summary>
+        public MyWorld.Core.Quests.QuestState Quest;
     }
 
     /// <summary>玩家快照：位置/速度/生命/饥饿/经验/背包全部 36 槽。</summary>

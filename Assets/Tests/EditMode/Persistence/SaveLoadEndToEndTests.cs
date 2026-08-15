@@ -7,6 +7,7 @@ using MyWorld.Core.Items;
 using MyWorld.Core.Math;
 using MyWorld.Core.Persistence;
 using MyWorld.Core.Player;
+using MyWorld.Core.Quests;
 using MyWorld.Core.Time;
 using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
@@ -21,6 +22,7 @@ namespace MyWorld.Core.Tests.Persistence
     /// 一条链路同时打穿 A1-A4 + B1-B3：
     /// 方块改动走 region 层（A1/A3 + B1 overlay），
     /// 玩家/熔炉/掉落物/世界时间走 level.dat 层（A2/A4 + B2 SaveNow + B3 TryRestore）。
+    /// m6 C4 追加：任务链进度（QuestState）进 level.dat 的 round-trip + 旧档兼容。
     /// （EditMode-only：MonoBehaviour + PlayerContext 单例。）
     /// </summary>
     [TestFixture]
@@ -29,6 +31,18 @@ namespace MyWorld.Core.Tests.Persistence
         private string _saveRoot;
         private readonly System.Collections.Generic.List<GameObject> _gos =
             new System.Collections.Generic.List<GameObject>();
+        /// <summary>WriteChapter 产生的任务链临时文件，TearDown 统一清理。</summary>
+        private readonly System.Collections.Generic.List<string> _questFiles =
+            new System.Collections.Generic.List<string>();
+
+        /// <summary>测试任务链：q1 拾取原木 → q2 合成木板（需求 4，测累计中停态）→ q3 过夜。</summary>
+        private const string QuestChainJson = @"[
+            { ""id"": ""q1"", ""name"": ""挖一根原木"", ""desc"": ""..."",
+              ""condition"": { ""type"": ""ObtainItem"", ""itemId"": 1000, ""count"": 1 }, ""rewardExp"": 5 },
+            { ""id"": ""q2"", ""name"": ""合成木板"", ""desc"": ""..."",
+              ""condition"": { ""type"": ""CraftItem"", ""itemId"": 1001, ""count"": 4 }, ""rewardExp"": 5 },
+            { ""id"": ""q3"", ""name"": ""活过一夜"", ""desc"": ""..."",
+              ""condition"": { ""type"": ""SurviveNight"" }, ""rewardExp"": 10 } ]";
 
         [SetUp]
         public void SetUp()
@@ -42,6 +56,11 @@ namespace MyWorld.Core.Tests.Persistence
         {
             foreach (GameObject go in _gos) Object.DestroyImmediate(go);
             _gos.Clear();
+            foreach (string path in _questFiles)
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            _questFiles.Clear();
             Directory.Delete(_saveRoot, true);
         }
 
@@ -158,6 +177,88 @@ namespace MyWorld.Core.Tests.Persistence
             Assert.That(ctxB.ItemDrops[0].SpawnTime, Is.EqualTo(UnityEngine.Time.time),
                 "掉落物宽限期应重计（SpawnTime=恢复时刻）");
             Assert.That(ctxB.Time.CurrentTick, Is.EqualTo(9000f), "时间接续");
+        }
+
+        /// <summary>把任务链 JSON 落成临时文件并返回路径（模拟 chapter1.json，TearDown 清理）。</summary>
+        private string WriteChapter()
+        {
+            string path = Path.GetTempFileName();
+            File.WriteAllText(path, QuestChainJson);
+            _questFiles.Add(path);
+            return path;
+        }
+
+        /// <summary>给树挂任务总线并绑定**全新加载**的任务链（挂 PlayerContext 同物体，与
+        /// WorldBootstrap 装配一致）。每次调用各自 LoadChapter——模拟「重启后从章节文件
+        /// 重建 QuestSystem」；总线 Bind 同时把静态 Instance 交接给自己（C2 约定）。</summary>
+        private QuestEventBus AttachQuestBus(PlayerContext ctx)
+        {
+            var bus = ctx.gameObject.AddComponent<QuestEventBus>();
+            bus.Bind(ctx, QuestSystem.LoadChapter(WriteChapter()));
+            return bus;
+        }
+
+        // ─── m6 C4：任务进度进 level.dat ─────────────────────────────────
+
+        [Test]
+        public void QuestRoundTrip_推进到q2累计2_存读后接续()
+        {
+            // 树 A：q1 完成解锁 q2，q2 累计 2/4 停在中途（CraftItem 累计口径，单笔 2 不够 4）
+            var (ctxA, playerA, svcA) = BuildTree();
+            svcA.Bind(new World(), ctxA, playerA, 42, _saveRoot);
+            QuestEventBus busA = AttachQuestBus(ctxA);
+            busA.Raise(new QuestEvent { Type = QuestEventType.ObtainItem, ItemId = 1000, Count = 1 });
+            Assert.That(busA.Quests.Current.Id, Is.EqualTo("q2"), "前置：q1 应已完成解锁 q2");
+            busA.Raise(new QuestEvent { Type = QuestEventType.CraftItem, ItemId = 1001, Count = 2 });
+            Assert.That(busA.Quests.CurrentProgress, Is.EqualTo(2), "前置：q2 进度应累计到 2（未达 4）");
+
+            svcA.WriteExecutor = a => a(); // 同步落盘，SaveNow 返回即可读档
+            svcA.SaveNow();
+
+            // 落盘侧：Quest 快照确实写进了 level.dat（收集不是只有内存里对）
+            LevelData saved = LevelDataCodec.Load(svcA.LevelDataPath);
+            Assert.That(saved.Quest, Is.Not.Null, "SaveNow 应把总线 QuestSystem 的状态收集进 level.dat");
+            Assert.That(saved.Quest.CurrentQuestId, Is.EqualTo("q2"), "当前任务 id 应入档");
+            Assert.That(saved.Quest.CompletedCount, Is.EqualTo(1), "完成计数应入档");
+            Assert.That(saved.Quest.Progress, Is.EqualTo(2), "q2 的累计进度分子应入档");
+
+            // 模拟重启：拆树 A（OnDestroy 顺带清静态 Instance）→ 全新树 B + 全新任务链
+            Object.DestroyImmediate(_gos[_gos.Count - 1]);
+            _gos.RemoveAt(_gos.Count - 1);
+
+            var (ctxB, playerB, svcB) = BuildTree();
+            svcB.Bind(new World(), ctxB, playerB, 42, _saveRoot);
+            QuestEventBus busB = AttachQuestBus(ctxB); // 先绑总线再 TryRestore（与 WorldBootstrap 顺序一致）
+            Assert.That(svcB.TryRestore(), Is.True, "同 seed 好档应恢复成功");
+
+            Assert.That(busB.Quests.Current.Id, Is.EqualTo("q2"), "任务进度应接续到 q2（不是从头 q1）");
+            Assert.That(busB.Quests.CompletedCount, Is.EqualTo(1), "完成计数应接续");
+            Assert.That(busB.Quests.CurrentProgress, Is.EqualTo(2), "q2 的累计进度分子应接续");
+
+            // 接续的进度是「真的」：再合成 2 个 → 恢复的 2 + 新事件 2 = 4 恰好完成 q2 → 切 q3
+            busB.Raise(new QuestEvent { Type = QuestEventType.CraftItem, ItemId = 1001, Count = 2 });
+            Assert.That(busB.Quests.Current.Id, Is.EqualTo("q3"),
+                "恢复后的累计 2 加新事件 2 应凑满 q2 的需求 4（进度接续而非重置）");
+        }
+
+        [Test]
+        public void LegacySave_无Quest字段_恢复任务链全新开始不炸()
+        {
+            // 手写 m4 时代的 level.dat：没有 Quest 字段（Newtonsoft 反序列化得 null）
+            var (ctx, player, svc) = BuildTree();
+            svc.Bind(new World(), ctx, player, 42, _saveRoot);
+            Directory.CreateDirectory(Path.GetDirectoryName(svc.LevelDataPath));
+            File.WriteAllText(svc.LevelDataPath, @"{ ""Seed"": 42, ""TimeTick"": 6000.0 }");
+            QuestEventBus bus = AttachQuestBus(ctx);
+
+            bool restored = false;
+            Assert.DoesNotThrow(() => restored = svc.TryRestore(), "旧档缺 Quest 字段不应抛异常");
+            Assert.That(restored, Is.True, "旧档其余字段合法，整档应照常恢复");
+            Assert.That(ctx.Time.CurrentTick, Is.EqualTo(6000f), "其余层照常接续（时间）");
+
+            Assert.That(bus.Quests.Current.Id, Is.EqualTo("q1"), "任务链应全新开始（停在 q1）");
+            Assert.That(bus.Quests.CompletedCount, Is.EqualTo(0), "完成计数保持 0");
+            Assert.That(bus.Quests.CurrentProgress, Is.EqualTo(0), "进度分子保持 0");
         }
     }
 }

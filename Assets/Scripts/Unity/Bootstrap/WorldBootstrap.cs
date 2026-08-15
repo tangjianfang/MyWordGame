@@ -208,19 +208,11 @@ namespace MyWorld.Unity.Bootstrap
                         ?? gameObject.AddComponent<MyWorld.Unity.UI.CraftingInventoryUi>();
             if (_playerContext.Recipes != null) invUi.Bind(_playerContext.Recipes);
 
-            // 24. 存档服务（m4 B4：30s 自动 + 退出保存；启动时恢复玩家/时间/熔炉/掉落物）。
-            // 顺序关键：必须等 PlayerContext / player / FurnaceSystem 全部建好之后再 TryRestore——
-            // 恢复的位置 Y 直接用存档值，streamer 半径内的区块会在 warmup 内生成，玩家不会在空气里下落。
-            var saveLoad = gameObject.AddComponent<MyWorld.Unity.Persistence.SaveLoadService>();
-            saveLoad.Bind(_world, _playerContext, _player, seed, saveRoot);
-            saveLoad.TryRestore();
-
-            // 25. 任务事件总线（m6 C2）：挂在 PlayerContext 同物体上，加载首章任务链。
+            // 24. 任务事件总线（m6 C2）：挂在 PlayerContext 同物体上，加载首章任务链。
             // 挖/拾/合/烧/夜五事件源经 QuestEventBus.Instance?.Raise 喂给它；
             // 链文件缺失 / 坏 JSON 只 warn，Quests 保持 null = 事件转发 no-op，游戏照常玩。
-            // 必须放在 TryRestore **之后**：Bind 里的跨夜观察基线取恢复后的时刻，
-            // 否则「存档正午 → 读档深夜」的第一帧会被误判成跨过日出，白发一次 SurviveNight。
-            // （任务进度的存档恢复是 C4 的活，届时从 level.dat 的 QuestState 恢复到 bus.Quests。）
+            // m6 C4 起必须放在 TryRestore **之前**：任务进度恢复在 TryRestore 内经
+            // QuestEventBus.Instance.Quests.Restore 落进 bus.Quests，总线还没绑就等于跳过。
             var questBus = gameObject.AddComponent<MyWorld.Unity.Gameplay.QuestEventBus>();
             try
             {
@@ -238,6 +230,17 @@ namespace MyWorld.Unity.Bootstrap
                 questBus.Bind(_playerContext, null);
                 Debug.LogWarning($"[WorldBootstrap] 加载 chapter1.json 失败：{ex.Message}。任务链不生效。");
             }
+
+            // 25. 存档服务（m4 B4：30s 自动 + 退出保存；启动时恢复玩家/时间/熔炉/掉落物/任务链）。
+            // 顺序关键：必须等 PlayerContext / player / FurnaceSystem / 任务总线全部建好之后再 TryRestore——
+            // 恢复的位置 Y 直接用存档值，streamer 半径内的区块会在 warmup 内生成，玩家不会在空气里下落。
+            var saveLoad = gameObject.AddComponent<MyWorld.Unity.Persistence.SaveLoadService>();
+            saveLoad.Bind(_world, _playerContext, _player, seed, saveRoot);
+            saveLoad.TryRestore();
+            // 总线先于 TryRestore 绑定（任务进度要恢复进 bus.Quests），Bind 里的跨夜观察基线
+            // 因此取到的是恢复**前**的时刻——这里显式重置一次，否则「存档正午 → 读档深夜」的
+            // 第一帧会被误判成跨过日出，白发一次 SurviveNight（ResetNightBaseline 正是为此公开）。
+            questBus.ResetNightBaseline();
 
             // 26. UI 截图验证（m6 B1）：--ui-shot 启动参数 → 挂自动截图组件。
             // 无参数时 ShouldCapture 读一次 args 即返回 false，零开销。

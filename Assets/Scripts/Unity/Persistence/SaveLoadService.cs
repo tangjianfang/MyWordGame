@@ -6,6 +6,7 @@ using MyWorld.Core.Items;
 using MyWorld.Core.Math;
 using MyWorld.Core.Persistence;
 using MyWorld.Core.Player;
+using MyWorld.Core.Quests;
 using MyWorld.Core.Voxel;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Player;
@@ -15,7 +16,7 @@ namespace MyWorld.Unity.Persistence
 {
     /// <summary>
     /// milestone-4 B2/B3 + m5 C3：存档服务。写：每 30s + 退出时收集全部游戏状态落盘。
-    /// 双层：<c>level.dat</c>（JSON，玩家/时间/熔炉/掉落物）+ <c>regions/*.mwr</c>（方块改动态）。
+    /// 双层：<c>level.dat</c>（JSON，玩家/时间/熔炉/掉落物/任务链进度[m6 C4]）+ <c>regions/*.mwr</c>（方块改动态）。
     /// 读：<see cref="TryRestore"/>（B3），由 Bootstrap 在世界就绪后调用。
     /// <para>m5 C3 起写盘移后台线程：主线程只做快照收集（纯数据冻结），JSON 序列化 +
     /// Deflate + 文件 IO 全部在 <see cref="WriteExecutor"/>（默认 Task.Run）执行，
@@ -219,6 +220,9 @@ namespace MyWorld.Unity.Persistence
                     ? SnapshotMappers.SnapshotFurnace(_context.FurnaceSystem)
                     : null,
                 Drops = SnapshotMappers.SnapshotDrops(_context.ItemDrops),
+                // m6 C4：任务进度从全局总线拿绑定的 QuestSystem（无链 / 无总线 → null，
+                // 恢复侧按 null 全新开始）。SaveState 只读纯数据，主线程冻结语义与其余层一致
+                Quest = QuestEventBus.Instance?.Quests?.SaveState(),
             };
         }
 
@@ -246,7 +250,7 @@ namespace MyWorld.Unity.Persistence
 
         // ─── 启动恢复（B3）──────────────────────────────────────────────
 
-        /// <summary>启动恢复。恢复顺序 = spec：时间 → 玩家 → 熔炉 → 掉落物。
+        /// <summary>启动恢复。恢复顺序 = spec：时间 → 玩家 → 熔炉 → 掉落物 → 任务链（m6 C4 追加）。
         /// <para>降级策略（读容忍）：level.dat 损坏/为空 → 重命名 <c>.corrupt</c> 留案、全新开始返回 false；
         /// seed 不符 → 防串档，整档忽略但**不**重命名；level.dat 不存在 → 全新开始。</para>
         /// 返回是否真的恢复了状态。</summary>
@@ -282,6 +286,7 @@ namespace MyWorld.Unity.Persistence
             ApplyPlayer(data.Player);
             ApplyFurnace(data.Furnace);
             ApplyDrops(data.Drops);
+            ApplyQuest(data.Quest);
             return true;
         }
 
@@ -339,6 +344,25 @@ namespace MyWorld.Unity.Persistence
             {
                 drop.SpawnTime = Time.time;
                 _context.ItemDrops.Add(drop);
+            }
+        }
+
+        /// <summary>任务链进度恢复（m6 C4）。QuestSystem 引用从全局 <see cref="QuestEventBus"/> 拿
+        /// （WorldBootstrap 装配顺序：总线先 Bind、本服务再 TryRestore）。
+        /// <paramref name="state"/> 为 null（旧档 / 无链）时 <see cref="QuestSystem.Restore"/> 自己跳过 =
+        /// 任务链全新开始；任务 id 不属于当前链（换章后读旧档）时 Restore 抛
+        /// <see cref="ArgumentException"/>——按层捕获只跳过本层，不影响其余层恢复（读容忍，同 spec 逐层降级）。</summary>
+        private void ApplyQuest(QuestState state)
+        {
+            QuestSystem quests = QuestEventBus.Instance?.Quests;
+            if (quests == null) return; // 无总线 / 无链：无从恢复，任务链保持全新
+            try
+            {
+                quests.Restore(state);
+            }
+            catch (ArgumentException ex)
+            {
+                Debug.LogWarning($"[SaveLoadService] 任务进度恢复失败，该层跳过（任务链全新开始）：{ex.Message}");
             }
         }
 
