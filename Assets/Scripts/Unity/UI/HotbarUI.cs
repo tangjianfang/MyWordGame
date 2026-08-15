@@ -19,6 +19,7 @@ namespace MyWorld.Unity.UI
 
         private Texture2D _slotBg;
         private Texture2D _countBorder;
+        private Texture2D _selectEdge;
         private Texture2D _countBg;
         private Texture2D _missingTex;
         private readonly System.Collections.Generic.Dictionary<string, Texture2D> _texCache =
@@ -31,10 +32,13 @@ namespace MyWorld.Unity.UI
         private void EnsureTextures()
         {
             if (_slotBg != null) return;
-            _slotBg = LoadTextureOrFallback("Assets/Art/UI/hotbar-slot.png",
-                new Color(0, 0, 0, 0.6f));
-            _countBorder = LoadTextureOrFallback("Assets/Art/UI/hotbar-slot-selected.png",
-                Color.white);
+            _slotBg = LoadUiTextureOrFallback("hotbar-slot.png", new Color(0, 0, 0, 0.6f));
+            // 选中框 fallback 必须全透明：绝不再用纯白 1×1（实心块会盖住图标，m6 修的 build 专属 bug），
+            // 贴图缺失时改由 OnGUI 里的 4 条亮黄边框兜底
+            _countBorder = LoadUiTextureOrFallback("hotbar-select.png", new Color(0, 0, 0, 0f));
+            _selectEdge = new Texture2D(1, 1);
+            _selectEdge.SetPixel(0, 0, new Color(245f / 255f, 215f / 255f, 110f / 255f, 1f));
+            _selectEdge.Apply();
             _countBg = new Texture2D(1, 1);
             _countBg.SetPixel(0, 0, new Color(0, 0, 0, 0.85f));
             _countBg.Apply();
@@ -44,12 +48,14 @@ namespace MyWorld.Unity.UI
         }
 
         /// <summary>
-        /// 从项目内相对路径加载 PNG，文件不存在时返回 1×1 占位纹理（保持形状大小合理，Point 采样）。
-        /// 应用运行时 <c>Application.dataPath</c> 指向 <c>Assets/</c>，所以用 <c>Path.Combine</c> 拼成绝对路径读盘。
+        /// 从 StreamingAssets/ui 加载 UI 贴图（m6：build 与编辑器同路径）。
+        /// 文件缺失返回 1×1 fallback——但选中框的 fallback 绝不能是实心白块
+        /// （会盖住图标，m6 修的实机 bug），改由绘制处画边框。
+        /// 公开静态：B3 帮助菜单等其它 UI 复用同一条加载路径。
         /// </summary>
-        private static Texture2D LoadTextureOrFallback(string projectRelativePath, Color fallbackColor)
+        public static Texture2D LoadUiTextureOrFallback(string fileName, Color fallbackColor)
         {
-            string full = System.IO.Path.Combine(Application.dataPath, "..", projectRelativePath);
+            string full = System.IO.Path.Combine(Application.streamingAssetsPath, "ui", fileName);
             if (System.IO.File.Exists(full))
             {
                 var tex = new Texture2D(2, 2);
@@ -116,6 +122,24 @@ namespace MyWorld.Unity.UI
                 var rect = new Rect(startX + i * (SlotSize + Padding), y, SlotSize, SlotSize);
                 GUI.DrawTexture(rect, _slotBg);
 
+                // 选中框画在图标之前：图标永远最上层，绝不能被选中框盖住（m6 修的实机 bug）
+                if (i == ctx.Inventory.SelectedHotbarIndex)
+                {
+                    if (_countBorder.width > 1)
+                    {
+                        GUI.DrawTexture(rect, _countBorder);
+                    }
+                    else
+                    {
+                        // 贴图缺失的 fallback：全透明 1×1 画不出边框，改画 4 条 4px 亮黄边条兜底
+                        const int w = 4;
+                        GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, w), _selectEdge);
+                        GUI.DrawTexture(new Rect(rect.x, rect.yMax - w, rect.width, w), _selectEdge);
+                        GUI.DrawTexture(new Rect(rect.x, rect.y, w, rect.height), _selectEdge);
+                        GUI.DrawTexture(new Rect(rect.xMax - w, rect.y, w, rect.height), _selectEdge);
+                    }
+                }
+
                 var stack = ctx.Inventory.GetSlot(i);
                 if (!stack.IsEmpty && ctx.Items != null && ctx.Items.TryGetByNumericId(stack.ItemId, out var def))
                 {
@@ -143,11 +167,6 @@ namespace MyWorld.Unity.UI
                         GUI.Label(new Rect(rect.x + SlotSize - 20, rect.y + SlotSize - 19, 18, 16),
                             stack.Count.ToString(), _countStyle);
                     }
-                }
-
-                if (i == ctx.Inventory.SelectedHotbarIndex)
-                {
-                    GUI.DrawTexture(rect, _countBorder);
                 }
             }
         }
