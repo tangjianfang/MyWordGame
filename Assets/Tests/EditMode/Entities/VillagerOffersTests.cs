@@ -104,5 +104,35 @@ namespace MyWorld.Core.Tests.Entities
                 .Or.Not.EqualTo(blacksmithFirst[0].SellItem),
                 "Blacksmith 与 Farmer 应至少有一条 offer 不同");
         }
+
+        [Test]
+        public void 煤获取链_农夫卖绿宝石_铁匠绿宝石换煤()
+        {
+            // m6 终审修 I3：煤无掉落、无配方，唯一来源是 Blacksmith 的
+            // 「2 绿宝石 → 8 煤」；而绿宝石此前全表无来源（Librarian 的 book 换绿宝石
+            // 也没有配方可用）——链断在第一环。农夫池必须保留一条「用可获得的物品
+            // （木板，可由原木合成）换绿宝石」的交易，首章任务 7 才真的可达。
+            bool farmerSellsEmerald = false;
+            foreach (var o in VillagerOffers.FarmerPool)
+            {
+                if (o.SellItem == "emerald" && o.BuyItem == "plank")
+                {
+                    farmerSellsEmerald = true;
+                }
+            }
+            Assert.That(farmerSellsEmerald, Is.True,
+                "农夫池应有「木板 → 绿宝石」交易（原方向 emerald→plank 会让绿宝石无来源，任务 7 的煤不可达）");
+
+            bool blacksmithSellsCoal = false;
+            foreach (var o in VillagerOffers.BlacksmithPool)
+            {
+                if (o.SellItem == "coal" && o.BuyItem == "emerald")
+                {
+                    blacksmithSellsCoal = true;
+                }
+            }
+            Assert.That(blacksmithSellsCoal, Is.True,
+                "铁匠池应有「绿宝石 → 煤」交易（煤的唯一来源，desc 指引指向这里）");
+        }
     }
 }

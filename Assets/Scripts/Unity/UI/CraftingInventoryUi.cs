@@ -31,11 +31,29 @@ namespace MyWorld.Unity.UI
 
         private void Update()
         {
-            if (Input.GetKeyDown(ToggleKey)) _open = !_open;
+            if (!Input.GetKeyDown(ToggleKey)) return;
+            // m6 终审修 C1（B3-③）：自己开着时按键 = 关自己；其它模态 UI 开着时不叠开
+            if (_open) SetOpen(false);
+            else if (!UiCursorGate.IsOpen) SetOpen(true);
         }
 
-        /// <summary>m6 B1：程序化开关背包（--ui-shot 截图管线用）。不影响 Update 里的按键开关。</summary>
-        public void SetOpen(bool open) => _open = open;
+        /// <summary>m6 B1：程序化开关背包（--ui-shot 截图管线用）。不影响 Update 里的按键开关。
+        /// <para>m6 终审修 C1：所有开关路径统一经 <see cref="UiCursorGate"/> 登记指针门——
+        /// 打开时解锁指针，否则实机上点击只命中屏幕中心，格子点不到。</para></summary>
+        public void SetOpen(bool open)
+        {
+            if (_open == open) return;
+            _open = open;
+            if (open) UiCursorGate.Open();
+            else UiCursorGate.Close();
+        }
+
+        private void OnDisable()
+        {
+            // m6 终审修 C1（B3-②）：禁用/销毁时若还开着必须把门位还回去，
+            // 否则计数泄漏会让指针永远解锁、挖/放永久抑制
+            if (_open) SetOpen(false);
+        }
 
         /// <summary>B6：显式绑定 RecipeDatabase；null = 解绑，回退到 PlayerContext。</summary>
         public void Bind(RecipeDatabase db)
@@ -148,7 +166,10 @@ namespace MyWorld.Unity.UI
             var ctx = PlayerContext.Instance;
             if (ctx == null) return;
 
-            float bgW = (CraftWidth + 1) * (SlotSize + 4) + 40;
+            // m6 终审修 I1：背景框宽取「合成区（含输出格）」与「主背包 9 列」的较大者——
+            // 旧值 (2+1)*(40+4)+40=172 只罩住 2×2 合成区，主背包 9 列（x=40..432）与
+            // hotbar 行大半画在框外（spec「背包所有格子在框内」）。9 列时 = 9*44+40 = 436
+            float bgW = Mathf.Max((CraftWidth + 1) * (SlotSize + 4) + 40, 9 * (SlotSize + 4) + 40);
             // m6 A2：240 装不下实际内容——27 格主背包占 y=180..312，hotbar 行再 +8 到 y=360，
             // 背景框必须 ≥380 才能把全部格子框住（此前底部两行画在框外）
             const float bgH = 380;

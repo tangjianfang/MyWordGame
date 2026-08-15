@@ -18,7 +18,26 @@ namespace MyWorld.Unity.UI
 
         private void Update()
         {
-            if (Input.GetKeyDown(ToggleKey)) _open = !_open;
+            if (!Input.GetKeyDown(ToggleKey)) return;
+            // m6 终审修 C1（B3-③）：自己开着时按键 = 关自己；其它模态 UI 开着时不叠开
+            if (_open) SetOpen(false);
+            else if (!UiCursorGate.IsOpen) SetOpen(true);
+        }
+
+        /// <summary>m6 终审修 C1：程序化开关口袋合成（测试用）。所有开关路径统一经
+        /// <see cref="UiCursorGate"/> 登记指针门。</summary>
+        public void SetOpen(bool open)
+        {
+            if (_open == open) return;
+            _open = open;
+            if (open) UiCursorGate.Open();
+            else UiCursorGate.Close();
+        }
+
+        private void OnDisable()
+        {
+            // m6 终审修 C1（B3-②）：禁用/销毁时若还开着必须把门位还回去，否则计数泄漏
+            if (_open) SetOpen(false);
         }
 
         /// <summary>m6 C2：测试用——直接写入口袋输入槽（EditMode 没法模拟鼠标点击）。</summary>

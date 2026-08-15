@@ -414,6 +414,58 @@ namespace MyWorld.Core.Tests.Quests
         }
 
         [Test]
+        public void 背包合成取产出_发CraftItem并精确消耗网格()
+        {
+            // m6 终审修 M2：workbench / pocket 的 TryTakeCraftOutput 各有专项，
+            // inventory 2×2 版此前零直接测试（代码同构）。链首放 CraftItem（链式解锁，
+            // ObtainItem 在前会挡住断言）。配方选 planks_to_sticks（inventory 档 2 板 → 4 棍）——
+            // pocket 档配方被 CraftingMatrix 限定只能在 1×1 网格匹配，2×2 用不了。
+            string path = WriteChapter(@"[
+                { ""id"": ""e2"", ""name"": ""合成木棍"", ""desc"": ""..."",
+                  ""condition"": { ""type"": ""CraftItem"", ""itemId"": 1002, ""count"": 4 }, ""rewardExp"": 5 } ]");
+            _bus.Bind(_ctx, QuestSystem.LoadChapter(path));
+            _ctx.Items = ItemDatabaseLoader.Load();
+            _ctx.Recipes = ItemDatabaseLoader.LoadRecipes(_ctx.Items); // planks_to_sticks：inventory 档
+            var ui = _host.AddComponent<CraftingInventoryUi>();
+            ui.SetGridForTest(new[] { 1001, 0, 0, 1001 }); // 对角 2 块木板（shapeless 只数总数）
+
+            Assert.That(ui.TryTakeCraftOutput(), Is.True, "背包 2×2：点输出格应拿到产出");
+            Assert.That(_ctx.Inventory.CountOf(1002), Is.EqualTo(4), "4 根木棍进包");
+            Assert.That(ui.GetCellForTest(0).IsEmpty, Is.True, "网格里的木板被配方精确消耗");
+            Assert.That(_ctx.Inventory.CountOf(1001), Is.EqualTo(0), "木板不复制");
+            Assert.That(_bus.Quests.CompletedCount, Is.EqualTo(1), "CraftItem(stick,4) 事件应完成任务");
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(5), "奖励经验 5 入账");
+        }
+
+        [Test]
+        public void 合成格放取工具_保留Metadata_耐久不重置()
+        {
+            // m6 终审修 M1：PutSelectedOne/TakeBackOne 旧实现 new ItemStack(id, 1) 丢 Metadata——
+            // 磨损的工具放格再取回 = 免费修复，是刷修复边角。WithCount(1) 必须把 Metadata 带上。
+            _ctx.Items = ItemDatabaseLoader.Load();
+            _ctx.Recipes = ItemDatabaseLoader.LoadRecipes(_ctx.Items);
+            var ui = _host.AddComponent<CraftingInventoryUi>();
+
+            // 木镐（1400）：满耐久 60 磨到 47
+            var worn = new ItemStack(1400, 1).WithMaxDurability(60);
+            for (int i = 0; i < 13; i++) worn = worn.DamageOnce();
+            Assert.That(worn.CurrentDurability, Is.EqualTo(47), "前置自检：磨损到 47");
+            _ctx.Inventory.SetSlot(0, worn);
+            _ctx.Inventory.SelectedHotbarIndex = 0;
+
+            Assert.That(ui.ClickGridCell(0), Is.True, "空格点击：放 1 个");
+            Assert.That(ui.GetCellForTest(0).Metadata, Is.EqualTo(worn.Metadata),
+                "放格时 Metadata 必须随物品走");
+
+            Assert.That(ui.ClickGridCell(0), Is.True, "再点同一格：取回 1 个");
+            var back = _ctx.Inventory.GetSlot(0);
+            Assert.That(back.ItemId, Is.EqualTo(1400), "取回的还是木镐");
+            Assert.That(back.Metadata, Is.EqualTo(worn.Metadata),
+                "取回时 Metadata 必须原样带回——丢失就是刷修复（放格取回耐久重置成全新）");
+            Assert.That(back.CurrentDurability, Is.EqualTo(47), "磨损 47 点必须保持，不能被重置");
+        }
+
+        [Test]
         public void 口袋合成_背包满时拿取失败_产出不丢_事件不发()
         {
             // 链首放 CraftItem（链式解锁，ObtainItem 在前会挡住断言）

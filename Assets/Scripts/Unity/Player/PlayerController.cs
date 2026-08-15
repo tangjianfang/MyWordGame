@@ -5,6 +5,7 @@ using MyWorld.Core.Quests;
 using MyWorld.Core.Voxel;
 using MyWorld.Unity.Audio;
 using MyWorld.Unity.Gameplay;
+using MyWorld.Unity.UI;
 using UnityEngine;
 
 namespace MyWorld.Unity.Player
@@ -391,11 +392,22 @@ namespace MyWorld.Unity.Player
             return root.childCount > 0 ? root.GetChild(0) : null;
         }
 
+        /// <summary>
+        /// m6 终审修 C1：<see cref="UpdateLook"/> 开头的模态 UI 门判定（纯函数，EditMode 行为断言用）。
+        /// 任一模态 UI 开着（背包/工作台/口袋/熔炉/交易/帮助）时返回 true——本帧跳过视角更新
+        /// 与「点击重锁」：指针必须停在解锁状态供 UI 点击，否则实机上点格子前都要先按一次 Esc，
+        /// 且 Esc 后的第一次点击又会被这里的重锁吃掉。
+        /// </summary>
+        public static bool ShouldSkipLook(bool modalUiOpen) => modalUiOpen;
+
         private void UpdateLook()
         {
+            if (ShouldSkipLook(UiCursorGate.IsOpen)) return;
+
             if (Cursor.lockState != CursorLockMode.Locked)
             {
                 // 未锁定指针时不转视角，否则在编辑器里点 UI 会把视角甩飞
+                // （模态 UI 开着的情形已在上面被指针门拦下，不会走到这里的重锁）
                 if (Input.GetMouseButtonDown(0))
                 {
                     Cursor.lockState = CursorLockMode.Locked;

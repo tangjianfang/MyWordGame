@@ -8,6 +8,7 @@ using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Audio;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Rendering;
+using MyWorld.Unity.UI;
 using UnityEngine;
 
 namespace MyWorld.Unity.Player
@@ -76,9 +77,11 @@ namespace MyWorld.Unity.Player
 
         private void Update()
         {
-            if (InputLocked)
+            // m6 终审修 C1：InputLocked（帮助菜单维护）之外，任一模态 UI 开着也抑制——
+            // 指针解锁后点击 UI 格子，绝不能顺手挖掉准星后面的方块
+            if (InputLocked || UiCursorGate.IsOpen)
             {
-                // 帮助菜单开着：不射线拾取、不响应挖/放，顺便藏掉选中框
+                // 有模态 UI 开着：不射线拾取、不响应挖/放，顺便藏掉选中框
                 _selection?.Hide();
                 return;
             }

@@ -97,6 +97,8 @@ namespace MyWorld.Core.Tests.UI
             PlayerPrefs.DeleteKey(HelpMenuUi.VolumeKey);
             PlayerPrefs.DeleteKey(HelpMenuUi.FovKey);
             BlockInteraction.InputLocked = false;
+            // m6 终审修 C1：Toggle/HandleKey 现在也登记 UiCursorGate，静态门跨夹具清一次
+            UiCursorGate.Reset();
         }
 
         [TearDown]
@@ -106,6 +108,7 @@ namespace MyWorld.Core.Tests.UI
             PlayerPrefs.DeleteKey(HelpMenuUi.VolumeKey);
             PlayerPrefs.DeleteKey(HelpMenuUi.FovKey);
             BlockInteraction.InputLocked = false;
+            UiCursorGate.Reset();
             // EditMode 下 DestroyImmediate 不回调 OnDestroy（无 [ExecuteAlways]），
             // Instance 会残留指向已销毁组件的引用——GetProgressSummary 的 Unity 判空兜底，但别污染别的夹具
             if (_questHost != null) Object.DestroyImmediate(_questHost);

@@ -248,7 +248,8 @@ namespace MyWorld.Unity.Bootstrap
                 gameObject.AddComponent<MyWorld.Unity.UiScreenshotOnArg>();
 
             // 27. 帮助菜单（m6 B3）：H 键开关「怎么玩 + 设置」两页。挂玩家身上：
-            // 打开时经 BlockInteraction.InputLocked 抑制挖/放，灵敏度乘数也从这里找到 PlayerController。
+            // 打开时经 BlockInteraction.InputLocked + UiCursorGate 指针门抑制挖/放并解锁指针，
+            // 灵敏度乘数也从这里找到 PlayerController。
             gameObject.AddComponent<MyWorld.Unity.UI.HelpMenuUi>();
 
             // 28. 任务目标卡（m6 C3）：右上角常驻「当前目标 + 进度」，完成瞬间变绿打勾 1s

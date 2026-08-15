@@ -25,11 +25,10 @@ namespace MyWorld.Unity.UI
 
         private void Update()
         {
-            if (Input.GetKeyDown(ToggleKey))
-            {
-                if (_activeVillager != null) CloseTrade();
-                else TryOpenTrade();
-            }
+            if (!Input.GetKeyDown(ToggleKey)) return;
+            // m6 终审修 C1（B3-③）：面板开着时按键 = 关面板；其它模态 UI 开着时不叠开
+            if (_activeVillager != null) CloseTrade();
+            else if (!UiCursorGate.IsOpen) TryOpenTrade();
         }
 
         private void TryOpenTrade()
@@ -53,13 +52,25 @@ namespace MyWorld.Unity.UI
                 float dSq = dx * dx + dy * dy + dz * dz;
                 if (dSq < closestSq) { closestSq = dSq; closest = v; }
             }
-            if (closest != null) _activeVillager = closest;
+            if (closest != null)
+            {
+                _activeVillager = closest;
+                // m6 终审修 C1：交易面板是模态 UI——「买」按钮靠点击，登记指针门解锁指针
+                UiCursorGate.Open();
+            }
         }
 
         private void CloseTrade()
         {
             _activeVillager = null;
             _selectedOffer = -1;
+            UiCursorGate.Close();
+        }
+
+        private void OnDisable()
+        {
+            // m6 终审修 C1（B3-②）：禁用/销毁时若面板还开着必须把门位还回去，否则计数泄漏
+            if (_activeVillager != null) CloseTrade();
         }
 
         private void OnGUI()

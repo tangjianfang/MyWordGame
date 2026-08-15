@@ -10,9 +10,13 @@ namespace MyWorld.Unity
     /// 但 <see cref="ScreenCapture.CaptureScreenshot"/> 抓完整 backbuffer，含 IMGUI。
     /// <para>
     /// standalone 跑 <c>MyWordGame.exe --ui-shot -screen-width 1280 -screen-height 720</c>：
-    /// 自动截 hotbar / 背包 / 工作台 三张 PNG 到 <c>Builds/screenshots/</c>，
+    /// 自动截 hotbar / 背包 / 工作台 / 帮助菜单 四张 PNG 到 <c>Builds/screenshots/</c>，
     /// 写 <c>ui.done</c> 哨兵文件后退出。由 <see cref="Bootstrap.WorldBootstrap"/> 在
     /// Awake 末尾按启动参数条件挂载——无参数时零开销（启动读一次 args 即返回）。
+    /// </para>
+    /// <para>
+    /// m6 终审修 M5：第 4 张 ui-help.png 让帮助菜单的视觉项（按键表双栏 + 进度区）
+    /// 也进机器侧验证，不再只靠父子实机。
     /// </para>
     /// </summary>
     public sealed class UiScreenshotOnArg : MonoBehaviour
@@ -69,14 +73,25 @@ namespace MyWorld.Unity
                     }
                     break;
 
-                case 3: // 等最后一张 PNG 落盘 → 写哨兵 → 退出
+                case 3: // 关工作台、开帮助菜单（m6 终审修 M5 第 4 张），截图
+                    if (_frames >= CaptureSettleFrames)
+                    {
+                        var wb = FindWorkbenchUi();
+                        if (wb != null) wb.SetOpen(false);
+                        FindHelpMenuUi()?.SetOpen(true);
+                        Capture("ui-help.png");
+                        NextPhase();
+                    }
+                    break;
+
+                case 4: // 等最后一张 PNG 落盘 → 写哨兵 → 退出
                     if (_frames >= CaptureSettleFrames
-                        && (File.Exists(OutputPath("ui-workbench.png")) || _frames >= FlushTimeoutFrames))
+                        && (File.Exists(OutputPath("ui-help.png")) || _frames >= FlushTimeoutFrames))
                     {
                         File.WriteAllText(OutputPath("ui.done"), string.Empty);
-                        Debug.Log("[UiScreenshotOnArg] 三张 UI 截图完成，退出。");
+                        Debug.Log("[UiScreenshotOnArg] 四张 UI 截图完成，退出。");
                         Application.Quit();
-                        _phase = 4;
+                        _phase = 5;
                     }
                     break;
             }
@@ -93,6 +108,9 @@ namespace MyWorld.Unity
 
         private static CraftingWorkbenchUi FindWorkbenchUi() =>
             FindObjectOfType<CraftingWorkbenchUi>();
+
+        private static HelpMenuUi FindHelpMenuUi() =>
+            FindObjectOfType<HelpMenuUi>();
 
         private void Capture(string fileName)
         {

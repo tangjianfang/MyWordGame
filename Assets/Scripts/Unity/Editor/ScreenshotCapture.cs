@@ -296,7 +296,15 @@ namespace MyWorld.Unity.EditorTools
             {
                 EditorSceneManager.OpenScene(DefaultScenePath, OpenSceneMode.Single);
             }
-            CaptureBiomes(Path.Combine("Builds", "screenshots"));
+            StashPlayerSave();
+            try
+            {
+                CaptureBiomes(Path.Combine("Builds", "screenshots"));
+            }
+            finally
+            {
+                RestorePlayerSave();
+            }
         }
 
         /// <summary>
@@ -314,7 +322,90 @@ namespace MyWorld.Unity.EditorTools
             {
                 EditorSceneManager.OpenScene(DefaultScenePath, OpenSceneMode.Single);
             }
-            CaptureAll(Path.Combine("Builds", "screenshots"));
+            StashPlayerSave();
+            try
+            {
+                CaptureAll(Path.Combine("Builds", "screenshots"));
+            }
+            finally
+            {
+                RestorePlayerSave();
+            }
+        }
+
+        // ─── 存档隔离（m6 终审修波） ────────────────────────────────────────────
+        //
+        // 编辑器截图与实机存档共用 persistentDataPath/worlds/<seed>：bootstrap 的
+        // TryRestore 会把玩家恢复到存档里的位置，overworld 镜头跟着跑偏——本机实测
+        // 孩子玩到 (141,57,-59) 的石头山后 overworld 整屏石头、Overworld_HasGrassGreen
+        // 断言红（m5/C6 时代绿只是因为当时存档位置恰好在草地）。截图期间把存档目录
+        // 改名隔离，拍完全新世界的出生点后原样恢复——截图与玩家存档彻底解耦。
+
+        /// <summary>被隔离的存档目录原始路径（null = 没有需要恢复的存档）。</summary>
+        private static string _stashedSaveDir;
+
+        /// <summary>
+        /// 把当前 seed 的存档目录改名隔离（截图期间 bootstrap 会当作全新世界从 seed 生成）。
+        /// 自愈：上次截图中途崩溃留下的 .stash 残骸先归位再隔离。
+        /// </summary>
+        private static void StashPlayerSave()
+        {
+            var bootstrap = UnityEngine.Object.FindObjectOfType<WorldBootstrap>();
+            if (bootstrap == null) return;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            long seed = 42;
+            var seedField = typeof(WorldBootstrap).GetField("seed", flags);
+            if (seedField != null) seed = (long)seedField.GetValue(bootstrap);
+
+            string dir = Path.Combine(Application.persistentDataPath, "worlds", seed.ToString());
+            string stash = dir + ".stash";
+            try
+            {
+                if (Directory.Exists(stash))
+                {
+                    // 上次崩溃残留：先把 stash 归位，再走正常隔离流程
+                    if (Directory.Exists(dir)) Directory.Delete(dir, true);
+                    Directory.Move(stash, dir);
+                }
+                if (Directory.Exists(dir))
+                {
+                    Directory.Move(dir, stash);
+                    _stashedSaveDir = dir;
+                    Debug.Log($"[ScreenshotCapture] 存档已隔离：{dir} -> {stash}");
+                }
+            }
+            catch (Exception ex)
+            {
+                // 隔离失败（文件被占用等）：不阻断截图，只是本次可能拍到存档里的世界
+                Debug.LogWarning($"[ScreenshotCapture] 存档隔离失败（照常截图，镜头可能跟着存档位置跑）：{ex.Message}");
+                _stashedSaveDir = null;
+            }
+        }
+
+        /// <summary>把隔离的存档目录放回原位；截图期间新生成的存档丢弃。</summary>
+        private static void RestorePlayerSave()
+        {
+            if (_stashedSaveDir == null) return;
+            string dir = _stashedSaveDir;
+            string stash = dir + ".stash";
+            _stashedSaveDir = null;
+            try
+            {
+                if (Directory.Exists(dir))
+                {
+                    // 截图进程自己写出的全新档——不是玩家的进度，直接丢
+                    Directory.Delete(dir, true);
+                }
+                if (Directory.Exists(stash))
+                {
+                    Directory.Move(stash, dir);
+                    Debug.Log($"[ScreenshotCapture] 存档已恢复：{stash} -> {dir}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ScreenshotCapture] 存档恢复失败！手动把 {stash} 改回 {dir} 即可：{ex.Message}");
+            }
         }
 
         /// <summary>

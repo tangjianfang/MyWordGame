@@ -77,13 +77,19 @@ namespace MyWorld.Unity.UI
             ApplySettings();
         }
 
-        /// <summary>开关菜单。同步维护 <see cref="Player.BlockInteraction.InputLocked"/>，
-        /// 打开时解锁鼠标指针让玩家能拉滑条。</summary>
-        public void Toggle()
+        /// <summary>开关菜单。同步维护 <see cref="Player.BlockInteraction.InputLocked"/> 抑制挖/放，
+        /// 并登记 <see cref="UiCursorGate"/> 指针门——打开时解锁鼠标指针让玩家能拉滑条、点 Tab。</summary>
+        public void Toggle() => SetOpen(!IsOpen);
+
+        /// <summary>m6 终审修 C1/M5：程序化开关（--ui-shot 第 4 张截图与 EditMode 测试用），
+        /// 与 H / Esc 按键开关走同一条路径，指针门与输入锁不会漏维护。</summary>
+        public void SetOpen(bool open)
         {
-            IsOpen = !IsOpen;
-            BlockInteraction.InputLocked = IsOpen;
-            if (IsOpen) Cursor.lockState = CursorLockMode.None;
+            if (IsOpen == open) return;
+            IsOpen = open;
+            BlockInteraction.InputLocked = open;
+            if (open) UiCursorGate.Open();
+            else UiCursorGate.Close();
         }
 
         /// <summary>按键路由。EditMode 测试手动调它验证 H / Esc 的行为契约，
@@ -92,6 +98,8 @@ namespace MyWorld.Unity.UI
         {
             if (key == KeyCode.H)
             {
+                // m6 终审修 C1（B3-③）：别的模态 UI 开着时不叠开帮助菜单（先按对应键关掉它）
+                if (!IsOpen && UiCursorGate.IsOpen) return;
                 Toggle();
             }
             else if (key == KeyCode.Escape && IsOpen)
@@ -99,6 +107,13 @@ namespace MyWorld.Unity.UI
                 // 只在打开时响应：菜单关着按 Esc 是「解锁鼠标」的既有语义（PlayerController），不要抢
                 Toggle();
             }
+        }
+
+        private void OnDisable()
+        {
+            // m6 终审修 C1（B3-②）：禁用/销毁时若还开着，把输入锁与指针门一并复位，
+            // 不留下「挖不动 + 指针永久解锁」的残局
+            if (IsOpen) SetOpen(false);
         }
 
         private void Update()
@@ -162,7 +177,13 @@ namespace MyWorld.Unity.UI
 
         // ─── 绘制 ─────────────────────────────────────────────────────────────
 
-        private static readonly string[] KeyTable =
+        // ─── 按键表（m6 终审修 I2：双栏） ────────────────────────────────────────
+        // 补 P 工作台 / B 口袋合成 / V 交易 / X 附魔 / F11 全屏五个真实按键（spec §3 明列，
+        // 任务 desc 自己就在指引「按 B 打开口袋合成」「按 P 开工作台」，表里查不到不行）。
+        // 16 行单栏 × 24px = 384px，加上四步玩法与任务进度区会顶破 660px 高的菜单——
+        // 改左右双栏各 8 行：左栏基础操作、右栏菜单开关。
+
+        private static readonly string[] KeyTableLeft =
         {
             "W / A / S / D", "移动",
             "空格", "跳跃",
@@ -172,7 +193,16 @@ namespace MyWorld.Unity.UI
             "鼠标右键", "放方块 / 使用物品",
             "数字键 1-9", "选择热键栏物品",
             "鼠标滚轮", "切换热键栏",
+        };
+
+        private static readonly string[] KeyTableRight =
+        {
             "E", "打开 / 关闭背包（合成）",
+            "P", "打开 / 关闭工作台",
+            "B", "打开 / 关闭口袋合成",
+            "V", "与村民交易",
+            "X", "打开 / 关闭附魔台",
+            "F11", "全屏开关",
             "H", "打开 / 关闭帮助",
             "Esc", "关闭菜单 / 解锁鼠标",
         };
@@ -208,20 +238,27 @@ namespace MyWorld.Unity.UI
         {
             float y = bg.y + 78;
 
-            // 按键表：11 行，左列按键名 180px、右列说明
-            for (int i = 0; i < KeyTable.Length; i += 2)
+            // 按键表双栏（m6 终审修 I2）：左栏基础操作 8 行、右栏菜单开关 8 行。
+            // 列宽：键名 140 / 说明 190（默认字体 13px，最长说明 10 个汉字 ≈ 130px，不溢出）
+            var white = ItemSlotDrawer.WhiteStyle();
+            GUI.Label(new Rect(bg.x + 24, y, 200, 22), "基础操作", white);
+            GUI.Label(new Rect(bg.x + 372, y, 200, 22), "菜单开关", white);
+            y += 26;
+            for (int i = 0; i < KeyTableLeft.Length; i += 2)
             {
-                GUI.Label(new Rect(bg.x + 24, y, 180, 22), KeyTable[i], ItemSlotDrawer.WhiteStyle());
-                GUI.Label(new Rect(bg.x + 210, y, 460, 22), KeyTable[i + 1], ItemSlotDrawer.WhiteStyle());
+                GUI.Label(new Rect(bg.x + 24, y, 140, 22), KeyTableLeft[i], white);
+                GUI.Label(new Rect(bg.x + 168, y, 190, 22), KeyTableLeft[i + 1], white);
+                GUI.Label(new Rect(bg.x + 372, y, 140, 22), KeyTableRight[i], white);
+                GUI.Label(new Rect(bg.x + 516, y, 180, 22), KeyTableRight[i + 1], white);
                 y += 24;
             }
 
             y += 10;
-            GUI.Label(new Rect(bg.x + 24, y, 400, 22), "怎么开始：四步上手", ItemSlotDrawer.WhiteStyle());
+            GUI.Label(new Rect(bg.x + 24, y, 400, 22), "怎么开始：四步上手", white);
             y += 26;
             for (int i = 0; i < Steps.Length; i++)
             {
-                GUI.Label(new Rect(bg.x + 24, y, 660, 22), Steps[i], ItemSlotDrawer.WhiteStyle());
+                GUI.Label(new Rect(bg.x + 24, y, 660, 22), Steps[i], white);
                 y += 24;
             }
 

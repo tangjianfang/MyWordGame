@@ -25,24 +25,28 @@ namespace MyWorld.Unity.UI
                 && r.Contains(Event.current.mousePosition);
         }
 
-        /// <summary>空格点击：从选中 hotbar 格取 1 个放进 <paramref name="cell"/>。手上数量 -1。</summary>
+        /// <summary>空格点击：从选中 hotbar 格取 1 个放进 <paramref name="cell"/>。手上数量 -1。
+        /// <para>m6 终审修 M1：用 <see cref="ItemStack.WithCount"/> 而不是
+        /// <c>new ItemStack(id, 1)</c>——Metadata（耐久/附魔）必须随物品走，
+        /// 否则工具放格再取回 = 耐久重置，是刷修复的边角。</para></summary>
         public static bool PutSelectedOne(PlayerInventory inv, ref ItemStack cell)
         {
             if (inv == null || !cell.IsEmpty) return false;
             var sel = inv.GetSelected();
             if (sel.IsEmpty) return false;
 
-            cell = new ItemStack(sel.ItemId, 1);
+            cell = sel.WithCount(1);
             inv.TryRemoveOne(inv.SelectedHotbarIndex);
             return true;
         }
 
-        /// <summary>有物品的格点击：取回 1 个进背包。背包零空间时失败，物品留在格子里。</summary>
+        /// <summary>有物品的格点击：取回 1 个进背包。背包零空间时失败，物品留在格子里。
+        /// <para>m6 终审修 M1：取回同样用 <see cref="ItemStack.WithCount"/> 保留 Metadata。</para></summary>
         public static bool TakeBackOne(PlayerInventory inv, ref ItemStack cell)
         {
             if (inv == null || cell.IsEmpty) return false;
 
-            inv.TryAdd(new ItemStack(cell.ItemId, 1), out int leftover);
+            inv.TryAdd(cell.WithCount(1), out int leftover);
             if (leftover > 0) return false; // 单个物品要么进包要么没有：leftover>0 = 一格都塞不下
 
             cell = cell.Count > 1 ? cell.WithCount(cell.Count - 1) : ItemStack.Empty;

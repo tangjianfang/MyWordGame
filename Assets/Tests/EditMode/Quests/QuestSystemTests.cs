@@ -328,6 +328,35 @@ namespace MyWorld.Core.Tests.Quests
             Assert.That(total, Is.EqualTo(8), "首章应有 8 个任务");
         }
 
+        /// <summary>
+        /// m6 终审修 I3：任务 7（炼铁锭）的 desc 必须带煤的获取指引——
+        /// 煤无掉落、无配方，唯一来源是村民交易；desc 不指引的话孩子无从知道煤从哪来。
+        /// </summary>
+        [Test]
+        public void Chapter1File_Task7Desc_ContainsCoalGuidance()
+        {
+            var sys = QuestSystem.LoadChapter(Chapter1Path());
+
+            Quest task7 = null;
+            Quest current = sys.Current;
+            while (current != null)
+            {
+                if (current.Id == "ch1_07_smelt_iron")
+                {
+                    task7 = current;
+                    break;
+                }
+                Assert.That(sys.TryComplete(MakeSatisfyingEvent(current.Condition)), Is.True,
+                    "前置推进：链式解锁走到任务 7");
+                current = sys.Current;
+            }
+
+            Assert.That(task7, Is.Not.Null, "chapter1 里应存在 ch1_07_smelt_iron");
+            Assert.That(task7.Desc, Does.Contain("铁匠"), "desc 要指引煤找铁匠村民换");
+            Assert.That(task7.Desc, Does.Contain("绿宝石"), "desc 要说明用什么换煤（绿宝石）");
+            Assert.That(task7.Desc, Does.Contain("农夫"), "desc 要说明绿宝石找农夫换（木板换绿宝石）");
+        }
+
         /// <summary>按条件反推一个必然满足的 QuestEvent（SurviveNight 直发，物品条件给足数量）。</summary>
         private static QuestEvent MakeSatisfyingEvent(QuestCondition condition)
         {

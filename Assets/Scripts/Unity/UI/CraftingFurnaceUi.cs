@@ -27,12 +27,29 @@ namespace MyWorld.Unity.UI
 
         public void Bind(FurnaceSystem f) { _furnace = f; }
 
-        /// <summary>程序化开关（B1 截图管线将来加 ui-furnace.png 用，也供测试）。</summary>
-        public void SetOpen(bool open) { _open = open; }
+        /// <summary>程序化开关（B1 截图管线将来加 ui-furnace.png 用，也供测试）。
+        /// <para>m6 终审修 C1：所有开关路径统一经 <see cref="UiCursorGate"/> 登记指针门——
+        /// 熔炉投料/取料靠点击格子，指针不解锁实机不可用。</para></summary>
+        public void SetOpen(bool open)
+        {
+            if (_open == open) return;
+            _open = open;
+            if (open) UiCursorGate.Open();
+            else UiCursorGate.Close();
+        }
 
         private void Update()
         {
-            if (Input.GetKeyDown(ToggleKey)) _open = !_open;
+            if (!Input.GetKeyDown(ToggleKey)) return;
+            // m6 终审修 C1（B3-③）：自己开着时按键 = 关自己；其它模态 UI 开着时不叠开
+            if (_open) SetOpen(false);
+            else if (!UiCursorGate.IsOpen) SetOpen(true);
+        }
+
+        private void OnDisable()
+        {
+            // m6 终审修 C1（B3-②）：禁用/销毁时若还开着必须把门位还回去，否则计数泄漏
+            if (_open) SetOpen(false);
         }
 
         public void TickForTest()

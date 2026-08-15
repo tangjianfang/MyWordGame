@@ -44,7 +44,7 @@
   {
     "id": "ch1_07_smelt_iron",
     "name": "炼一根铁锭",
-    "desc": "按 F 打开熔炉，投入圆石和煤，烧出铁锭后点输出格取出",
+    "desc": "按 F 开熔炉，圆石加煤烧出铁锭，点输出取出。煤找铁匠村民换（2 绿宝石→8 煤），绿宝石找农夫换（8 木板→2）",
     "condition": { "type": "SmeltItem", "itemId": 1004, "count": 1 },
     "rewardExp": 20
   },

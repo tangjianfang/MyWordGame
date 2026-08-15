@@ -117,12 +117,12 @@ if [[ -f Builds/Windows/MyWordGame.exe ]]; then
         sleep 1
     done
     kill "$UI_SHOT_PID" 2>/dev/null || true
-    for f in ui-hotbar.png ui-inventory.png ui-workbench.png; do
+    for f in ui-hotbar.png ui-inventory.png ui-workbench.png ui-help.png; do
         if [[ ! -f "Builds/screenshots/$f" ]]; then
             fail "UI 截图缺失: $f（看 $LOG_UI_SHOT）"
         fi
     done
-    ok "3 张 UI 截图落地"
+    ok "4 张 UI 截图落地"
 else
     step "跳过 UI 截图（无 build 产物——完整流水线 build-and-run.sh 里生效）"
 fi

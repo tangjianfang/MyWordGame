@@ -28,10 +28,20 @@ namespace MyWorld.Core.Tests.Visual
 
         /// <summary>
         /// 背包背景框尺寸（CraftingInventoryUi.OnGUI 的换算结果：
-        /// 宽 = (2+1)*(40+4)+40 = 172，高 380 为 m6 A2 写死的常量）。
+        /// 宽 = max((2+1)*(40+4)+40, 9*(40+4)+40) = 436——m6 终审修 I1 起按主背包 9 列
+        /// 实际跨度取宽（旧值 172 只罩住 2×2 合成区，9 列主背包大半画在框外），
+        /// 高 380 为 m6 A2 写死的常量。
         /// </summary>
-        private const int InventoryBoxW = 172;
+        private const int InventoryBoxW = 436;
         private const int InventoryBoxH = 380;
+
+        /// <summary>旧背景框右缘（172）：修复前 x≥176 的主背包列画在框外，
+        /// 是这条缺陷的回归哨兵采样带起点。</summary>
+        private const int LegacyBoxRightEdge = 176;
+
+        /// <summary>帮助菜单面板尺寸（HelpMenuUi.OnGUI 写死的 720×660，居中）。</summary>
+        private const int HelpMenuW = 720;
+        private const int HelpMenuH = 660;
 
         /// <summary>截图目录（与 ScreenshotCapture / UiScreenshotOnArg 同一处 Builds/screenshots）。</summary>
         private static readonly string ScreenshotDir =
@@ -116,6 +126,8 @@ namespace MyWorld.Core.Tests.Visual
                 // 背包框固定在屏幕左上 (20,20) 起，坐标与分辨率无关。
                 // 实测基线（B2）：开背包时区域平均亮度 ~69、暗像素占比 ~99%；
                 // 同区域纯游戏画面（ui-hotbar）平均亮度 ~130。取中间留 buffer。
+                // m6 终审修 I1：采样区随框宽扩到整个 436px——主背包 9 列（x=40..432）
+                // 全部落在框内，这条断言从「只查合成区」升级成「全格在框内」的回归哨兵
                 int lumSum = 0, dark = 0, total = 0;
                 for (int x = 24; x < InventoryBoxW - 4; x += 4)
                 for (int y = 24; y < InventoryBoxH - 4; y += 4)
@@ -131,6 +143,62 @@ namespace MyWorld.Core.Tests.Visual
                     $"背包框区域平均亮度 {avg:F1}（>=110）说明半透明深色背景框没画上（纯游戏画面）");
                 Assert.That(darkFrac, Is.GreaterThan(0.8f),
                     $"背包框区域暗像素占比 {darkFrac * 100f:F1}%（<80%），背景框叠加可疑");
+
+                // 回归哨兵（m6 终审修 I1）：x∈[176,432) 是旧 172 宽框外的主背包列带——
+                // 修复前这里是纯游戏画面（B2 实测列均亮度 ~101，接缝在 x≈192 处阶跃），
+                // 修复后必须同样是深色框叠加。谁的 bgW 公式再只按合成区算，这条立刻红。
+                int bandLum = 0, bandDark = 0, bandTotal = 0;
+                for (int x = LegacyBoxRightEdge; x < InventoryBoxW - 4; x += 4)
+                for (int y = 180; y < InventoryBoxH - 8; y += 4)
+                {
+                    int lum = Luminance(PixelAtScreenY(tex, x, y));
+                    bandLum += lum;
+                    if (lum < 128) bandDark++;
+                    bandTotal++;
+                }
+                float bandAvg = (float)bandLum / bandTotal;
+                float bandDarkFrac = (float)bandDark / bandTotal;
+                Assert.That(bandAvg, Is.LessThan(110f),
+                    $"旧框外列带（主背包第 3-9 列）平均亮度 {bandAvg:F1}（>=110）——" +
+                    "背景框宽度疑似回退到只罩合成区的 172（m6 终审修 I1 的回归）");
+                Assert.That(bandDarkFrac, Is.GreaterThan(0.8f),
+                    $"旧框外列带暗像素占比 {bandDarkFrac * 100f:F1}%（<80%），主背包列没有框住");
+            }
+            finally { Object.DestroyImmediate(tex); }
+        }
+
+        [Test]
+        public void Help_MenuPanel_HasDarkOverlay()
+        {
+            var tex = LoadOrNull("ui-help.png");
+            if (tex == null) Assert.Ignore("无 --ui-shot 产物，本断言只在完整流水线生效");
+            try
+            {
+                Assert.That(tex.width, Is.GreaterThan(HelpMenuW),
+                    $"截图宽度 {tex.width} 装不下帮助菜单，产物异常");
+                Assert.That(tex.height, Is.GreaterThan(HelpMenuH),
+                    $"截图高度 {tex.height} 装不下帮助菜单，产物异常");
+
+                // 菜单居中 720×660。采样 Tab 以下的内区（按键表双栏 + 四步玩法 + 任务进度区），
+                // 阈值与背包同款：面板叠加后平均亮度 <110、暗像素 >80%；
+                // 纯游戏画面该区域 ~130（B2 基线）。文字/格子边框像素占比小，不破坏阈值。
+                int left = (tex.width - HelpMenuW) / 2;
+                int top = (tex.height - HelpMenuH) / 2;
+                int lumSum = 0, dark = 0, total = 0;
+                for (int x = left + 24; x < left + HelpMenuW - 24; x += 4)
+                for (int y = top + 78; y < top + HelpMenuH - 40; y += 4)
+                {
+                    int lum = Luminance(PixelAtScreenY(tex, x, y));
+                    lumSum += lum;
+                    if (lum < 128) dark++;
+                    total++;
+                }
+                float avg = (float)lumSum / total;
+                float darkFrac = (float)dark / total;
+                Assert.That(avg, Is.LessThan(110f),
+                    $"帮助菜单内区平均亮度 {avg:F1}（>=110）说明深色面板没画上（纯游戏画面）");
+                Assert.That(darkFrac, Is.GreaterThan(0.8f),
+                    $"帮助菜单内区暗像素占比 {darkFrac * 100f:F1}%（<80%），面板叠加可疑");
             }
             finally { Object.DestroyImmediate(tex); }
         }

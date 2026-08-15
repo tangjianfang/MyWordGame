@@ -9,14 +9,22 @@ namespace MyWorld.Core.Entities
     /// </summary>
     public static class VillagerOffers
     {
-        /// <summary>Farmer 模板池：农产品 + 食物。</summary>
+        /// <summary>Farmer 模板池：农产品 + 食物。
+        /// <para>
+        /// m6 终审修 I3：原 <c>(emerald 2 → plank 8)</c> 是「付绿宝石买木板」，方向反了——
+        /// 全表没有任何一条「用可获得物品换到绿宝石」的交易（Librarian 的 book 也没有配方来源），
+        /// 绿宝石在实机上无来源，首章任务 7 的煤（只能向 Blacksmith 买）随之不可达。
+        /// 翻成 <c>(8 木板 → 2 绿宝石)</c>：木板可由原木合成，链真正可达；
+        /// 木板本身有 log_to_planks 配方，删掉「卖木板」不损失任何获取途径。
+        /// </para>
+        /// </summary>
         public static readonly TradeOffer[] FarmerPool = new[]
         {
             new TradeOffer("emerald", 1, "beet", 4, 0, 8),
             new TradeOffer("emerald", 1, "mung_bean", 6, 0, 12),
             new TradeOffer("emerald", 3, "mung_bean_soup", 1, 0, 4),
             new TradeOffer("emerald", 4, "bread", 1, 0, 16),
-            new TradeOffer("emerald", 2, "plank", 8, 0, 16),
+            new TradeOffer("plank", 8, "emerald", 2, 0, 16),
             new TradeOffer("emerald", 1, "wool", 2, 0, 8),
         };
 
