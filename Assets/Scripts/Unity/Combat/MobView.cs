@@ -1,4 +1,5 @@
 using MyWorld.Core.Entities;
+using MyWorld.Unity.Rendering;
 using UnityEngine;
 
 namespace MyWorld.Unity.Combat
@@ -34,7 +35,8 @@ namespace MyWorld.Unity.Combat
         /// <summary>
         /// 按 <paramref name="kind"/> 切换视觉。
         /// 旧 Passive/Hostile/Neutral：单 cube（host 自带 Renderer），按 mobTypeId 染色，行为不变。
-        /// Phase D Pig/Cow/Chicken/Zombie：清旧子物体 → 创建 Body + Head 两个 cube，按 kind 染色。
+        /// Phase D Pig/Cow/Chicken/Zombie/Villager：清旧子物体 → 创建 Body + Head 两个 cube，
+        /// 按 kind 染色（色值走 UrpMaterialFactory 的 m5 spec 表）。
         /// </summary>
         public void Setup(MobKind kind)
         {
@@ -42,46 +44,46 @@ namespace MyWorld.Unity.Combat
             switch (kind)
             {
                 case MobKind.Pig:
-                    BaseColor = new Color(0.9f, 0.7f, 0.7f);
+                    BaseColor = UrpMaterialFactory.MobBodyColor(MobKind.Pig);
                     BuildBodyHead(
                         bodyScale: new Vector3(0.9f, 0.6f, 1.2f),
                         headOffset: new Vector3(0f, 0.5f, 0.4f),
                         headScale: new Vector3(0.5f, 0.5f, 0.5f),
-                        bodyColor: BaseColor, headColor: BaseColor);
+                        bodyColor: BaseColor, headColor: UrpMaterialFactory.MobHeadColor(MobKind.Pig));
                     break;
                 case MobKind.Cow:
-                    BaseColor = new Color(0.3f, 0.2f, 0.1f);
+                    BaseColor = UrpMaterialFactory.MobBodyColor(MobKind.Cow);
                     BuildBodyHead(
                         bodyScale: new Vector3(1.0f, 0.8f, 1.4f),
                         headOffset: new Vector3(0f, 0.7f, 0.6f),
                         headScale: new Vector3(0.6f, 0.6f, 0.6f),
-                        bodyColor: BaseColor, headColor: BaseColor);
+                        bodyColor: BaseColor, headColor: UrpMaterialFactory.MobHeadColor(MobKind.Cow));
                     break;
                 case MobKind.Chicken:
-                    BaseColor = new Color(1f, 1f, 0.9f);
+                    BaseColor = UrpMaterialFactory.MobBodyColor(MobKind.Chicken);
                     BuildBodyHead(
                         bodyScale: new Vector3(0.4f, 0.4f, 0.5f),
                         headOffset: new Vector3(0f, 0.4f, 0.3f),
                         headScale: new Vector3(0.3f, 0.3f, 0.3f),
-                        bodyColor: BaseColor, headColor: new Color(1f, 0.9f, 0.1f));
+                        bodyColor: BaseColor, headColor: UrpMaterialFactory.MobHeadColor(MobKind.Chicken));
                     break;
                 case MobKind.Zombie:
-                    BaseColor = new Color(0.4f, 0.6f, 0.4f);
+                    BaseColor = UrpMaterialFactory.MobBodyColor(MobKind.Zombie);
                     BuildBodyHead(
                         bodyScale: new Vector3(0.6f, 1.8f, 0.4f),
                         headOffset: new Vector3(0f, 1.0f, 0f),
                         headScale: new Vector3(0.5f, 0.5f, 0.5f),
-                        bodyColor: BaseColor, headColor: BaseColor);
+                        bodyColor: BaseColor, headColor: UrpMaterialFactory.MobHeadColor(MobKind.Zombie));
                     break;
                 case MobKind.Villager:
-                    // Task D6：棕色袍（褐色头巾 + 棕色袍）。
-                    // 体型与 Zombie 同（人形），但颜色明显区分：body 棕色 0.55/0.4/0.2，head 头巾 0.4/0.3/0.15。
-                    BaseColor = new Color(0.55f, 0.4f, 0.2f);
+                    // Task D6：棕色袍（褐色头巾 + 棕色袍），色值改走 m5 spec 表（UrpMaterialFactory）。
+                    // 体型与 Zombie 同（人形），颜色明显区分：body 棕袍、head 头巾偏肤色。
+                    BaseColor = UrpMaterialFactory.MobBodyColor(MobKind.Villager);
                     BuildBodyHead(
                         bodyScale: new Vector3(0.6f, 1.8f, 0.4f),
                         headOffset: new Vector3(0f, 1.0f, 0f),
                         headScale: new Vector3(0.5f, 0.5f, 0.5f),
-                        bodyColor: BaseColor, headColor: new Color(0.4f, 0.3f, 0.15f));
+                        bodyColor: BaseColor, headColor: UrpMaterialFactory.MobHeadColor(MobKind.Villager));
                     break;
                 default:
                     // Passive/Hostile/Neutral：单 cube 既有路径。
@@ -106,6 +108,9 @@ namespace MyWorld.Unity.Combat
         /// 先清掉旧子物体（重设 kind 时不残留 Pig Body + Cow Head）。
         /// 移除 BoxCollider 避免与 ChunkStreamer 玩家位置冲突；用 DestroyImmediate
         /// 保证 EditMode 测试里能被立刻回收。
+        /// 染色双保险（m5 A3 修粉红）：sharedMaterial 换成 URP/Lit（CreatePrimitive 的
+        /// Default-Material 是 Standard，URP 下渲染洋红），MPB 继续承担实例色
+        /// （LateUpdate 的受伤红闪/苦力怕白闪依赖它，_BaseColor 对 URP/Lit 有效）。
         /// </summary>
         private void BuildBodyHead(Vector3 bodyScale, Vector3 headOffset, Vector3 headScale,
             Color bodyColor, Color headColor)
@@ -140,6 +145,8 @@ namespace MyWorld.Unity.Combat
         private static void ApplyColorToRenderer(Renderer r, Color c)
         {
             if (r == null) return;
+            // 先换 URP/Lit 材质（同色缓存复用），再叠 MPB 实例色——见 BuildBodyHead 注释
+            r.sharedMaterial = UrpMaterialFactory.CreateLit(c);
             var block = new MaterialPropertyBlock();
             r.GetPropertyBlock(block);
             block.SetColor(ColorId, c);

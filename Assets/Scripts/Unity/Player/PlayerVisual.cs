@@ -1,21 +1,23 @@
+using MyWorld.Unity.Rendering;
 using UnityEngine;
 
 namespace MyWorld.Unity.Player
 {
     /// <summary>
     /// 第三人称可见的玩家身体 + 走路动画。
-    /// 纯 Primitive 拼装，MaterialPropertyBlock 染色。第一人称视角下也保留物体，
-    /// 由 CameraThirdPerson 控制相机位置规避自遮挡。
+    /// 纯 Primitive 拼装，材质经 UrpMaterialFactory 取 URP/Lit——裸 CreatePrimitive 的
+    /// Default-Material 是 Standard shader，URP 下渲染洋红（m5 A3 修粉红）。
+    /// 第一人称视角下也保留物体，由 CameraThirdPerson 控制相机位置规避自遮挡。
     /// </summary>
     [RequireComponent(typeof(PlayerController))]
     public sealed class PlayerVisual : MonoBehaviour
     {
-        // 调色板——与 art/requests/player/skin.md 一致
-        private static readonly Color SkinColor   = new Color(0xC9/255f, 0x8F/255f, 0x68/255f);
-        private static readonly Color JacketColor = new Color(0x3E/255f, 0x7A/255f, 0x9C/255f);
-        private static readonly Color PantsColor  = new Color(0x4A/255f, 0x4A/255f, 0x5E/255f);
-        private static readonly Color BootColor   = new Color(0x5A/255f, 0x46/255f, 0x32/255f);
-        private static readonly Color HairColor   = new Color(0x3B/255f, 0x2A/255f, 0x1C/255f);
+        // 调色板（m5 A3 spec 表，与 art/requests/player/skin.md 一致）：
+        // 10 个 cube 只用 4 色 → 经工厂缓存只产生 4 个材质实例，同色复用不泄漏
+        private static readonly Color SkinColor = FromHex("#E8B88A");   // 头/前臂（手）
+        private static readonly Color TopColor  = FromHex("#3A6EA5");   // 躯干/上臂
+        private static readonly Color LegColor  = FromHex("#2C3E66");   // 大腿
+        private static readonly Color ShoeColor = FromHex("#5C4033");   // 小腿（鞋）
 
         // 这四个字段现在指向每条 limb 的 Upper 段（肩→肘 / 髋→膝），原来指向整段。
         // 重构后每条 limb 是 Upper + Lower 两个 cube：撤销时只 hold Upper 引用，
@@ -31,22 +33,22 @@ namespace MyWorld.Unity.Player
         {
             // 注意：先 SetParent 再设 localPosition/localScale——顺序反了会导致
             // localPosition 在 SetParent 前被解释成世界坐标，reparent 后偏移。
-            _torso = MakePart("Torso", transform, new Vector3(0.6f, 0.7f, 0.3f), new Vector3(0f, 0.85f, 0f), JacketColor);
+            _torso = MakePart("Torso", transform, new Vector3(0.6f, 0.7f, 0.3f), new Vector3(0f, 0.85f, 0f), TopColor);
             _head  = MakePart("Head",  transform, new Vector3(0.5f, 0.5f, 0.5f), new Vector3(0f, 1.65f, 0f), SkinColor);
 
-            // 手臂：上臂 jacket（肩→肘） + 下臂 skin（肘→腕）
+            // 手臂：上臂上衣（肩→肘） + 下臂皮肤（肘→腕）
             // "hip" 参数其实是 elbow 位置：Upper 段中心在 hip.y + size.y/2，
             // Lower 段中心在 hip.y - size.y/2，两段各占 limb 总高的一半。
             CreateLimb("ArmL", new Vector3(-0.4f, 1.15f, 0f), new Vector3(0.2f, 0.35f, 0.2f),
-                JacketColor, SkinColor, out _armL);
+                TopColor, SkinColor, out _armL);
             CreateLimb("ArmR", new Vector3(0.4f, 1.15f, 0f), new Vector3(0.2f, 0.35f, 0.2f),
-                JacketColor, SkinColor, out _armR);
+                TopColor, SkinColor, out _armR);
 
-            // 腿：大腿 pants（膝→髋） + 小腿 boots（膝→踝），joint 位置在 y=0.42
+            // 腿：大腿裤（膝→髋） + 小腿鞋（膝→踝），joint 位置在 y=0.42
             CreateLimb("LegL", new Vector3(-0.15f, 0.42f, 0f), new Vector3(0.25f, 0.42f, 0.25f),
-                PantsColor, BootColor, out _legL);
+                LegColor, ShoeColor, out _legL);
             CreateLimb("LegR", new Vector3(0.15f, 0.42f, 0f), new Vector3(0.25f, 0.42f, 0.25f),
-                PantsColor, BootColor, out _legR);
+                LegColor, ShoeColor, out _legR);
         }
 
         /// <summary>
@@ -146,16 +148,23 @@ namespace MyWorld.Unity.Player
             return go.transform;
         }
 
-        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        /// <summary>hex（#RRGGBB）→ Color。spec 表统一用十六进制存色值。</summary>
+        private static Color FromHex(string hex)
+        {
+            ColorUtility.TryParseHtmlString(hex, out var c);
+            return c;
+        }
 
+        /// <summary>
+        /// 经 UrpMaterialFactory 取同色缓存的 URP/Lit 材质直接挂 sharedMaterial。
+        /// 不走 MaterialPropertyBlock——Default-Material 是 Standard shader，
+        /// MPB 的 _BaseColor 对它无效，URP 下照样粉红；换成 URP/Lit 材质才是根修。
+        /// </summary>
         private static void ApplyColor(GameObject go, Color c)
         {
             var r = go.GetComponent<Renderer>();
             if (r == null) return;
-            var block = new MaterialPropertyBlock();
-            r.GetPropertyBlock(block);
-            block.SetColor(BaseColorId, c);
-            r.SetPropertyBlock(block);
+            r.sharedMaterial = UrpMaterialFactory.CreateLit(c);
         }
     }
 }

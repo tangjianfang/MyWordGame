@@ -1,4 +1,5 @@
 using MyWorld.Core.Entities;
+using MyWorld.Unity.Rendering;
 using UnityEngine;
 
 namespace MyWorld.Unity.Combat
@@ -18,6 +19,14 @@ namespace MyWorld.Unity.Combat
             var view = host.AddComponent<VillagerView>();
             view.Villager = villager;
             view.Renderer = host.GetComponent<Renderer>();
+            // m5 A3：host cube 换 URP/Lit 材质——裸 CreatePrimitive 的 Default-Material
+            // 是 Standard shader，URP 下渲染洋红；MPB 的 _BaseColor 只对 URP/Lit 生效。
+            // 职业色由下方 ApplyColor 的 MPB 叠在这层材质上。
+            if (view.Renderer != null)
+            {
+                view.Renderer.sharedMaterial =
+                    UrpMaterialFactory.CreateLit(UrpMaterialFactory.MobBodyColor(MobKind.Villager));
+            }
             var color = villager.Profession switch
             {
                 VillagerProfession.Farmer => new Color(0.55f, 0.4f, 0.2f),

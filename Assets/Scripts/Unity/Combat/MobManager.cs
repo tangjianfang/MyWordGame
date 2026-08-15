@@ -7,6 +7,7 @@ using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Bootstrap;
 using MyWorld.Unity.Gameplay;
+using MyWorld.Unity.Rendering;
 using UnityEngine;
 
 namespace MyWorld.Unity.Combat
@@ -274,6 +275,12 @@ namespace MyWorld.Unity.Combat
 
             var col = go.GetComponent<BoxCollider>();
             if (col != null) col.size = Vector3.one;
+
+            // m5 A3：host cube 换 URP/Lit 材质——裸 CreatePrimitive 的 Default-Material
+            // 是 Standard shader，URP 下渲染洋红。旧 kind 的 host 就是本体（MobView 默认
+            // 分支的 MPB mobTypeId 染色叠在这层材质上生效）。
+            go.GetComponent<Renderer>().sharedMaterial =
+                UrpMaterialFactory.CreateLit(UrpMaterialFactory.MobBodyColor(kind));
 
             MobView.Attach(go, mob);
             _views[mob.EntityId] = go;
