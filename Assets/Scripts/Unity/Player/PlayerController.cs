@@ -20,6 +20,10 @@ namespace MyWorld.Unity.Player
         [SerializeField] private Transform eye;
         [SerializeField] private float lookSensitivity = 2.5f;
 
+        /// <summary>m6 B3：鼠标灵敏度乘数（帮助菜单「设置」页滑条写回，PlayerPrefs 持久化）。
+        /// 1 = 默认手感；最终灵敏度 = <see cref="lookSensitivity"/> × 该乘数。</summary>
+        public float LookSensitivityMultiplier { get; set; } = 1f;
+
         [Header("运动参数（留空用 Core 的默认值）")]
         [SerializeField] private float walkSpeed = 4.3f;
         [SerializeField] private float jumpSpeed = 8.4f;
@@ -387,8 +391,10 @@ namespace MyWorld.Unity.Player
                 return;
             }
 
-            _yaw += Input.GetAxis("Mouse X") * lookSensitivity;
-            _pitch = Mathf.Clamp(_pitch - Input.GetAxis("Mouse Y") * lookSensitivity, -89f, 89f);
+            // m6 B3：基础灵敏度 × 帮助菜单设置页的乘数（默认 1，行为与旧版一致）
+            float sens = lookSensitivity * LookSensitivityMultiplier;
+            _yaw += Input.GetAxis("Mouse X") * sens;
+            _pitch = Mathf.Clamp(_pitch - Input.GetAxis("Mouse Y") * sens, -89f, 89f);
 
             // 身体只转 yaw，俯仰只给眼睛——身体跟着俯仰转的话包围盒会倾斜
             transform.rotation = Quaternion.Euler(0f, _yaw, 0f);

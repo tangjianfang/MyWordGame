@@ -219,6 +219,10 @@ namespace MyWorld.Unity.Bootstrap
             // 无参数时 ShouldCapture 读一次 args 即返回 false，零开销。
             if (MyWorld.Unity.UiScreenshotOnArg.ShouldCapture(System.Environment.GetCommandLineArgs()))
                 gameObject.AddComponent<MyWorld.Unity.UiScreenshotOnArg>();
+
+            // 26. 帮助菜单（m6 B3）：H 键开关「怎么玩 + 设置」两页。挂玩家身上：
+            // 打开时经 BlockInteraction.InputLocked 抑制挖/放，灵敏度乘数也从这里找到 PlayerController。
+            gameObject.AddComponent<MyWorld.Unity.UI.HelpMenuUi>();
         }
 
         private void Update()

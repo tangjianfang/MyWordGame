@@ -26,6 +26,11 @@ namespace MyWorld.Unity.Player
         [SerializeField] private ushort placeBlockId = BlockIds.Stone;
         [SerializeField] private Material selectionMaterial;
 
+        /// <summary>m6 B3：静态输入锁。HelpMenuUi 打开期间置 true，<c>Update</c> 开头早退——
+        /// 菜单里点滑条不应误挖/误放方块。静态门由 HelpMenuUi 的开关维护，
+        /// 挂在玩家身上的组件实例共享这一个全局状态。</summary>
+        public static bool InputLocked;
+
         private PlayerController _player;
         private World _world;
         private BlockRegistry _registry;
@@ -71,6 +76,13 @@ namespace MyWorld.Unity.Player
 
         private void Update()
         {
+            if (InputLocked)
+            {
+                // 帮助菜单开着：不射线拾取、不响应挖/放，顺便藏掉选中框
+                _selection?.Hide();
+                return;
+            }
+
             if (_world == null || _player.Eye == null)
             {
                 return;
