@@ -12,16 +12,27 @@ namespace MyWorld.Unity.UI
     /// </summary>
     public static class ItemSlotDrawer
     {
+        /// <summary>物品贴图基准边长：贴图是 16×16，图标缩放必须是它的整数倍
+        /// （非整数倍缩放会让像素宽窄不均出锯齿，IconScalingTests 同一条契约）。</summary>
+        private const int IconBaseSize = 16;
+
+        // 数量角标几何（右下角）：距右缘 X / 距下缘 Y / 宽 / 高
+        private const float CountBadgeOffsetX = 30f;
+        private const float CountBadgeOffsetY = 18f;
+        private const float CountBadgeWidth = 28f;
+        private const float CountBadgeHeight = 16f;
+
         private static readonly Dictionary<string, Texture2D> Cache = new Dictionary<string, Texture2D>();
         private static Texture2D _missing;
         private static GUIStyle _countStyle;
         private static GUIStyle _whiteStyle;
 
         /// <summary>
-        /// 取物品图标（带缓存）。跨 UI 共享一份静态缓存：五个界面同屏出现时
-        /// 同一物品只加载一次 PNG。缺贴图返回 1×1 品红占位，绝不返回 null。
+        /// 取物品图标（带缓存），缺贴图时返回品红占位。跨 UI 共享一份静态缓存：
+        /// 五个界面同屏出现时同一物品只加载一次 PNG。绝不返回 null——
+        /// 调用方直接 DrawTexture，占位让「贴图没配」肉眼可辨而不是空指针。
         /// </summary>
-        public static Texture2D GetTexture(ItemDefinition def)
+        public static Texture2D GetTextureOrPlaceholder(ItemDefinition def)
         {
             if (def == null || string.IsNullOrEmpty(def.Texture)) return Missing();
             if (Cache.TryGetValue(def.Texture, out var t)) return t;
@@ -54,17 +65,20 @@ namespace MyWorld.Unity.UI
 
             // 图标边长取槽内最大的 16 整数倍并居中（HotbarUI IconScalingTests 同一条契约：
             // 16×16 贴图非整数倍缩放会让像素宽窄不均出锯齿）
-            int icon = Mathf.Max(16, (int)slot.width / 16 * 16);
+            int icon = Mathf.Max(IconBaseSize, (int)slot.width / IconBaseSize * IconBaseSize);
             var iconRect = new Rect(
                 slot.x + (slot.width - icon) * 0.5f,
                 slot.y + (slot.height - icon) * 0.5f,
                 icon, icon);
-            GUI.DrawTexture(iconRect, GetTexture(def));
+            GUI.DrawTexture(iconRect, GetTextureOrPlaceholder(def));
 
             // 数量角标右下：只有叠了 1 个以上才显示（HotbarUI 同款语义）
             if (!stack.IsEmpty && stack.Count > 1)
             {
-                var label = new Rect(slot.xMax - 30, slot.yMax - 18, 28, 16);
+                var label = new Rect(
+                    slot.xMax - CountBadgeOffsetX,
+                    slot.yMax - CountBadgeOffsetY,
+                    CountBadgeWidth, CountBadgeHeight);
                 GUI.Label(label, stack.Count.ToString(), CountStyle());
             }
 

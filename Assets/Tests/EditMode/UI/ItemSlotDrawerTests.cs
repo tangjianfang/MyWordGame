@@ -21,8 +21,8 @@ namespace MyWorld.Core.Tests.UI
             // 因此「同一物品两次取纹理」仍必须命中同一条缓存记录（SameAs）
             var def = new ItemDefinition { Id = "m6_a2_cache_test", Texture = "m6-a2-确实不存在-的贴图" };
 
-            var first = ItemSlotDrawer.GetTexture(def);
-            var second = ItemSlotDrawer.GetTexture(def);
+            var first = ItemSlotDrawer.GetTextureOrPlaceholder(def);
+            var second = ItemSlotDrawer.GetTextureOrPlaceholder(def);
 
             Assert.That(second, Is.SameAs(first),
                 "同一物品重复取纹理必须命中缓存返回同一实例——否则每帧重建纹理是稳定 GC 来源");
@@ -33,7 +33,7 @@ namespace MyWorld.Core.Tests.UI
         {
             var def = new ItemDefinition { Id = "m6_a2_missing_test", Texture = "m6-a2-另一个不存在贴图" };
 
-            var tex = ItemSlotDrawer.GetTexture(def);
+            var tex = ItemSlotDrawer.GetTextureOrPlaceholder(def);
 
             Assert.That(tex, Is.Not.Null, "缺贴图必须返回占位纹理而不是 null——调用方直接 DrawTexture");
             Assert.That(tex.width, Is.EqualTo(1), "占位纹理应是 1×1 品红块");
