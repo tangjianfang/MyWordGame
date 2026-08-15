@@ -106,11 +106,16 @@ public readonly struct QuestEvent { public QuestEventType Type; public int ItemI
 | 3 | 造工作台 | CraftItem crafting_table ×1 | 10 |
 | 4 | 做木镐 | CraftItem wooden_pickaxe ×1 | 10 |
 | 5 | 挖三块石头 | ObtainItem cobblestone ×3 | 10 |
-| 6 | 造熔炉 | CraftItem furnace_block（或既有合成路径里最近的）×1 | 15 |
+| 6 | 造石镐 | CraftItem stone_pickaxe ×1 | 15 |
 | 7 | 炼一根铁锭 | SmeltItem iron_ingot ×1 | 20 |
 | 8 | 活过一夜 | SurviveNight | 30 |
 
-（任务 6 的熔炉物品 id 以 items/*.json 实际注册为准，实现时核对。）
+> **勘误（m6 C1 实现时核实）**：游戏当前既没有 furnace 方块也没有熔炉合成配方
+> （`blocks/*.json` 与 `recipes/*.json` 均无），任务 6 按表内预留的「既有合成路径里最近的」
+> 改为 **CraftItem stone_pickaxe（石镐，numericId 1401）×1**——挖 3 块圆石后最顺的下一个合成目标，
+> 且石镐配方（3 圆石 + 2 木棍）在 `recipes/stone_pickaxe_recipe.json` 真实存在。
+> 另外物品 id 实际注册为 **log=1000 / plank=1001**（与最初口头预估的 1001/1000 正相反），
+> chapter1.json 已按实际值填写。
 
 ### 事件接线（Unity 侧，既有系统的缝里插）
 

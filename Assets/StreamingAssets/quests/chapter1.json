@@ -1,0 +1,58 @@
+[
+  {
+    "id": "ch1_01_punch_log",
+    "name": "挖一根原木",
+    "desc": "对着树干按住左键，挖下 1 根原木",
+    "condition": { "type": "ObtainItem", "itemId": 1000, "count": 1 },
+    "rewardExp": 5
+  },
+  {
+    "id": "ch1_02_craft_planks",
+    "name": "合成木板",
+    "desc": "按 E 打开背包，把原木放进 2x2 合成格",
+    "condition": { "type": "CraftItem", "itemId": 1001, "count": 4 },
+    "rewardExp": 5
+  },
+  {
+    "id": "ch1_03_craft_table",
+    "name": "造工作台",
+    "desc": "用 4 块木板合成工作台，放到地上按 P 打开 3x3 合成",
+    "condition": { "type": "CraftItem", "itemId": 1700, "count": 1 },
+    "rewardExp": 10
+  },
+  {
+    "id": "ch1_04_craft_wooden_pickaxe",
+    "name": "做木镐",
+    "desc": "3 块木板 + 2 根木棍，合成一把木镐",
+    "condition": { "type": "CraftItem", "itemId": 1400, "count": 1 },
+    "rewardExp": 10
+  },
+  {
+    "id": "ch1_05_mine_stone",
+    "name": "挖三块石头",
+    "desc": "拿着木镐去挖石头，收集 3 块圆石",
+    "condition": { "type": "ObtainItem", "itemId": 1003, "count": 3 },
+    "rewardExp": 10
+  },
+  {
+    "id": "ch1_06_craft_stone_pickaxe",
+    "name": "造石镐",
+    "desc": "3 块圆石 + 2 根木棍，换一把挖得更快的石镐",
+    "condition": { "type": "CraftItem", "itemId": 1401, "count": 1 },
+    "rewardExp": 15
+  },
+  {
+    "id": "ch1_07_smelt_iron",
+    "name": "炼一根铁锭",
+    "desc": "往熔炉投入矿石和燃料，烧出 1 根铁锭",
+    "condition": { "type": "SmeltItem", "itemId": 1004, "count": 1 },
+    "rewardExp": 20
+  },
+  {
+    "id": "ch1_08_survive_night",
+    "name": "活过一夜",
+    "desc": "天黑别慌，撑到日出就算赢下第一夜",
+    "condition": { "type": "SurviveNight" },
+    "rewardExp": 30
+  }
+]
