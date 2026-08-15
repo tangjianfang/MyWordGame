@@ -46,10 +46,9 @@ namespace MyWorld.Unity.Player
 
             if (selectionMaterial == null)
             {
-                // 优先 URP/Unlit（场景已接入 URP），fallback Hidden/Internal-Colored（默认包含）。
-                var shader = Shader.Find("Universal Render Pipeline/Unlit");
-                if (shader == null) shader = Shader.Find("Hidden/Internal-Colored");
-                selectionMaterial = new Material(shader) { color = new Color(1f, 1f, 1f, 1f) };
+                // m5 A4：黑 35% 半透明叠加（Minecraft 式融合变暗）。
+                // 旧实现是纯白不透明 Unlit——整块 Cube mesh 把选中方块的贴图完全盖住。
+                selectionMaterial = UrpMaterialFactory.CreateOverlay(new Color(0f, 0f, 0f, 0.35f));
             }
 
             _selection = SelectionBox.Create(parent, selectionMaterial);

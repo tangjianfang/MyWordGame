@@ -31,6 +31,19 @@ namespace MyWorld.Core.Tests.Visual
             Assert.That(a, Is.SameAs(b), "同色必须复用缓存实例，防材质泄漏");
         }
 
+        [Test]
+        public void CreateOverlay_IsTransparentWithAlpha()
+        {
+            // m5 A4：选中框白壳问题——材质必须走 Transparent 队列 + alpha 生效，
+            // 才能半透明融合在选中方块上而不是整块盖住贴图
+            var mat = UrpMaterialFactory.CreateOverlay(new Color(0f, 0f, 0f, 0.35f));
+            Assert.That(mat, Is.Not.Null);
+            Assert.That(mat.renderQueue, Is.EqualTo((int)UnityEngine.Rendering.RenderQueue.Transparent),
+                "叠加层必须是 Transparent 队列，否则会盖住方块贴图");
+            Color c = mat.GetColor("_BaseColor");
+            Assert.That(c.a, Is.EqualTo(0.35f).Within(0.01f), "alpha 必须生效——半透明融合选中色");
+        }
+
         [TestCase(MobKind.Pig, "#E8A0A8")]
         [TestCase(MobKind.Cow, "#6B4A35")]
         [TestCase(MobKind.Chicken, "#F0EDE5")]
