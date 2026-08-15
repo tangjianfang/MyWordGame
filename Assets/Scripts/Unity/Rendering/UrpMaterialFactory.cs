@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using MyWorld.Core.Entities;
 using UnityEngine;
@@ -27,6 +28,18 @@ namespace MyWorld.Unity.Rendering
                 _litShader = resourceMat != null && resourceMat.shader != null
                     ? resourceMat.shader
                     : Shader.Find("Universal Render Pipeline/Lit");
+                // 装了 URP 用 URP Lit，没装则退回内置管线 Standard，两条路都能跑
+                if (_litShader == null)
+                {
+                    _litShader = Shader.Find("Standard");
+                }
+                if (_litShader == null)
+                {
+                    // 与 BlockMaterialLibrary 同一硬约束：shader 为 null 时 new Material(null)
+                    // 不报错但渲染全粉红，必须在源头拦下并给出可操作的提示
+                    throw new InvalidOperationException(
+                        "URP Lit 与内置 Standard 都找不到，无法建立角色材质。先跑 MyWorld/接入 URP 管线。");
+                }
             }
             var material = new Material(_litShader);
             if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", baseColor);

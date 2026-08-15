@@ -44,6 +44,19 @@ namespace MyWorld.Core.Tests.Visual
                 $"{kind} 的身体色必须按 spec 表");
         }
 
+        [TestCase(MobKind.Pig, "#E8B8C0")]
+        [TestCase(MobKind.Cow, "#F0E8E0")]
+        [TestCase(MobKind.Chicken, "#D94F3D")]
+        [TestCase(MobKind.Zombie, "#6FA05C")]
+        [TestCase(MobKind.Villager, "#E8B88A")]
+        public void MobHeadColor_MatchesSpec(MobKind kind, string hex)
+        {
+            Color expected = Color.clear;
+            ColorUtility.TryParseHtmlString(hex, out expected);
+            Assert.That(ColorEquals(UrpMaterialFactory.MobHeadColor(kind), expected), Is.True,
+                $"{kind} 的头部色必须按 spec 表（牛头白花/鸡红冠/僵尸浅绿/村民肤色）");
+        }
+
         // 分量差 < 0.002 视为相等（ColorUtility 解析浮点容差），
         // 用 Is.True(ColorEquals(actual, expected)) 替代 Is.EqualTo
         private static bool ColorEquals(Color a, Color b) =>

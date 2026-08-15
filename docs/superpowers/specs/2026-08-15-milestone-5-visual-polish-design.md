@@ -38,14 +38,16 @@
 - `static Material CreateLit(Color baseColor)` —— URP/Lit 染色
 - `static Material CreateOverlay(Color rgba)` —— URP/Unlit + Transparent 表面类型（alpha < 1）
 
-**玩家身体**（`PlayerVisual` 10 cube，沿用 m3 双色段设计）：
+**玩家身体**（`PlayerVisual` 10 cube，沿用 m3 双色段设计）。部位归属按 m3 几何的
+cube 划分落地：每条手臂 = 上臂 + 前臂两个 cube，每条腿 = 大腿 + 小腿两个 cube，
+**没有独立的鞋/手 cube**——前臂 cube 整段是皮肤（手），小腿 cube 整段是靴筒（鞋）：
 
 | 部位 | 色值 |
 | --- | --- |
-| 头/手（皮肤段） | `#E8B88A` |
-| 躯干/上臂/大腿（上衣段） | `#3A6EA5` |
-| 前臂/小腿（裤段） | `#2C3E66` |
-| 鞋 | `#5C4033` |
+| 头/手/前臂（皮肤段，= 头 cube + 手臂 Lower cube） | `#E8B88A` |
+| 躯干/上臂（上衣段，= 躯干 cube + 手臂 Upper cube） | `#3A6EA5` |
+| 大腿（裤段，= 腿 Upper cube） | `#2C3E66` |
+| 小腿（鞋段，= 腿 Lower cube 即靴筒） | `#5C4033` |
 
 材质工厂返回的材质按部位缓存（每种色一个实例，10 cube 共享 4 个材质实例，不泄漏）。
 
