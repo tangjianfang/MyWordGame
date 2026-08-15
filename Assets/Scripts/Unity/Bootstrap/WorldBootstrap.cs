@@ -247,6 +247,12 @@ namespace MyWorld.Unity.Bootstrap
             // 27. 帮助菜单（m6 B3）：H 键开关「怎么玩 + 设置」两页。挂玩家身上：
             // 打开时经 BlockInteraction.InputLocked 抑制挖/放，灵敏度乘数也从这里找到 PlayerController。
             gameObject.AddComponent<MyWorld.Unity.UI.HelpMenuUi>();
+
+            // 28. 任务目标卡（m6 C3）：右上角常驻「当前目标 + 进度」，完成瞬间变绿打勾 1s
+            //     后切下一任务，全链完成显示「首章完成 ✓」5s 后隐藏。订阅总线完成钩子 +
+            //     OnGUI 每帧经 QuestProgress 现读进度（无链时 GetHudText 返 null，不画卡）。
+            var questHud = gameObject.AddComponent<MyWorld.Unity.UI.QuestHudUi>();
+            questHud.Bind(questBus);
         }
 
         private void Update()
