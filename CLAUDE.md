@@ -10,7 +10,7 @@ MyWordGame 是一个自研体素沙盒游戏（Unity 6 + 纯 C# Core 层），�
 全部在**仓库根目录**执行，**不需要安装 Unity**：
 
 ```bash
-dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 409 个）
+dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 440 个）
 dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTests"   # 单个测试类
 dotnet build tools/dotnet/MyWorld.Tools.sln              # 编译三个工程
 
@@ -129,7 +129,9 @@ Core 层的约束由编译器强制，不是约定：
 seed/时间/玩家/熔炉/掉落物）+ `regions/*.mwr`（脏区块 overlay）。30s 自动保存 + 退出保存，
 均走 `SaveLoadService`；读取用 `TryRestore`，按时间→玩家→熔炉→掉落物的顺序恢复，
 任何一层失败跳过该层继续。坏 `level.dat` 重命名 `.corrupt` 后全新开始；写盘先落 `.tmp`
-再原子改名，杀进程不会留下半截档。
+再原子改名，杀进程不会留下半截档。自动保存拆两段（m5 起）：主线程只收集纯数据快照，
+JSON 序列化 + 压缩 + 写盘在 `Task.Run` 后台做（后台写盘期间跳过新一轮，防重叠），
+`OnApplicationQuit` 的退出保存保持同步落盘。
 
 ## 方块定义是数据驱动的
 
@@ -189,6 +191,17 @@ Graphics 与全部质量档位上——**不要手改那两个 ProjectSettings �
 
 `ProjectSettings/` 与 `.meta` 文件**已纳入版本管理**，不要删——`.meta` 决定资源 GUID。
 Newtonsoft Json 包是必需的，缺了 Core 编译失败。
+
+**运行时约定（milestone-5 起）**：
+
+- 色彩空间是 **Linear**（m5 切换，根治 Gamma+URP 系统性偏暗）——别改回 Gamma，会全局变闷
+- 人物/生物/UI 叠加层材质一律经 `Rendering/UrpMaterialFactory` 取——裸 `CreatePrimitive` 的
+  Default-Material 是 Standard shader，URP 下渲染**粉红**
+- 玩家血量唯一真源是 `Gameplay/PlayerContext.Health`，UI 与 Combat 都读写它，不要另建血条
+- 昼夜判定只走 `Combat/MobManager.IsNightPhase`，别在别处手写时间比较
+- 启动时 `WorldBootstrap` 按物理屏系统分辨率自适应无边框全屏（修非 16:9 屏两侧黑边）
+- `ChunkStreamer` 每帧区块工作按**毫秒预算**分帧（Stopwatch 计时，默认 8ms，耗尽等下一帧），
+  不是固定根数；流式/UI 热路径不许每帧 new 容器或闭包（GC 会造成移动顿挫）
 
 编辑器菜单 `MyWorld/` 下有五个批处理入口，都能用 `-executeMethod` 无头跑：
 
