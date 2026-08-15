@@ -13,6 +13,10 @@ namespace MyWorld.Unity.UI
         public const int SlotSize = 64;
         public const int Padding = 4;
 
+        /// <summary>物品图标绘制边长。物品贴图是 16×16，绘制边长必须是 16 的整数倍
+        /// （这里定格 48 = 16×3），否则非整数倍缩放会让像素宽窄不均、边界出锯齿。</summary>
+        public const int IconDrawSize = 48;
+
         private Texture2D _slotBg;
         private Texture2D _countBorder;
         private Texture2D _countBg;
@@ -55,6 +59,20 @@ namespace MyWorld.Unity.UI
             return fb;
         }
 
+        /// <summary>
+        /// 加载物品 PNG 并应用像素风采样设置。公开静态：HandController 等 UI 复用同一条
+        /// 加载路径（<see cref="Player.HandController"/>），EditMode 测试也直接走这里断言
+        /// filterMode 契约。必须在 LoadImage 之后设置 filterMode——LoadImage 会按 PNG
+        /// 重建纹理，之前的采样设置会丢；默认双线性会把 16×16 像素边界糊出锯齿。
+        /// </summary>
+        public static Texture2D LoadItemTexturePng(string path)
+        {
+            var t = new Texture2D(2, 2);
+            t.LoadImage(System.IO.File.ReadAllBytes(path));
+            t.filterMode = FilterMode.Point;
+            return t;
+        }
+
         private Texture2D GetItemTexture(ItemDefinition def)
         {
             if (def == null) return _missingTex;
@@ -69,9 +87,7 @@ namespace MyWorld.Unity.UI
             foreach (var c in candidates) if (System.IO.File.Exists(c)) { resolved = c; break; }
             if (resolved != null)
             {
-                var bytes = System.IO.File.ReadAllBytes(resolved);
-                t = new Texture2D(2, 2);
-                t.LoadImage(bytes);
+                t = LoadItemTexturePng(resolved);
             }
             else
             {
@@ -99,7 +115,11 @@ namespace MyWorld.Unity.UI
                 var stack = ctx.Inventory.GetSlot(i);
                 if (!stack.IsEmpty && ctx.Items != null && ctx.Items.TryGetByNumericId(stack.ItemId, out var def))
                 {
-                    var texRect = new Rect(rect.x + 4, rect.y + 4, SlotSize - 8, SlotSize - 8);
+                    // 图标在 64 槽内居中：48 图标 + 两侧各 8 空白，布局不变仅图标改为整数倍缩放
+                    var texRect = new Rect(
+                        rect.x + (SlotSize - IconDrawSize) / 2f,
+                        rect.y + (SlotSize - IconDrawSize) / 2f,
+                        IconDrawSize, IconDrawSize);
                     GUI.DrawTexture(texRect, GetItemTexture(def));
                     if (stack.Count > 1)
                     {

@@ -13,6 +13,10 @@ namespace MyWorld.Unity.Player
         public float SwingDuration = 0.25f;
         public float SwingDownAngle = -45f;
 
+        /// <summary>手部图标绘制边长——物品贴图 16×16，边长必须取 16 的整数倍
+        /// （80 = 16×5），否则非整数倍缩放像素宽窄不均、边界出锯齿。</summary>
+        public const int HandIconSize = 80;
+
         // ─── 公开 API（A5：HandController jump 姿势） ─────────────────────────────
         /// <summary>当前是否处于挥动状态——绑定玩家时由 airborne 信号驱动：
         /// 未绑定 / 在空中 = false（持物但不挥），着地 = true（允许挥动）。</summary>
@@ -85,9 +89,8 @@ namespace MyWorld.Unity.Player
             string runtime = System.IO.Path.Combine(Application.streamingAssetsPath, "items", "textures", def.Texture + ".png");
             if (System.IO.File.Exists(runtime))
             {
-                var bytes = System.IO.File.ReadAllBytes(runtime);
-                t = new Texture2D(2, 2);
-                t.LoadImage(bytes);
+                // 复用 HotbarUI 的加载路径：统一 Point 过滤，物品图标像素边界不出锯齿（m5 B4）
+                t = UI.HotbarUI.LoadItemTexturePng(runtime);
             }
             else t = _missingTex;
             _texCache[def.Texture] = t;
@@ -100,7 +103,7 @@ namespace MyWorld.Unity.Player
             var ctx = PlayerContext.Instance;
             if (ctx == null) return;
             var def = ctx.GetSelectedDefinition();
-            int size = 80;
+            int size = HandIconSize;
             float x = Screen.width - size - 30;
             float y = Screen.height - size - 30;
             var rect = new Rect(x, y, size, size);
