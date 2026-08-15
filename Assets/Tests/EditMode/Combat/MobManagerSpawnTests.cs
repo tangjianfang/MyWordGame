@@ -53,7 +53,7 @@ namespace MyWorld.Core.Tests.Combat
         }
 
         /// <summary>
-        /// 白天（dayNightPhase=0.7）+ Plains + 友好候选 [Pig, Cow, Chicken, Villager] 应至少有一次命中。
+        /// 白天（dayNightPhase=0.25，即正午 6000 tick）+ Plains + 友好候选 [Pig, Cow, Chicken, Villager] 应至少有一次命中。
         /// Pig/Cow/Chicken/Villager 的 MinLight=9，light=15 满足；Plains 在白名单。
         /// </summary>
         [Test]
@@ -63,7 +63,7 @@ namespace MyWorld.Core.Tests.Combat
             for (int seed = 1; seed <= 100; seed++)
             {
                 int before = _mgr.ActiveMobs.Count;
-                _mgr.TickSpawn(seed, dayNightPhase: 0.7f);
+                _mgr.TickSpawn(seed, dayNightPhase: 0.25f);
                 if (_mgr.ActiveMobs.Count > before)
                 {
                     hits++;
@@ -79,7 +79,7 @@ namespace MyWorld.Core.Tests.Combat
         }
 
         /// <summary>
-        /// 夜晚（dayNightPhase=0.2）+ Plains + 候选 [Zombie] 应刷出 Zombie。
+        /// 夜晚（dayNightPhase=0.7，即深夜 16800 tick）+ Plains + 候选 [Zombie] 应刷出 Zombie。
         /// </summary>
         [Test]
         public void TickSpawn_Nighttime_SpawnsZombie()
@@ -88,7 +88,7 @@ namespace MyWorld.Core.Tests.Combat
             for (int seed = 1; seed <= 100; seed++)
             {
                 int before = _mgr.ActiveMobs.Count;
-                _mgr.TickSpawn(seed, dayNightPhase: 0.2f);
+                _mgr.TickSpawn(seed, dayNightPhase: 0.7f);
                 if (_mgr.ActiveMobs.Count > before)
                 {
                     hits++;
@@ -115,7 +115,7 @@ namespace MyWorld.Core.Tests.Combat
             for (int seed = 1; seed <= 100; seed++)
             {
                 int before = _mgr.ActiveMobs.Count;
-                _mgr.TickSpawn(seed, dayNightPhase: 0.2f);
+                _mgr.TickSpawn(seed, dayNightPhase: 0.7f);
                 if (_mgr.ActiveMobs.Count > before)
                 {
                     totalSpawns++;
@@ -140,7 +140,7 @@ namespace MyWorld.Core.Tests.Combat
             _mgr.MaxMobs = 2;
             for (int seed = 1; seed <= 20; seed++)
             {
-                _mgr.TickSpawn(seed, dayNightPhase: 0.7f);
+                _mgr.TickSpawn(seed, dayNightPhase: 0.25f);
             }
             Assert.That(_mgr.ActiveMobs.Count, Is.LessThanOrEqualTo(2),
                 $"MaxMobs=2 时 ActiveMobs 不应超过 2（实际 {_mgr.ActiveMobs.Count}）");

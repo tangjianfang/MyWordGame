@@ -156,7 +156,20 @@ namespace MyWorld.Unity.Combat
         }
 
         /// <summary>
-        /// 单次刷怪检查。给定 seed 与昼夜相位（0..1，&lt;0.5 视作夜晚），按
+        /// 昼夜判定（m5 修复）：夜 = tick∈[13000,23000) 即 phase∈[NightStart/24000, NightEnd/24000)。
+        /// 旧代码 <c>phase &lt; 0.5</c> 方向反了——正午判成夜晚、真夜晚反而判成白天。
+        /// 阈值常量直接从 <see cref="MyWorld.Core.Time.TimeOfDay"/> 取，两处永不漂移。
+        /// </summary>
+        public static bool IsNightPhase(float dayPhase01)
+        {
+            const float nightStart = MyWorld.Core.Time.TimeOfDay.NightStartTick / MyWorld.Core.Time.TimeOfDay.DayLengthTicks;
+            const float nightEnd = MyWorld.Core.Time.TimeOfDay.NightEndTick / MyWorld.Core.Time.TimeOfDay.DayLengthTicks;
+            return dayPhase01 >= nightStart && dayPhase01 < nightEnd;
+        }
+
+        /// <summary>
+        /// 单次刷怪检查。给定 seed 与昼夜相位（0..1，[NightStart, NightEnd)/24000 区间视作夜晚，
+        /// 见 <see cref="IsNightPhase"/>），按
         /// <see cref="MobSpawnRules.PickKind"/> 决策，命中即实例化 <see cref="MobView"/>。
         /// <para>
         /// 测试可直接调用本方法注入确定性参数，绕开 Random.Range / Time.time。
@@ -180,7 +193,7 @@ namespace MyWorld.Unity.Combat
                 : 70;
             if (surfaceY < 0) return;
 
-            bool isNight = dayNightPhase < 0.5f;
+            bool isNight = IsNightPhase(dayNightPhase);
             int light = isNight ? 0 : 15;
             Biome biome = _generator != null ? _generator.BiomeAt(wx, wz) : Biome.Plains;
 
