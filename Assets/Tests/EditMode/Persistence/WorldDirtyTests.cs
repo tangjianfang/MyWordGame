@@ -60,5 +60,43 @@ namespace MyWorld.Core.Tests.Persistence
             _ = world.GetBlock(9999, 64, 9999); // 越界宽容读
             Assert.That(world.DirtyChunks, Is.Empty, "读取（含越界宽容读）不产生脏");
         }
+
+        // ─── 编辑版本守卫（milestone-5 C3 异步存档）──────────────────────
+
+        [Test]
+        public void GetEditVersion_SetBlockBumpsPerChunk()
+        {
+            var world = new World();
+            var pos = new ChunkPos(0, 0);
+            world.AddChunk(pos, new ChunkColumn());
+            Assert.That(world.GetEditVersion(pos), Is.EqualTo(0L), "从未改过的区块版本为 0");
+
+            world.SetBlock(3, 64, 5, BlockIds.Stone);
+            long v1 = world.GetEditVersion(pos);
+            Assert.That(v1, Is.GreaterThan(0L), "SetBlock 后版本应为正");
+
+            world.SetBlock(4, 64, 5, BlockIds.Dirt);
+            Assert.That(world.GetEditVersion(pos), Is.GreaterThan(v1), "同一区块再次改动版本应递增");
+        }
+
+        [Test]
+        public void ClearDirtyIfUnchanged_版本不符保留脏_一致才清()
+        {
+            var world = new World();
+            var pos = new ChunkPos(0, 0);
+            world.AddChunk(pos, new ChunkColumn());
+            world.SetBlock(3, 64, 5, BlockIds.Stone);
+            long versionAtSave = world.GetEditVersion(pos);
+
+            // 模拟异步保存窗口：快照之后、清脏之前，该区块又被玩家改了一刀
+            world.SetBlock(4, 64, 5, BlockIds.Dirt);
+            world.ClearDirtyIfUnchanged(pos, versionAtSave);
+            Assert.That(world.DirtyChunks, Is.EquivalentTo(new[] { pos }),
+                "保存之后又有新改动的区块必须保持脏——否则清脏会丢掉新改动");
+
+            // 版本一致（无新改动）时才真正清脏
+            world.ClearDirtyIfUnchanged(pos, world.GetEditVersion(pos));
+            Assert.That(world.DirtyChunks, Is.Empty, "无新改动的区块正常清脏");
+        }
     }
 }

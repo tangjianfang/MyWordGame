@@ -1,5 +1,7 @@
 #if UNITY_EDITOR
+using System;
 using System.IO;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using MyWorld.Core.Entities;
@@ -12,6 +14,8 @@ using MyWorld.Core.Voxel;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Persistence;
 using MyWorld.Unity.Player;
+// using System 引入的 object 与 UnityEngine.Object 冲突，显式别名消歧
+using Object = UnityEngine.Object;
 
 namespace MyWorld.Core.Tests.Persistence
 {
@@ -51,6 +55,9 @@ namespace MyWorld.Core.Tests.Persistence
 
                 var service = go.AddComponent<SaveLoadService>();
                 service.Bind(new World(), ctx, player, seed: 42, saveRoot: _saveRoot);
+                // m5 C3：SaveNow 默认把写盘交给后台执行器，这里注入同步执行器
+                // 让「保存后文件立刻存在」的 m4 断言原样成立（语义不变）
+                service.WriteExecutor = a => a();
                 service.SaveNow();
 
                 Assert.That(File.Exists(service.LevelDataPath), Is.True, "level.dat 应落地");
@@ -88,6 +95,136 @@ namespace MyWorld.Core.Tests.Persistence
                 Assert.That(player.State.Position.X, Is.EqualTo(12.5f), "State 应被整体替换");
                 Assert.That(player.State.Velocity.Y, Is.EqualTo(1.5f), "速度应一并恢复");
                 Assert.That(player.State.IsGrounded, Is.True, "着地标记应一并恢复");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        // ─── 异步存档（milestone-5 C3）──────────────────────────────────
+
+        /// <summary>建一棵最小可保存的树（PlayerContext + PlayerController + SaveLoadService）。</summary>
+        private SaveLoadService BuildService(GameObject go, World world, float timeTick)
+        {
+            var ctx = go.AddComponent<PlayerContext>();
+            // 显式赋值：PlayerContext 单例残留时 Awake 不初始化各系统（同第一个测试的注释）
+            ctx.Inventory = new PlayerInventory();
+            ctx.Health = new Health(20f);
+            ctx.Time = new TimeOfDay { CurrentTick = timeTick };
+            var player = go.AddComponent<PlayerController>();
+            var service = go.AddComponent<SaveLoadService>();
+            service.Bind(world, ctx, player, seed: 42, saveRoot: _saveRoot);
+            return service;
+        }
+
+        [Test]
+        public void SaveNow_异步_快照主线程冻结_写盘交给执行器()
+        {
+            var go = new GameObject();
+            try
+            {
+                var service = BuildService(go, new World(), 7000f);
+
+                // 「捕获不执行」的执行器：SaveNow 返回时写盘尚未发生
+                Action pending = null;
+                int scheduled = 0;
+                service.WriteExecutor = a => { scheduled++; pending = a; };
+
+                service.SaveNow();
+                Assert.That(scheduled, Is.EqualTo(1), "写盘动作应交给注入的执行器调度");
+                Assert.That(pending, Is.Not.Null, "执行器应收到写盘动作");
+                Assert.That(File.Exists(service.LevelDataPath), Is.False,
+                    "执行器未执行前不应有任何文件落地——写盘确实被挪出了主线程");
+
+                // 主线程在「后台写盘前」又改了状态：写出的必须是冻结时刻的快照
+                go.GetComponent<PlayerContext>().Time.CurrentTick = 9999f;
+                pending(); // 模拟后台线程此刻才写盘
+                var loaded = LevelDataCodec.Load(service.LevelDataPath);
+                Assert.That(loaded.TimeTick, Is.EqualTo(7000f),
+                    "LevelData 应在主线程冻结为纯数据，写盘期间的状态变化不得混入");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void SaveNow_异步_上一轮写盘中再次保存整轮跳过()
+        {
+            var go = new GameObject();
+            try
+            {
+                var service = BuildService(go, new World(), 0f);
+                Action pending = null;
+                int scheduled = 0;
+                service.WriteExecutor = a => { scheduled++; pending = a; };
+
+                service.SaveNow();
+                service.SaveNow(); // 上一轮仍在「写盘中」（pending 未执行）→ 应整轮跳过
+                Assert.That(scheduled, Is.EqualTo(1), "后台写盘进行中再次 SaveNow 不得重叠调度第二轮");
+
+                pending(); // 上一轮写完
+                service.SaveNow();
+                Assert.That(scheduled, Is.EqualTo(2), "写盘完成后下一轮保存恢复正常调度");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void SaveNow_异步_写盘完成后主线程按版本守卫清脏()
+        {
+            var go = new GameObject();
+            try
+            {
+                var world = new World();
+                var chunkA = new ChunkPos(0, 0);
+                var chunkB = new ChunkPos(3, 0);
+                world.SetBlock(3, 64, 5, BlockIds.Stone);  // chunk A
+                world.SetBlock(52, 64, 5, BlockIds.Dirt);  // chunk B
+
+                var service = BuildService(go, world, 0f);
+                Action pending = null;
+                service.WriteExecutor = a => pending = a;
+
+                service.SaveNow();                          // 主线程冻结 A、B 的快照
+                world.SetBlock(4, 64, 5, BlockIds.Bedrock); // A 在保存窗口内又被改
+                pending();                                   // 后台写盘完成：A、B 都落盘成功
+
+                Assert.That(world.DirtyChunks, Is.EquivalentTo(new[] { chunkA, chunkB }),
+                    "主线程确认之前，脏标记一个都不能少（后台只写不清）");
+                service.ApplyPendingClears();               // 主线程确认写完 → 清脏
+                Assert.That(world.DirtyChunks, Is.EquivalentTo(new[] { chunkA }),
+                    "无新改动的 B 正常清脏；保存窗口内又被改的 A 保留脏下轮重存（版本守卫）");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void OnApplicationQuit_走同步路径立即落盘()
+        {
+            var go = new GameObject();
+            try
+            {
+                var service = BuildService(go, new World(), 7000f);
+                // 退出保存必须同步执行：执行器一旦被调用即失败
+                service.WriteExecutor = a => Assert.Fail("退出保存必须同步落盘，不得再走后台执行器");
+
+                var onQuit = typeof(SaveLoadService).GetMethod("OnApplicationQuit",
+                    BindingFlags.NonPublic | BindingFlags.Instance);
+                Assert.That(onQuit, Is.Not.Null, "前置条件：OnApplicationQuit 应存在");
+                onQuit.Invoke(service, null);
+
+                Assert.That(File.Exists(service.LevelDataPath), Is.True,
+                    "退出路径必须同步写完 level.dat（OnApplicationQuit 返回即落盘）");
+                Assert.That(Directory.Exists(service.RegionsDir), Is.True, "regions/ 目录应创建");
             }
             finally
             {

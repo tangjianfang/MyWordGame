@@ -76,6 +76,8 @@ namespace MyWorld.Core.Tests.Persistence
             ctxA.FurnaceSystem.Restore(new ItemStack(1004, 3), null, null, 17.3f, 12.5f);
             ctxA.ItemDrops.Add(new ItemDropEntity(new ItemStack(1008, 2), new Float3(5f, 71f, 6f)));
             playerA.RestoreCoreState(PlayerState.AtRest(new Float3(12.5f, 70f, -3.5f)));
+            // m5 C3：注入同步执行器，SaveNow 后文件立刻存在（m4 断言语义不变）
+            svcA.WriteExecutor = a => a();
             svcA.SaveNow();
 
             // 恢复：新的树，同一 saveRoot、同一 seed
@@ -106,6 +108,7 @@ namespace MyWorld.Core.Tests.Persistence
         public void TryRestore_seed不符整档忽略()
         {
             var (_, _, svcA) = BuildTree(42);
+            svcA.WriteExecutor = a => a(); // m5 C3：注入同步执行器，保存后立刻可拷档
             svcA.SaveNow(); // 档落在 <saveRoot>/42/level.dat，档里 Seed=42
             string savedPath = svcA.LevelDataPath;
 

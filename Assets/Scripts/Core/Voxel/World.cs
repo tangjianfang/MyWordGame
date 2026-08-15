@@ -11,6 +11,11 @@ namespace MyWorld.Core.Voxel
 
         private readonly HashSet<ChunkPos> _dirtyChunks = new HashSet<ChunkPos>();
 
+        /// <summary>每区块的编辑版本号（全局计数器发号）。异步保存用它做版本守卫（m5 C3）。</summary>
+        private readonly Dictionary<ChunkPos, long> _editVersions = new Dictionary<ChunkPos, long>();
+
+        private long _editCounter;
+
         public int LoadedChunkCount => _chunks.Count;
 
         /// <summary>读取不产生副作用：未加载区块一律视为空气，避免采样邻居时意外撑大内存。</summary>
@@ -33,6 +38,8 @@ namespace MyWorld.Core.Voxel
 
             column.SetBlock(VoxelCoords.WorldToLocal(worldX), worldY, VoxelCoords.WorldToLocal(worldZ), blockId);
             _dirtyChunks.Add(pos);
+            _editCounter++;
+            _editVersions[pos] = _editCounter;
         }
 
         /// <summary>自上次保存以来被 <see cref="SetBlock"/> 改过的区块（milestone-4 存档用）。</summary>
@@ -40,6 +47,16 @@ namespace MyWorld.Core.Voxel
 
         /// <summary>单区块保存成功后清除其脏标记。</summary>
         public void ClearDirty(ChunkPos pos) => _dirtyChunks.Remove(pos);
+
+        /// <summary>区块的编辑版本号：每次 <see cref="SetBlock"/> 自增，从未改过为 0。</summary>
+        public long GetEditVersion(ChunkPos pos) => _editVersions.TryGetValue(pos, out long version) ? version : 0;
+
+        /// <summary>版本守卫清脏（m5 C3 异步存档用）：只有保存快照之后<b>没有</b>再被改过的区块
+        /// 才清脏标记；保存窗口内又被改过的区块保留脏，下轮保存重写覆盖——否则清脏会丢掉新改动。</summary>
+        public void ClearDirtyIfUnchanged(ChunkPos pos, long versionAtSave)
+        {
+            if (GetEditVersion(pos) == versionAtSave) _dirtyChunks.Remove(pos);
+        }
 
         public bool TryGetChunk(ChunkPos pos, out ChunkColumn column) => _chunks.TryGetValue(pos, out column);
 

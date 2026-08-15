@@ -13,33 +13,67 @@ namespace MyWorld.Core.Persistence
     /// </summary>
     public static class RegionSaveCoordinator
     {
-        /// <summary>把 world 的全部脏区块分组写入 regionsDir。返回成功保存的 chunk 数。</summary>
+        /// <summary>把 world 的全部脏区块分组写入 regionsDir。返回成功保存的 chunk 数。
+        /// 主线程同步路径（ChunkStreamer 卸载前保存 / 退出保存）沿用本重载：写成功即清脏。</summary>
         public static int SaveDirty(World world, string regionsDir)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
+            return SaveDirtyCore(
+                world.DirtyChunks,
+                pos => world.TryGetChunk(pos, out ChunkColumn column) ? column : null,
+                regionsDir,
+                (groupChunks, _) =>
+                {
+                    // 卸载区块的 stale 标记也一并清掉，避免永远卡在待保存
+                    foreach (ChunkPos chunk in groupChunks) world.ClearDirty(chunk);
+                });
+        }
+
+        /// <summary>后台线程版（m5 C3）：只读主线程冻结的脏区块快照，<b>不触碰 world 的任何可变状态
+        /// （不清脏）</b>。成功落盘的区块位置收进 <paramref name="savedOut"/>，由主线程在确认写盘
+        /// 完成后按 <see cref="World.ClearDirtyIfUnchanged"/> 清脏（版本守卫防丢新改动）。
+        /// savedOut 由调用方每轮新建（线程封闭，无共享）。</summary>
+        public static int SaveDirty(IReadOnlyDictionary<ChunkPos, ChunkColumn> chunkSnapshot, string regionsDir,
+            List<ChunkPos> savedOut)
+        {
+            if (chunkSnapshot == null) throw new ArgumentNullException(nameof(chunkSnapshot));
+            if (savedOut == null) throw new ArgumentNullException(nameof(savedOut));
+            return SaveDirtyCore(
+                chunkSnapshot.Keys,
+                pos => chunkSnapshot.TryGetValue(pos, out ChunkColumn column) ? column : null,
+                regionsDir,
+                (_, persistedChunks) => savedOut.AddRange(persistedChunks));
+        }
+
+        /// <summary>两个公开重载共用的写盘主体。onRegionPersisted(整组区块, 真正落盘的区块)
+        /// 在每个 region 文件原子写成功之后回调：同步版清整组脏（含卸载 stale），快照版只登记落盘区块。</summary>
+        private static int SaveDirtyCore(
+            IEnumerable<ChunkPos> dirtyChunks,
+            Func<ChunkPos, ChunkColumn> resolveChunk,
+            string regionsDir,
+            Action<List<ChunkPos>, List<ChunkPos>> onRegionPersisted)
+        {
             Directory.CreateDirectory(regionsDir);
             int saved = 0;
-            foreach (var group in GroupByRegion(world.DirtyChunks))
+            foreach (var group in GroupByRegion(dirtyChunks))
             {
                 try
                 {
                     var region = LoadOrCreate(group.Key, regionsDir);
-                    int stored = 0;
+                    var persistedChunks = new List<ChunkPos>();
                     foreach (ChunkPos chunk in group.Value)
                     {
-                        if (world.TryGetChunk(chunk, out var column))
+                        ChunkColumn column = resolveChunk(chunk);
+                        if (column != null)
                         {
                             region.StoreChunk(chunk, column);
-                            stored++; // 只统计真正进 region 的块；卸载区块的数据已随卸载丢失，不计
+                            persistedChunks.Add(chunk); // 只统计真正进 region 的块；无数据的（已卸载）不计
                         }
                     }
                     AtomicWrite(Path.Combine(regionsDir, FileName(group.Key)), region);
-                    // saved 计数与清脏都必须在文件成功落盘之后：写失败则保持 dirty 下轮重试，且不能虚报 saved
-                    foreach (ChunkPos chunk in group.Value)
-                    {
-                        world.ClearDirty(chunk); // 卸载区块的 stale 标记也一并清掉，避免永远卡在待保存
-                    }
-                    saved += stored;
+                    // saved 计数与回调都必须在文件成功落盘之后：写失败则保持 dirty 下轮重试，且不能虚报 saved
+                    onRegionPersisted(group.Value, persistedChunks);
+                    saved += persistedChunks.Count;
                 }
                 catch (Exception e) when (e is IOException || e is InvalidDataException)
                 {

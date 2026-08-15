@@ -115,6 +115,8 @@ namespace MyWorld.Core.Tests.Persistence
             ctxA.ItemDrops.Add(new ItemDropEntity(new ItemStack(1008, 2), new Float3(5f, 71f, 6f)));
             ctxA.ItemDrops.Add(new ItemDropEntity(new ItemStack(1010, 1), new Float3(6f, 71f, 7f)));
             playerA.RestoreCoreState(PlayerState.AtRest(new Float3(8.5f, digY + 2, 8.5f)));
+            // m5 C3：注入同步执行器，SaveNow 后 region/level.dat 立刻可读（m4 断言语义不变）
+            svcA.WriteExecutor = a => a();
             svcA.SaveNow();
 
             // === 模拟重启：销毁整棵树 → 全新 World 同 seed 生成 + region overlay + 全新树恢复 ===

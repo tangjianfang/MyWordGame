@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using MyWorld.Core.Persistence;
 using MyWorld.Core.Voxel;
@@ -168,6 +169,73 @@ namespace MyWorld.Core.Tests.Persistence
                 Assert.That(saved, Is.EqualTo(0), "已卸载区块的数据随卸载丢失，不应计入保存数");
                 Assert.That(world.DirtyChunks, Is.Empty,
                     "stale 脏标记应被清掉，否则卸载区块会永远卡在待保存列表里");
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        // ─── 冻结快照重载（milestone-5 C3 异步存档）──────────────────────
+
+        /// <summary>模拟 SaveLoadService 主线程的冻结动作：脏区块 → (位置 → 区块列引用) 快照。</summary>
+        private static Dictionary<ChunkPos, ChunkColumn> FreezeDirty(World world)
+        {
+            var snapshot = new Dictionary<ChunkPos, ChunkColumn>();
+            foreach (ChunkPos pos in world.DirtyChunks)
+            {
+                if (world.TryGetChunk(pos, out ChunkColumn column)) snapshot[pos] = column;
+            }
+            return snapshot;
+        }
+
+        [Test]
+        public void SaveDirty_快照重载_只写不清脏_登记落盘区块()
+        {
+            string dir = TempDir();
+            try
+            {
+                var world = BuildWorldWithEdits((3, 64, 5), (20, 64, 600)); // chunk (0,0) 与 (1,37)，跨两个 region
+                var snapshot = FreezeDirty(world);
+
+                var written = new List<ChunkPos>();
+                int saved = RegionSaveCoordinator.SaveDirty(snapshot, dir, written);
+
+                Assert.That(saved, Is.EqualTo(2), "快照里的两个区块都应写入");
+                Assert.That(written, Is.EquivalentTo(new[] { new ChunkPos(0, 0), new ChunkPos(1, 37) }),
+                    "written 应登记真正落盘的区块，供主线程按版本守卫清脏");
+                Assert.That(world.DirtyChunks, Is.EquivalentTo(new[] { new ChunkPos(0, 0), new ChunkPos(1, 37) }),
+                    "快照重载不清脏——后台只写不清，清脏由主线程确认写盘完成后做");
+
+                // 写出的文件与 World 版格式一致：overlay 读得回来
+                var restored = new World();
+                var generator = new WorldGenerator(42);
+                var pos00 = new ChunkPos(0, 0);
+                restored.AddChunk(pos00, generator.Generate(pos00));
+                Assert.That(RegionSaveCoordinator.TryLoadChunk(restored, pos00, dir), Is.True);
+                Assert.That(restored.GetBlock(3, 64, 5), Is.EqualTo(BlockIds.Bedrock),
+                    "快照重载写出的 region 应能被 TryLoadChunk 读回");
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Test]
+        public void SaveDirty_快照重载_写失败的区块不登记()
+        {
+            string dir = TempDir();
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var world = BuildWorldWithEdits((3, 64, 5), (20, 64, 600)); // 两个 region
+                var snapshot = FreezeDirty(world);
+
+                // 独占句柄锁住 region (0,0) 的 .tmp，让该 region 写失败
+                string tmp = Path.Combine(dir, "r.0.0.mwr.tmp");
+                using (new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    var written = new List<ChunkPos>();
+                    int saved = RegionSaveCoordinator.SaveDirty(snapshot, dir, written);
+                    Assert.That(saved, Is.EqualTo(1), "只有写成功的 region 计入 saved");
+                    Assert.That(written, Is.EquivalentTo(new[] { new ChunkPos(1, 37) }),
+                        "写失败的区块不得进 written——它必须保持脏等下轮重试");
+                }
             }
             finally { Directory.Delete(dir, true); }
         }
