@@ -58,6 +58,34 @@ namespace MyWorld.Unity.EditorTools
             Debug.Log($"URP 已接入：{PipelineAssetPath}，覆盖 {QualitySettings.names.Length} 个质量档位。");
         }
 
+        /// <summary>
+        /// 把项目色彩空间切到 Linear（m5 B1）。
+        /// <para>
+        /// Gamma + URP 是「画面系统性偏暗」的根因：URP 官方只支持 Linear 色彩空间，
+        /// Gamma 下光照计算在 gamma 域进行，输出再被显示器 gamma 压一次，整体暗且不通透。
+        /// 与 Graphics/Quality 一样，色彩空间存在 <c>ProjectSettings/ProjectSettings.asset</c>，
+        /// 不手改 YAML——走 <c>PlayerSettings.colorSpace</c> API，改完标脏落盘。
+        /// 幂等：已是 Linear 则直接跳过。
+        /// </para>
+        /// </summary>
+        [MenuItem("MyWorld/切换 Linear 色彩空间")]
+        public static void ApplyLinearColorSpace()
+        {
+            if (PlayerSettings.colorSpace == ColorSpace.Linear)
+            {
+                Debug.Log("[UrpSetup] 色彩空间已是 Linear，跳过。");
+                return;
+            }
+
+            PlayerSettings.colorSpace = ColorSpace.Linear;
+
+            MarkDirty("ProjectSettings/ProjectSettings.asset");
+            AssetDatabase.SaveAssets();
+
+            Debug.Log($"[UrpSetup] 色彩空间已切 Linear（原为 {ColorSpace.Gamma}），" +
+                      $"ProjectSettings.asset 已落盘。切换后画面整体应变亮，颜色资产需目检回归。");
+        }
+
         private static UniversalRenderPipelineAsset LoadOrCreatePipelineAsset()
         {
             var existing = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(PipelineAssetPath);

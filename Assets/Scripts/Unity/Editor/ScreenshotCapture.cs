@@ -56,7 +56,15 @@ namespace MyWorld.Unity.EditorTools
             Texture2D tex = null;
             try
             {
+                // 预热一帧丢弃（m5 B1）：Linear 色彩空间下进程内第一次 Camera.Render
+                // 整屏退化为「灰 × 光照」（贴图采样落到灰色占位，天空背景色不受影响），
+                // 第二次渲染起完全正常——Gamma 时代无此现象，疑为引擎级按需初始化
+                // （已排除：GPU 同步 ReadPixels、关异步 shader 编译均无效）。
+                // 所以渲染两次、只留第二帧。注意别把这里的两次渲染合并成一次，
+                // 否则首帧灰图会被直接读走（B1 调试时踩过的坑）。
                 cam.Render();
+                cam.Render();
+
                 RenderTexture.active = rt;
                 tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
                 tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
@@ -139,7 +147,10 @@ namespace MyWorld.Unity.EditorTools
             Texture2D tex = null;
             try
             {
+                // 预热一帧丢弃：同 Capture——Linear 下进程首帧整屏灰，渲两次留第二帧。
                 cam.Render();
+                cam.Render();
+
                 RenderTexture.active = rt;
                 tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
                 tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
