@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Items;
 using MyWorld.Core.Math;
@@ -200,6 +201,39 @@ namespace MyWorld.Core.Tests.Persistence
                 service.ApplyPendingClears();               // 主线程确认写完 → 清脏
                 Assert.That(world.DirtyChunks, Is.EquivalentTo(new[] { chunkA }),
                     "无新改动的 B 正常清脏；保存窗口内又被改的 A 保留脏下轮重存（版本守卫）");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void SaveNow_异步_执行器抛异常不卡死存档()
+        {
+            var go = new GameObject();
+            try
+            {
+                var service = BuildService(go, new World(), 7000f);
+                int calls = 0;
+                service.WriteExecutor = a =>
+                {
+                    calls++;
+                    if (calls == 1) throw new InvalidOperationException("调度失败"); // 第一轮：执行器本身抛
+                    a();                                                              // 第二轮：正常执行
+                };
+
+                // 执行器抛异常不得炸到调用方（否则 30s 自动保存会把异常抛进 Update）；
+                // 同时应有一条错误日志（EditMode 会把未声明的 LogError 判为失败）
+                LogAssert.Expect(LogType.Error,
+                    "[SaveLoadService] 写盘调度失败（本轮跳过，脏区块保留下轮重试）：调度失败");
+                Assert.DoesNotThrow(() => service.SaveNow(), "执行器异常应由 SaveNow 内部兜住");
+                Assert.That(File.Exists(service.LevelDataPath), Is.False, "写盘未执行，不应有文件落地");
+
+                // 标志必须复位：否则重叠保护会把之后所有自动保存静默跳过
+                service.SaveNow();
+                Assert.That(calls, Is.EqualTo(2), "执行器异常后 _writeInProgress 应复位，下一轮保存仍可触发");
+                Assert.That(File.Exists(service.LevelDataPath), Is.True, "第二轮保存应正常落盘");
             }
             finally
             {

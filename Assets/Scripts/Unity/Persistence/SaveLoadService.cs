@@ -143,7 +143,18 @@ namespace MyWorld.Unity.Persistence
             _writeInProgress = true;
             if (async)
             {
-                WriteExecutor(Write);
+                try
+                {
+                    WriteExecutor(Write);
+                }
+                catch (Exception ex)
+                {
+                    // 执行器<b>本身</b>抛（Task.Run 调度失败 / 注入的坏执行器）：Write 的 finally
+                    // 不会跑，这里必须复位标志——否则重叠保护会把之后所有自动保存静默跳过（存档失效），
+                    // 退出路径的等待在途写也会死等。脏区块语义不变：本轮没写成，保留下轮重试。
+                    _writeInProgress = false;
+                    Debug.LogError($"[SaveLoadService] 写盘调度失败（本轮跳过，脏区块保留下轮重试）：{ex.Message}");
+                }
             }
             else
             {
