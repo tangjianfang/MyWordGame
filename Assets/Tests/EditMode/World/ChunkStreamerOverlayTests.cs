@@ -33,7 +33,10 @@ namespace MyWorld.Core.Tests.WorldStreaming
         private static string TempDir() =>
             Path.Combine(Path.GetTempPath(), $"streamer-{Guid.NewGuid():N}");
 
-        /// <summary>小半径 streamer：LoadRadius=1 共 9 根列，ChunksPerFrame=9 一帧 Tick 全部生成。</summary>
+        /// <summary>
+        /// 小半径 streamer：LoadRadius=1 共 9 根列。m5 C2 改毫秒预算制后一帧能做几件
+        /// 由真实耗时决定，TickUntilLoaded 的 maxTicks 取宽裕值（断言不变）。
+        /// </summary>
         private static ChunkStreamer NewStreamer(World world, string saveRegionsDir)
         {
             var streamer = new ChunkStreamer(world, new WorldGenerator((int)Seed),
@@ -69,7 +72,7 @@ namespace MyWorld.Core.Tests.WorldStreaming
                 // 2. 新世界 + 同 seed + regionsDir：走 streamer 的生成路径，overlay 应恢复改动
                 var fresh = new World();
                 var streamer = NewStreamer(fresh, dir);
-                TickUntilLoaded(streamer, new Float3(0.5f, 100f, 0.5f), maxTicks: 3);
+                TickUntilLoaded(streamer, new Float3(0.5f, 100f, 0.5f), maxTicks: 30);
 
                 Assert.That(fresh.LoadedChunkCount, Is.EqualTo(9), "LoadRadius=1 应加载 3×3 共 9 根列");
                 Assert.That(fresh.GetBlock(MarkerX, MarkerY, MarkerZ), Is.EqualTo(BlockIds.Bedrock),
@@ -84,7 +87,7 @@ namespace MyWorld.Core.Tests.WorldStreaming
             // 不传 saveRegionsDir：纯 seed 生成，行为与改动前完全一致
             var world = new World();
             var streamer = NewStreamer(world, saveRegionsDir: null);
-            TickUntilLoaded(streamer, new Float3(0.5f, 100f, 0.5f), maxTicks: 3);
+            TickUntilLoaded(streamer, new Float3(0.5f, 100f, 0.5f), maxTicks: 30);
 
             Assert.That(world.LoadedChunkCount, Is.EqualTo(9));
             Assert.That(world.GetBlock(MarkerX, MarkerY, MarkerZ), Is.Not.EqualTo(BlockIds.Bedrock),
@@ -100,7 +103,7 @@ namespace MyWorld.Core.Tests.WorldStreaming
             {
                 var world = new World();
                 var streamer = NewStreamer(world, dir);
-                TickUntilLoaded(streamer, new Float3(0.5f, 100f, 0.5f), maxTicks: 3);
+                TickUntilLoaded(streamer, new Float3(0.5f, 100f, 0.5f), maxTicks: 30);
 
                 Assert.That(world.TryGetChunk(new ChunkPos(0, 0), out _), Is.True,
                     "TryLoadChunk 未命中时应保留 seed 生成结果，区块不能丢");
@@ -119,7 +122,7 @@ namespace MyWorld.Core.Tests.WorldStreaming
                 var world = new World();
                 var streamer = NewStreamer(world, dir);
                 Float3 origin = new Float3(0.5f, 100f, 0.5f);
-                TickUntilLoaded(streamer, origin, maxTicks: 3);
+                TickUntilLoaded(streamer, origin, maxTicks: 30);
                 world.SetBlock(MarkerX, MarkerY, MarkerZ, BlockIds.Bedrock);
                 Assert.That(world.DirtyChunks, Is.Not.Empty);
 
@@ -133,7 +136,7 @@ namespace MyWorld.Core.Tests.WorldStreaming
                 // 3. 新世界 + 新 streamer 回到原点：改动应从存档恢复（没有卸载前保存就会丢）
                 var reloaded = new World();
                 var streamer2 = NewStreamer(reloaded, dir);
-                TickUntilLoaded(streamer2, origin, maxTicks: 3);
+                TickUntilLoaded(streamer2, origin, maxTicks: 30);
 
                 Assert.That(reloaded.GetBlock(MarkerX, MarkerY, MarkerZ), Is.EqualTo(BlockIds.Bedrock),
                     "卸载前保存的脏区块，重新加载后玩家的改动应还在");
@@ -151,8 +154,9 @@ namespace MyWorld.Core.Tests.WorldStreaming
             var streamer = NewStreamer(world, saveRegionsDir: null);
             var origin = new Float3(0.5f, 100f, 0.5f);
 
-            // 比加载完成所需（1 帧）多 Tick 9 次，观察是否有重复入队
-            TickUntilLoaded(streamer, origin, maxTicks: 10);
+            // 比加载完成所需（m5 C2 预算制下最多 9+9=18 件、每帧至少 1 件）更多次 Tick，
+            // 观察是否有重复入队
+            TickUntilLoaded(streamer, origin, maxTicks: 30);
             TickUntilLoaded(streamer, origin, maxTicks: 9);
 
             Assert.That(world.LoadedChunkCount, Is.EqualTo(9),
@@ -210,7 +214,7 @@ namespace MyWorld.Core.Tests.WorldStreaming
                 // 没有任何方块改动：卸载时不应触发落盘（目录都不该被创建）
                 var world = new World();
                 var streamer = NewStreamer(world, dir);
-                TickUntilLoaded(streamer, new Float3(0.5f, 100f, 0.5f), maxTicks: 3);
+                TickUntilLoaded(streamer, new Float3(0.5f, 100f, 0.5f), maxTicks: 30);
 
                 streamer.Tick(new Float3(20 * 16 + 0.5f, 100f, 0.5f));
 

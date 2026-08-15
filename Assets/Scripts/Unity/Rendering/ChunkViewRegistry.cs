@@ -39,7 +39,14 @@ namespace MyWorld.Unity.Rendering
 
         public int ViewCount => _views.Count;
 
-        /// <summary>建好一根区块列上所有非空段的网格。返回真正出了面的段数。</summary>
+        /// <summary>
+        /// 建好一根区块列上所有非空段的网格。返回真正出了面的段数。
+        /// <para>
+        /// m5 C2 起，流式加载路径（<see cref="MyWorld.Unity.Streaming.ChunkStreamer"/>）不再
+        /// 调它——整列一次建 24 段是移动尖峰的最大头，改为逐段调 <see cref="Rebuild"/>、
+        /// 按毫秒预算跨帧消费。本方法保留给需要整列同步构建的调用方（如测试的等价性比对）。
+        /// </para>
+        /// </summary>
         public int BuildColumn(ChunkPos chunk)
         {
             if (!_world.TryGetChunk(chunk, out ChunkColumn column))

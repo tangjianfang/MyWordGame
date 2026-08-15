@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using MyWorld.Core.Blocks;
 using MyWorld.Core.Math;
@@ -46,7 +47,44 @@ namespace MyWorld.Unity.Streaming
 
         public int LoadRadius { get; set; } = 6;
         public int UnloadRadius { get; set; } = 8;
-        public int ChunksPerFrame { get; set; } = 2;
+
+        // m5 C2：ChunksPerFrame 从「每帧固定根数」变为「每帧工作件数硬上限」，默认取
+        // MaxWorkUnitsPerFrame=16——预算制下每帧件数 = min(预算内能做完的件数, ChunksPerFrame)。
+        // 默认 16 只是防极端快的机器一帧塞爆队列的宽裕上限，实际由时间预算约束；
+        // 显式调小（如逐帧观察加载顺序的测试设 1）仍然逐字生效。
+        public int ChunksPerFrame { get; set; } = MaxWorkUnitsPerFrame;
+
+        /// <summary>
+        /// 每帧区块工作的时间预算（毫秒，默认 8ms）。m5 C2：取代固定根数制——移动跨区块时
+        /// 每帧 2 次全列生成 + 2 次整列建网格是规律性尖峰的最大头，改为「一帧做多少件
+        /// 工作由耗时决定」。一件工作 = 生成一列 / 建一个 section 的网格 / 轮换一个邻居
+        /// 未就绪的列。
+        /// </summary>
+        public float FrameBudgetMillis { get; set; } = 8f;
+
+        /// <summary>
+        /// ChunksPerFrame 的默认值，即每帧工作件数硬上限：时间预算再富余也不超过这个
+        /// 件数，防止极端快的机器一帧内塞爆队列（一次性生成几百列 / 建几百个 section
+        /// 会让内存和场景层级突变）。
+        /// </summary>
+        public const int MaxWorkUnitsPerFrame = 16;
+
+        /// <summary>
+        /// 毫秒时钟（绝对毫秒）。默认走 System.Diagnostics.Stopwatch；测试经
+        /// InternalsVisibleTo 注入假计时器，构造「单件工作 5ms」这类确定性预算场景。
+        /// </summary>
+        internal Func<long> StopwatchMillis = DefaultStopwatchMillis;
+
+        private static long DefaultStopwatchMillis()
+        {
+            return (long)(System.Diagnostics.Stopwatch.GetTimestamp() * 1000.0
+                          / System.Diagnostics.Stopwatch.Frequency);
+        }
+
+        // m5 C2：正在逐 section 续建的列。单列 24 个 section，整列一次建正是移动尖峰的
+        // 最大头，故按 section 拆分、跨帧续建；null 表示当前没有进行中的列。
+        private ChunkPos? _activeMeshColumn;
+        private int _activeMeshSection;
 
         // registry 与 seed 由 WorldGenerator 与 ChunkViewRegistry 各自持有，
         // 此处仅保留构造参数以维持 WorldBootstrap.Awake() 的调用契约。
@@ -80,42 +118,118 @@ namespace MyWorld.Unity.Streaming
             // 2. 入队 / 卸载后，把 LoadRadius 范围内还没加载的列加入 generate 队列
             EnqueueMissing(cx, cz);
 
-            // 3. 一帧最多处理 ChunksPerFrame 根（生成 + 建网格合计）
-            int budget = ChunksPerFrame;
-            while (budget > 0 && _generateQueue.Count > 0)
+            // 3. 毫秒预算制（m5 C2）：一帧做多少件工作由时间预算决定，取代原先固定
+            //    ChunksPerFrame 根的根数制。循环条件在「做下一件」之前读钟：预算 8ms、
+            //    单件 5ms 时第一次检查 5ms ≤ 8ms 做第 1 件、第二次检查累计 10ms > 8ms
+            //    停——一帧恰 1 件（ChunkBudgetTests 用「每读一次前进 5ms」的假计时器
+            //    确定性地守着这个语义）。另有 ChunksPerFrame 硬上限防极端快的机器一帧塞爆队列。
+            long tickStartMillis = StopwatchMillis();
+            // 取整后至少留 1ms，避免 FrameBudgetMillis < 1 时预算恒不满足、流式加载停摆
+            long budgetMillis = System.Math.Max(1L, (long)FrameBudgetMillis);
+            int frameCap = System.Math.Max(1, ChunksPerFrame);
+            int unitsDone = 0;
+            while (unitsDone < frameCap && StopwatchMillis() - tickStartMillis < budgetMillis)
             {
-                ChunkPos next = _generateQueue.Dequeue();
-                _generating.Remove(next);
-                _world.AddChunk(next, _generator.Generate(next));
-                // 存档 overlay（milestone-4 B1）：region 里有这根区块的改动记录时，
-                // TryLoadChunk 内部 AddChunk 覆盖 seed 生成结果；未命中返回 false，
-                // 上面刚 AddChunk 的生成结果原样保留——「有存档用存档、没存档用生成」。
-                if (_saveRegionsDir != null)
+                if (!DoOneWorkUnit())
                 {
-                    RegionSaveCoordinator.TryLoadChunk(_world, next, _saveRegionsDir);
+                    break;
                 }
+                unitsDone++;
+            }
+        }
+
+        /// <summary>
+        /// 预算循环里的一件工作。生成队列优先（建网格依赖生成结果），生成队列空了才
+        /// 做建网格侧的工作。返回 false 表示两边都没有可做的事，本帧提前收工。
+        /// </summary>
+        private bool DoOneWorkUnit()
+        {
+            if (_generateQueue.Count > 0)
+            {
+                GenerateOne();
+                return true;
+            }
+            return MeshOneUnit();
+        }
+
+        /// <summary>生成侧的一件工作：从队列取一根列灌进 <see cref="World"/>（含存档 overlay）。</summary>
+        private void GenerateOne()
+        {
+            ChunkPos next = _generateQueue.Dequeue();
+            _generating.Remove(next);
+            _world.AddChunk(next, _generator.Generate(next));
+            // 存档 overlay（milestone-4 B1）：region 里有这根区块的改动记录时，
+            // TryLoadChunk 内部 AddChunk 覆盖 seed 生成结果；未命中返回 false，
+            // 上面刚 AddChunk 的生成结果原样保留——「有存档用存档、没存档用生成」。
+            if (_saveRegionsDir != null)
+            {
+                RegionSaveCoordinator.TryLoadChunk(_world, next, _saveRegionsDir);
+            }
+            _meshQueue.Enqueue(next);
+        }
+
+        /// <summary>
+        /// 建网格侧的一件工作（m5 C2）：优先续建进行中的列的下一个 section——一列 24 个
+        /// section，整列一次建（旧 BuildColumn）正是移动尖峰的最大头；列建完再从队列取
+        /// 下一根。section 的 GameObject 在建它的那一件工作里创建并立刻填好完整网格，
+        /// 不存在「半截网格先挂出来」的中间态，一列自下而上逐段显现。
+        /// </summary>
+        private bool MeshOneUnit()
+        {
+            if (_views == null)
+            {
+                // 无渲染依赖（测试 / 无头场景）：建网格没有意义，丢弃队列里的列并消耗
+                // 一件预算，与原先 BuildColumn 空调用的语义一致。
+                if (_meshQueue.Count == 0)
+                {
+                    return false;
+                }
+                _meshing.Remove(_meshQueue.Dequeue());
+                return true;
+            }
+
+            if (_activeMeshColumn.HasValue)
+            {
+                var column = _activeMeshColumn.Value;
+                if (_world.TryGetChunk(column, out ChunkColumn chunk))
+                {
+                    if (chunk.HasSection(_activeMeshSection))
+                    {
+                        _views.Rebuild(new SectionRef(column, _activeMeshSection));
+                    }
+                    _activeMeshSection++;
+                    if (_activeMeshSection >= VoxelCoords.SectionCount)
+                    {
+                        _activeMeshColumn = null;
+                    }
+                    return true;
+                }
+
+                // 列在续建途中被卸载：丢弃进度，落到下面的队列分支
+                _activeMeshColumn = null;
+            }
+
+            if (_meshQueue.Count == 0)
+            {
+                return false;
+            }
+
+            ChunkPos next = _meshQueue.Dequeue();
+            _meshing.Remove(next);
+
+            // 邻居全到位才建网格，否则回到队列末尾（语义与根数制时代完全一致）
+            if (!AllHorizontalNeighborsLoaded(next))
+            {
                 _meshQueue.Enqueue(next);
-                budget--;
+                _meshing.Add(next);
+                // 轮换也消耗一件预算，避免外圈区块令当前帧无限自旋
+                return true;
             }
 
-            while (budget > 0 && _meshQueue.Count > 0)
-            {
-                ChunkPos next = _meshQueue.Dequeue();
-                _meshing.Remove(next);
-
-                // 邻居全到位才建网格，否则回到队列末尾
-                if (!AllHorizontalNeighborsLoaded(next))
-                {
-                    _meshQueue.Enqueue(next);
-                    _meshing.Add(next);
-                    // 消耗本次预算，避免外圈区块令当前帧无限自旋
-                    budget--;
-                    continue;
-                }
-
-                _views?.BuildColumn(next);
-                budget--;
-            }
+            // 入位算一件工作：section 的实际构建从下一件开始（预算富余时同一帧紧跟着做）
+            _activeMeshColumn = next;
+            _activeMeshSection = 0;
+            return true;
         }
 
         private void EnqueueMissing(int centerCx, int centerCz)
@@ -252,6 +366,12 @@ namespace MyWorld.Unity.Streaming
                     {
                         _generateQueue.Enqueue(rebuilt.Dequeue());
                     }
+                }
+                if (_activeMeshColumn.HasValue && _activeMeshColumn.Value.Equals(chunk))
+                {
+                    // m5 C2：正在逐 section 续建的列被卸载：丢弃续建进度
+                    //（已建的 section 由下面的 UnloadColumn 销毁，未建的不会再建）
+                    _activeMeshColumn = null;
                 }
                 _world.RemoveChunk(chunk);
                 _views?.UnloadColumn(chunk);
