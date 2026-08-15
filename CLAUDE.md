@@ -10,7 +10,7 @@ MyWordGame 是一个自研体素沙盒游戏（Unity 6 + 纯 C# Core 层），�
 全部在**仓库根目录**执行，**不需要安装 Unity**：
 
 ```bash
-dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 440 个）
+dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 461 个）
 dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTests"   # 单个测试类
 dotnet build tools/dotnet/MyWorld.Tools.sln              # 编译三个工程
 
@@ -148,7 +148,7 @@ JSON 序列化 + 压缩 + 写盘在 `Task.Run` 后台做（后台写盘期间跳
 
 ## 其余数据驱动注册表
 
-StreamingAssets 下还有四张 JSON 数据表，模式与方块一致（`_format.md` 同目录说明 schema）：
+StreamingAssets 下还有其余 JSON 数据表，模式与方块一致（`_format.md` 同目录说明 schema）：
 
 | 目录/文件 | 内容 | 加载者 | 要点 |
 | --- | --- | --- | --- |
@@ -158,6 +158,7 @@ StreamingAssets 下还有四张 JSON 数据表，模式与方块一致（`_forma
 | `mobs/spawn_rules.json` | 各生物在哪些 biome/光照生成 | `MobSpawnRulesLoader` → `MobManager` / `VillagerManager` | 生成一律走 `MobSpawnRules.PickKind`，**不要在 Unity 侧写 `UnityEngine.Random`** |
 | `mobs/drop_tables.json` | 生物死亡掉落（`countMin`/`countMax` 区间 + `chance` 概率） | `MobDropTable.Load` → `MobAI.DropTable` | 掉落走 `MobDropTable.RollAll`（每条 entry 独立掷骰，整数哈希，确定性） |
 | `blocks/drops/block_drops.json` | 挖方块掉落 | `BlockDropsLoader` → `BlockInteraction` | 同样确定性哈希掷 count |
+| `quests/chapter1.json` | 引导任务链（首章 8 步：挖→合→烧→活过夜，链式解锁） | `QuestChainLoader` → Core `QuestSystem` | 事件由 Unity 侧 `QuestEventBus` 转发（游戏逻辑不感知任务系统）；CraftItem/SmeltItem 按**任务激活以来累计**、ObtainItem 看**背包现存量**；进度进 `level.dat`，旧档无字段 = 全新开始 |
 
 **改这些 JSON 时两条铁律**：掉落/生成数量一律用整数哈希掷骰（参考 `BlockDrops.RollCount`），不持有
 随机数对象；itemId/biome 名等跨表引用改完必须跑 `dotnet test`，集成测试会抓住悬空引用。
@@ -181,7 +182,7 @@ ASCII 示意（由 `MyWorld.Preview` 从真实数据渲染，不手绘）、可�
 
 **实际使用 Unity 2022.3.62f3c1（中国版）**，不是最初规划的 Unity 6。已实机验证
 dotnet 与 EditMode 两个测试集全绿（同一批测试文件，EditMode 侧还多 Unity 专属的
-MonoBehaviour 接线测试，数量比 dotnet 侧多近百个）。这对架构无实质影响：Core 是 `netstandard2.1` + C# 9，
+MonoBehaviour 接线测试，数量比 dotnet 侧多两百余个）。这对架构无实质影响：Core 是 `netstandard2.1` + C# 9，
 2022.3 完全支持；`Mesh.AllocateWritableMeshData`、Burst、Job System、URP Forward+ 也都具备。
 
 `Packages/manifest.json` 的版本已经实机解析验证，**不要改成 Unity 6 的版本号**（URP 17.x、
@@ -202,6 +203,17 @@ Newtonsoft Json 包是必需的，缺了 Core 编译失败。
 - 启动时 `WorldBootstrap` 按物理屏系统分辨率自适应无边框全屏（修非 16:9 屏两侧黑边）
 - `ChunkStreamer` 每帧区块工作按**毫秒预算**分帧（Stopwatch 计时，默认 8ms，耗尽等下一帧），
   不是固定根数；流式/UI 热路径不许每帧 new 容器或闭包（GC 会造成移动顿挫）
+
+**UI 约定（milestone-6 起）**：
+
+- UI 贴图（hotbar 槽底/选中框等）放 `Assets/StreamingAssets/ui/`，加载走 `streamingAssetsPath`
+  前缀——**不要用 `dataPath/../Assets` 这类编辑器专用路径**（standalone build 必 fallback，
+  选中框 fallback 曾整块纯白盖住图标）
+- 物品 UI（背包/工作台/口袋/熔炉/交易）的物品格一律走 `Unity/UI/ItemSlotDrawer`
+  （图标 + 数量角标 + 选中高亮，纹理缓存共享），不要另写黑字 Label
+- UI（IMGUI/OnGUI）视觉验证必须走 `--ui-shot` 截图管线（`visual-smoke.sh` 1c 步骤）——
+  `Camera.Render` 拍不到 IMGUI，只有 standalone 的 `ScreenCapture.CaptureScreenshot`
+  能抓到含 IMGUI 的完整 backbuffer
 
 编辑器菜单 `MyWorld/` 下有五个批处理入口，都能用 `-executeMethod` 无头跑：
 
