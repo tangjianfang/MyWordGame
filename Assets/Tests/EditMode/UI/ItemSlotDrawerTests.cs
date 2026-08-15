@@ -52,6 +52,38 @@ namespace MyWorld.Core.Tests.UI
                 ItemSlotDrawer.Draw(new Rect(0, 0, 40, 40), ItemStack.Empty, null, false),
                 "空槽 + 无 GUI 上下文时 Draw 必须静默返回不抛异常");
         }
+
+        // ---- fix2（B1 评审 F2）：空槽与贴图缺失语义分离 ----
+
+        [Test]
+        public void TryResolveIcon_EmptySlot_ReturnsFalse_NoPlaceholderTexture()
+        {
+            // 回归：旧版空槽把 def==null 喂给 GetTextureOrPlaceholder 也画出品红块，
+            // 实机背包整片紫。空槽必须判定为「不画图标」，且不产生任何占位纹理引用
+            bool draw = ItemSlotDrawer.TryResolveIcon(ItemStack.Empty, null, out var tex);
+
+            Assert.That(draw, Is.False, "空槽不应画物品图标");
+            Assert.That(tex, Is.Null, "空槽连占位纹理都不该解析——品红只留给「有物品但贴图缺失」");
+        }
+
+        [Test]
+        public void TryResolveIcon_ItemWithMissingTexture_ReturnsTrue_MagentaPlaceholder()
+        {
+            // 反向边界：槽里有物品但贴图没配 → 仍要画，用品红占位提醒贴图缺失
+            // （占位语义本身由 GetTexture_MissingTexture_ReturnsMagentaPlaceholder 锁定，
+            // 这里只断言「有物品」不会被误判成「不画」）
+            var def = new ItemDefinition { Id = "m6_a2_fix2_missing", Texture = "m6-a2-fix2-不存在贴图" };
+            var items = ItemDatabase.FromJson(new[]
+            {
+                "{\"id\":\"m6_a2_fix2_missing\",\"displayName\":\"占位测试\",\"texture\":\"m6-a2-fix2-不存在贴图\"}",
+            });
+            items.TryGetById(def.Id, out def);
+
+            bool draw = ItemSlotDrawer.TryResolveIcon(new ItemStack(def.NumericId, 3), items, out var tex);
+
+            Assert.That(draw, Is.True, "有物品的槽必须画图标（哪怕贴图缺失落到品红占位）");
+            Assert.That(tex.width, Is.EqualTo(1), "贴图缺失时应拿到 1×1 品红占位");
+        }
     }
 }
 #endif

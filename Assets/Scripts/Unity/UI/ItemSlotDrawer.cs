@@ -51,7 +51,24 @@ namespace MyWorld.Unity.UI
         }
 
         /// <summary>
+        /// 纯函数判定：这一格是否需要画物品图标，需要则同时解析出贴图。
+        /// 「空槽」与「贴图缺失」是两种语义（fix2 修的回归：旧版把空槽的 def==null
+        /// 喂给占位逻辑，导致空格子整格画品红）——空槽返回 false 什么都不画，
+        /// 品红占位只留给「槽里有物品但贴图路径解析失败」。
+        /// </summary>
+        public static bool TryResolveIcon(ItemStack stack, ItemDatabase items, out Texture2D tex)
+        {
+            tex = null;
+            if (stack.IsEmpty) return false;
+            ItemDefinition def = null;
+            if (items != null) items.TryGetByNumericId(stack.ItemId, out def);
+            tex = GetTextureOrPlaceholder(def);
+            return true;
+        }
+
+        /// <summary>
         /// 画一个物品格：图标（居中，16 整数倍缩放）+ 右下数量角标 + 选中描边。
+        /// 空槽只画底框/角标/描边、不画图标（见 <see cref="TryResolveIcon"/>）。
         /// 所有 GUI 调用只允许在 Repaint 事件里执行——EditMode 测试在 OnGUI 之外
         /// 调用时 <c>Event.current</c> 为 null，必须静默返回。
         /// </summary>
@@ -60,17 +77,17 @@ namespace MyWorld.Unity.UI
             var ev = Event.current;
             if (ev == null || ev.type != EventType.Repaint) return;
 
-            ItemDefinition def = null;
-            if (items != null && !stack.IsEmpty) items.TryGetByNumericId(stack.ItemId, out def);
-
-            // 图标边长取槽内最大的 16 整数倍并居中（HotbarUI IconScalingTests 同一条契约：
-            // 16×16 贴图非整数倍缩放会让像素宽窄不均出锯齿）
-            int icon = Mathf.Max(IconBaseSize, (int)slot.width / IconBaseSize * IconBaseSize);
-            var iconRect = new Rect(
-                slot.x + (slot.width - icon) * 0.5f,
-                slot.y + (slot.height - icon) * 0.5f,
-                icon, icon);
-            GUI.DrawTexture(iconRect, GetTextureOrPlaceholder(def));
+            if (TryResolveIcon(stack, items, out var tex))
+            {
+                // 图标边长取槽内最大的 16 整数倍并居中（HotbarUI IconScalingTests 同一条契约：
+                // 16×16 贴图非整数倍缩放会让像素宽窄不均出锯齿）
+                int icon = Mathf.Max(IconBaseSize, (int)slot.width / IconBaseSize * IconBaseSize);
+                var iconRect = new Rect(
+                    slot.x + (slot.width - icon) * 0.5f,
+                    slot.y + (slot.height - icon) * 0.5f,
+                    icon, icon);
+                GUI.DrawTexture(iconRect, tex);
+            }
 
             // 数量角标右下：只有叠了 1 个以上才显示（HotbarUI 同款语义）
             if (!stack.IsEmpty && stack.Count > 1)

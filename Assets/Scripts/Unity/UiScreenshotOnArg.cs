@@ -98,6 +98,9 @@ namespace MyWorld.Unity
         {
             string path = OutputPath(fileName);
             Directory.CreateDirectory(OutputDirectory());
+            // 截图前先删旧文件（B1 评审 Minor）：Phase 3 靠 File.Exists 确认最后一张落盘，
+            // 若目录里留有上一次运行的同名残留 PNG，会在新截图编码完成前误判提前退出
+            if (File.Exists(path)) File.Delete(path);
             ScreenCapture.CaptureScreenshot(path);
             Debug.Log($"[UiScreenshotOnArg] CaptureScreenshot -> {path}");
         }
@@ -107,7 +110,7 @@ namespace MyWorld.Unity
         /// standalone 的 exe 在 <c>Builds/Windows/</c>，<see cref="Application.dataPath"/> 是
         /// <c>Builds/Windows/MyWordGame_Data</c>，上跳两级正好是 <c>Builds/</c>；
         /// 编辑器下 dataPath 是 <c>&lt;repo&gt;/Assets</c>，上跳一级再进 Builds。
-        /// 抽成带参纯函数便于推断验证，不直接读 Application 单例。
+        /// 路径推导集中在这一个方法里，便于推断验证。
         /// </summary>
         public static string OutputDirectory()
         {
