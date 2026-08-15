@@ -1,17 +1,23 @@
+using System.Collections.Generic;
+using MyWorld.Core.Quests;
+using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Player;
 using UnityEngine;
 
 namespace MyWorld.Unity.UI
 {
     /// <summary>
-    /// m6 B3：H 键帮助菜单。两页 Tab：「怎么玩」（按键表 + 四步玩法 + 「当前目标」占位）
+    /// m6 B3：H 键帮助菜单。两页 Tab：「怎么玩」（按键表 + 四步玩法 + 任务进度区）
     /// 和「设置」（灵敏度 / 音量 / FOV 三个滑条，PlayerPrefs 持久化，滑完即时生效）。
     /// <para>
     /// 打开期间置 <see cref="Player.BlockInteraction.InputLocked"/> 抑制挖/放——
     /// 菜单里点滑条不应误挖方块。H 或 Esc 关闭。
     /// </para>
     /// <para>
-    /// 「当前目标」区域是占位：C5 任务系统就绪后回来接真数据（见 task-B3 brief）。
+    /// m6 C5：「怎么玩」页的任务进度区接真数据——当前目标全文（任务名 + desc + 进度 x/y）
+    /// + 全链 8 格进度条（完成亮金 / 未完成暗灰 / 当前亮白描边）。数据每帧经
+    /// <see cref="GetProgressSummary"/> 从 <see cref="QuestEventBus"/> 挂的
+    /// <see cref="QuestSystem"/> 现读（单一真源），本组件不记账。
     /// </para>
     /// </summary>
     public sealed class HelpMenuUi : MonoBehaviour
@@ -113,6 +119,47 @@ namespace MyWorld.Unity.UI
             if (_player != null) _player.LookSensitivityMultiplier = CurrentSensitivity;
         }
 
+        // ─── 任务进度（m6 C5：进度页取数单一入口） ─────────────────────────────
+
+        /// <summary>
+        /// 「怎么玩」页任务进度区的纯数据快照（不碰 GUI 上下文，EditMode 可直接断言）。
+        /// 从 <see cref="QuestEventBus.Instance"/> 挂的 <see cref="QuestSystem"/> 现读：
+        /// 完成计数 / 完成 id 集合 / 当前任务全文与进度 x/y 全部由 Core 计账（单一真源），
+        /// 本方法只做投影，自己不持有任何任务状态。无总线（含 Instance 残留指向已销毁组件的
+        /// 场景卸载形态——Unity 重载判空兜底）或链文件缺失时返回 <see cref="QuestProgressSummary.Empty"/>。
+        /// </summary>
+        public static QuestProgressSummary GetProgressSummary()
+        {
+            // 注意这里的判空走 UnityEngine.Object 的重载 ==：场景卸载后 Instance 残留的
+            // 已销毁引用也判 null（EditMode 的 DestroyImmediate 不回调 OnDestroy 清 Instance）
+            QuestEventBus bus = QuestEventBus.Instance;
+            QuestSystem quests = bus == null ? null : bus.Quests;
+            if (quests == null)
+            {
+                return QuestProgressSummary.Empty;
+            }
+
+            var ids = new string[quests.Quests.Count];
+            for (int i = 0; i < ids.Length; i++)
+            {
+                ids[i] = quests.Quests[i].Id;
+            }
+            // 链式解锁 → 已完成 id 恒为链前缀；CompletedCount 正常 ≤ 链长，Min 夹一下防坏档
+            int done = Mathf.Min(quests.CompletedCount, ids.Length);
+            var completed = new string[done];
+            System.Array.Copy(ids, completed, done);
+
+            Quest current = quests.Current;
+            return new QuestProgressSummary(
+                ids,
+                completed,
+                current != null ? current.Id : null,
+                current != null ? current.Name : null,
+                current != null ? current.Desc : null,
+                quests.CurrentProgress,
+                current != null ? current.Condition.RequiredCount : 0);
+        }
+
         // ─── 绘制 ─────────────────────────────────────────────────────────────
 
         private static readonly string[] KeyTable =
@@ -143,7 +190,8 @@ namespace MyWorld.Unity.UI
             if (!IsOpen) return;
 
             const float w = 720f;
-            const float h = 560f;
+            // m6 C5：560 → 660——「怎么玩」页底部接了任务进度区（目标全文 + 8 格进度条）
+            const float h = 660f;
             var bg = new Rect((Screen.width - w) / 2f, (Screen.height - h) / 2f, w, h);
             // 半透明深色背景，同背包（GUI.Box 默认皮肤）
             GUI.Box(bg, GUIContent.none);
@@ -177,14 +225,112 @@ namespace MyWorld.Unity.UI
                 y += 24;
             }
 
-            // 当前目标占位区：C5 任务系统就绪后回来接真数据
+            // 任务进度区（m6 C5）：当前目标全文 + 全链 8 格进度条，接 QuestSystem 真数据
             y += 10;
-            var goalRect = new Rect(bg.x + 24, y, bg.width - 48, 48);
-            GUI.Box(goalRect, GUIContent.none);
-            GUI.Label(new Rect(goalRect.x + 10, goalRect.y + 6, goalRect.width - 20, 20),
-                "当前目标", ItemSlotDrawer.WhiteStyle());
-            GUI.Label(new Rect(goalRect.x + 10, goalRect.y + 26, goalRect.width - 20, 18),
-                "（任务系统就绪后这里会显示当前目标）", ItemSlotDrawer.WhiteStyle());
+            DrawQuestSection(bg, y);
+        }
+
+        // ─── 任务进度区绘制（m6 C5） ────────────────────────────────────────────
+
+        /// <summary>完成格亮金 #F5D76E（全局硬约束，别改）。</summary>
+        private static readonly Color CompletedSlotColor =
+            new Color(0xF5 / 255f, 0xD7 / 255f, 0x6E / 255f, 1f);
+
+        /// <summary>未完成格暗灰：比菜单半透明深底亮一档，锁定格仍然可辨。</summary>
+        private static readonly Color LockedSlotColor = new Color(0.32f, 0.32f, 0.32f, 1f);
+
+        /// <summary>进度格边长 / 间距 / 当前格亮白描边宽度（px）。</summary>
+        private const float SlotSize = 32f;
+        private const float SlotGap = 10f;
+        private const float CurrentSlotBorder = 3f;
+
+        private static GUIStyle _countStyle;
+
+        /// <summary>右对齐白字（标题行右侧的「x/8 完成」计数）。必须在 OnGUI 内首用。</summary>
+        private static GUIStyle CountStyle()
+        {
+            if (_countStyle == null)
+            {
+                _countStyle = new GUIStyle(ItemSlotDrawer.WhiteStyle())
+                {
+                    alignment = TextAnchor.MiddleRight,
+                };
+            }
+            return _countStyle;
+        }
+
+        /// <summary>
+        /// 画任务进度区：标题行（左「当前目标」右「x/8 完成」）→ 当前目标全文
+        /// （任务名 + 进度 x/y、下一行 desc）→ 全链 8 格进度条。无链时退回 B3 的
+        /// 占位语义（显示提示文字、不画格子），绝不用假数据冒充进度。
+        /// </summary>
+        private void DrawQuestSection(Rect bg, float y)
+        {
+            QuestProgressSummary summary = GetProgressSummary();
+
+            var section = new Rect(bg.x + 16, y, bg.width - 32, bg.yMax - 8 - y);
+            GUI.Box(section, GUIContent.none);
+            float x = section.x + 12;
+            float width = section.width - 24;
+
+            GUI.Label(new Rect(x, y + 8, 200, 20), "当前目标", ItemSlotDrawer.WhiteStyle());
+
+            if (!summary.HasChain)
+            {
+                // 无总线 / 链文件缺失（早期场景）：C2 语义「游戏照常玩」，帮助菜单也不许炸
+                GUI.Label(new Rect(x, y + 32, width, 18),
+                    "（任务链未加载，暂时没有目标）", ItemSlotDrawer.WhiteStyle());
+                return;
+            }
+
+            GUI.Label(new Rect(section.xMax - 12 - 160, y + 8, 160, 20),
+                summary.CountText + " 完成", CountStyle());
+
+            if (summary.ChainComplete)
+            {
+                GUI.Label(new Rect(x, y + 32, width, 20),
+                    "首章完成 ✓　8 个目标全部达成", ItemSlotDrawer.WhiteStyle());
+                GUI.Label(new Rect(x, y + 54, width, 18),
+                    "第一夜也赢下来了，接下来自由建造吧！", ItemSlotDrawer.WhiteStyle());
+            }
+            else
+            {
+                // 当前目标全文：任务名 + 进度 x/y（分子来自 Core 的单一真源，挖到/合成的
+                // 同一帧刷新），下一行 desc 给孩子具体的操作指引
+                GUI.Label(new Rect(x, y + 32, width, 20),
+                    summary.CurrentQuestName + "　" + summary.CurrentProgress + "/" + summary.CurrentRequired,
+                    ItemSlotDrawer.WhiteStyle());
+                GUI.Label(new Rect(x, y + 54, width, 18),
+                    summary.CurrentQuestDesc, ItemSlotDrawer.WhiteStyle());
+            }
+
+            DrawQuestSlots(summary, x, y + 78);
+        }
+
+        /// <summary>
+        /// 画全链进度格：完成亮金、未完成暗灰、当前任务外圈亮白描边。全部用
+        /// GUI.Box 染 <see cref="GUI.backgroundColor"/>（默认皮肤自带描边，风格与全菜单统一），
+        /// 不引新贴图。
+        /// </summary>
+        private static void DrawQuestSlots(QuestProgressSummary summary, float x, float y)
+        {
+            var prevColor = GUI.backgroundColor;
+            int count = summary.TotalCount;
+            for (int i = 0; i < count; i++)
+            {
+                var rect = new Rect(x + i * (SlotSize + SlotGap), y, SlotSize, SlotSize);
+                QuestSlotState state = summary.GetSlotState(i);
+                if (state == QuestSlotState.Current)
+                {
+                    // 当前任务：先画放大 3px 的白盒，正常尺寸的状态盒叠上去，露出的边就是亮白描边
+                    GUI.backgroundColor = Color.white;
+                    GUI.Box(new Rect(rect.x - CurrentSlotBorder, rect.y - CurrentSlotBorder,
+                        rect.width + CurrentSlotBorder * 2f, rect.height + CurrentSlotBorder * 2f), GUIContent.none);
+                }
+                GUI.backgroundColor = state == QuestSlotState.Completed ? CompletedSlotColor : LockedSlotColor;
+                GUI.Box(rect, GUIContent.none);
+            }
+            GUI.backgroundColor = prevColor;
         }
 
         private void DrawSettings(Rect bg)
@@ -232,6 +378,109 @@ namespace MyWorld.Unity.UI
             y += 60;
             GUI.Label(new Rect(bg.x + 24, y, 660, 20),
                 "设置改动立即生效并自动保存。", ItemSlotDrawer.WhiteStyle());
+        }
+    }
+
+    /// <summary>帮助菜单全链进度条中一格的显示状态（m6 C5）。</summary>
+    public enum QuestSlotState
+    {
+        /// <summary>未轮到的任务：暗灰。</summary>
+        Locked,
+        /// <summary>当前进行中的任务：暗灰底 + 亮白描边。</summary>
+        Current,
+        /// <summary>已完成：亮金 #F5D76E。</summary>
+        Completed,
+    }
+
+    /// <summary>
+    /// 帮助菜单「怎么玩」页任务进度区的纯数据快照（m6 C5）。
+    /// 由 <see cref="HelpMenuUi.GetProgressSummary"/> 从总线的 <see cref="QuestSystem"/>
+    /// 现读投影而成，GUI 只照着画——不持有游戏状态、不记账，进度数字的单一真源始终在 Core。
+    /// 全属性只读，构造后不可变。
+    /// </summary>
+    public sealed class QuestProgressSummary
+    {
+        /// <summary>共享空快照（无总线 / 链文件缺失）。全属性只读，共享安全。</summary>
+        public static readonly QuestProgressSummary Empty = new QuestProgressSummary(
+            new string[0], new string[0], null, null, null, 0, 0);
+
+        /// <summary>
+        /// 从链数据构造快照。正常只经 <see cref="HelpMenuUi.GetProgressSummary"/> 产生；
+        /// 直接 new 留给需要合成状态的测试 / 预览。
+        /// </summary>
+        public QuestProgressSummary(
+            IReadOnlyList<string> questIds,
+            IReadOnlyList<string> completedIds,
+            string currentQuestId,
+            string currentQuestName,
+            string currentQuestDesc,
+            int currentProgress,
+            int currentRequired)
+        {
+            QuestIds = questIds;
+            CompletedIds = completedIds;
+            CurrentQuestId = currentQuestId;
+            CurrentQuestName = currentQuestName;
+            CurrentQuestDesc = currentQuestDesc;
+            CurrentProgress = currentProgress;
+            CurrentRequired = currentRequired;
+        }
+
+        /// <summary>全链任务 id（顺序即解锁顺序；进度条按它画格数，首章 8 个）。</summary>
+        public IReadOnlyList<string> QuestIds { get; }
+
+        /// <summary>已完成任务 id（链式解锁 → 恒为 <see cref="QuestIds"/> 的前缀；对应格子亮金）。</summary>
+        public IReadOnlyList<string> CompletedIds { get; }
+
+        /// <summary>当前任务 id；全链完成为 null（对应格子亮白描边）。</summary>
+        public string CurrentQuestId { get; }
+
+        /// <summary>当前任务名（进度页目标全文的一行）；无链 / 全链完成为 null。</summary>
+        public string CurrentQuestName { get; }
+
+        /// <summary>当前任务描述（给孩子具体的操作指引）；无链 / 全链完成为 null。</summary>
+        public string CurrentQuestDesc { get; }
+
+        /// <summary>当前条件进度分子（Core 计账，单一真源；全链完成为 0）。</summary>
+        public int CurrentProgress { get; }
+
+        /// <summary>当前条件分母（RequiredCount；全链完成为 0）。</summary>
+        public int CurrentRequired { get; }
+
+        /// <summary>已完成任务数。</summary>
+        public int CompletedCount => CompletedIds.Count;
+
+        /// <summary>链上任务总数（= 进度条格数）。</summary>
+        public int TotalCount => QuestIds.Count;
+
+        /// <summary>进度计数文本，如「3/8」。</summary>
+        public string CountText => CompletedCount + "/" + TotalCount;
+
+        /// <summary>是否有任务链（无总线 / 链文件缺失时 false，进度页显示占位）。</summary>
+        public bool HasChain => TotalCount > 0;
+
+        /// <summary>全链完成（进度页改显示「首章完成」）。注意无链是 false，两者别混。</summary>
+        public bool ChainComplete => HasChain && CurrentQuestId == null;
+
+        /// <summary>
+        /// 第 <paramref name="index"/> 格的显示状态：完成亮金 / 当前亮白描边 / 未解锁暗灰。
+        /// 下标越界抛 <see cref="System.ArgumentOutOfRangeException"/>（写严格——绘制循环按
+        /// <see cref="TotalCount"/> 走，越界只可能是调用方 bug）。
+        /// </summary>
+        public QuestSlotState GetSlotState(int index)
+        {
+            if (index < 0 || index >= QuestIds.Count)
+            {
+                throw new System.ArgumentOutOfRangeException(
+                    nameof(index), "进度格下标越界：" + index + "（链上共 " + QuestIds.Count + " 格）");
+            }
+            if (index < CompletedIds.Count)
+            {
+                return QuestSlotState.Completed;
+            }
+            return CurrentQuestId != null && QuestIds[index] == CurrentQuestId
+                ? QuestSlotState.Current
+                : QuestSlotState.Locked;
         }
     }
 }
