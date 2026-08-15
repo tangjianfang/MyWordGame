@@ -28,11 +28,13 @@ namespace MyWorld.Unity.Bootstrap
 
         [SerializeField] private long seed = 42;
 
-        [Tooltip("玩家初始出生位置（世界坐标）。Y 应给到地表以上，避免落到山里。")]
-        // 默认种子 42 下，原点地表约为 y=98；流式加载中心出队之前玩家所在的列可能是
-        // 第 78 个才被加载的列，Y=80 会让玩家出生在石头里、四周被实心方块夹住。
-        // Y=120 保证约 22 格的自由落体距离，物理 + 流式加载来得及把地面准备好。
-        [SerializeField] private Vector3 spawnPosition = new Vector3(0.5f, 120f, 0.5f);
+        [Tooltip("玩家水平出生坐标（X/Z）。Y 由生成器地表高度 +2 决定，序列化的 Y 值被忽略。")]
+        // m5 A2 起出生 Y 不再用固定值：旧默认 Y=120 在默认种子 42（地表 ~98）的世界里是
+        // 22 格自由落体，落地结算 (22-3)=19 点摔落伤害——玩家一进角色就莫名掉大半管血。
+        // 现在 Awake 里用 generator.SurfaceHeightAt 现算地表，出生即在地表上方 2 格，
+        // 落差 < FallDamageThreshold(3) 不触发摔落伤害；streamer 按距中心由近到远入队，
+        // 中心列第一帧就生成，2 格余量足够碰撞数据在落地前就位。
+        [SerializeField] private Vector3 spawnPosition = new Vector3(0.5f, 0f, 0.5f);
 
         private BlockMaterialLibrary _materials;
 
@@ -93,8 +95,13 @@ namespace MyWorld.Unity.Bootstrap
             }
 
             // 8. 玩家控制器
+            // 出生 Y 现算（m5 A2）：地表 +2 格落地，根治固定 Y=120 的出生摔落伤害。
+            // 序列化字段只取 X/Z 作水平出生点；Y 忽略场景里保存的旧值（Preview.unity
+            // 序列化过 y=120，信它就退回老 bug）。
+            int spawnSurfaceY = generator.SurfaceHeightAt((int)spawnPosition.x, (int)spawnPosition.z);
             _player = GetComponent<PlayerController>() ?? gameObject.AddComponent<PlayerController>();
-            _player.Bind(_world, _registry, new Float3(spawnPosition.x, spawnPosition.y, spawnPosition.z));
+            _player.Bind(_world, _registry,
+                new Float3(spawnPosition.x, spawnSurfaceY + 2f, spawnPosition.z));
 
             // 9. 方块交互
             _interaction = GetComponent<BlockInteraction>() ?? gameObject.AddComponent<BlockInteraction>();

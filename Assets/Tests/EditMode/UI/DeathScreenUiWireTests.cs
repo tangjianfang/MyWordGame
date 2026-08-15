@@ -34,7 +34,8 @@ namespace MyWorld.Core.Tests.UI
 
             pc.TakeDamage(100, null);  // 致死
             pc.Respawn(Vector3.zero);
-            Assert.That(pc.Health, Is.GreaterThan(0), "重生后 Health > 0");
+            // m5 A2：伤害 / 重生统一走 PlayerContext.Health（唯一真源）
+            Assert.That(ctx.Health.Current, Is.GreaterThan(0), "重生后 Health > 0");
             // HungerSystem 通过 PlayerContext 取
             Assert.That(ctx.HungerSystem, Is.Not.Null, "PlayerContext.Awake 应初始化 HungerSystem");
             Assert.That(ctx.HungerSystem.Hunger, Is.EqualTo(HungerSystem.MaxHunger), "重生后 Hunger 满");

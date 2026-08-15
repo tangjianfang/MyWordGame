@@ -116,12 +116,6 @@ namespace MyWorld.Unity.Player
             _defaultVerticalVelocity = 0f;
         }
 
-        /// <summary>玩家当前生命值。归零时触发死亡画面（见 <see cref="TakeDamage"/>）。</summary>
-        public int Health { get; private set; } = MaxHealth;
-
-        /// <summary>生命值上限。默认 20（=10 颗心）。</summary>
-        public const int MaxHealth = 20;
-
         /// <summary>玩家受到伤害。<paramref name="amount"/> ≤ 0 直接忽略；生命归零时通知
         /// <see cref="MyWorld.Unity.UI.DeathScreenUi"/> 显示死亡画面。<paramref name="attacker"/>
         /// 保留给未来的伤害归属 / 成就系统，这里不用。
@@ -129,15 +123,21 @@ namespace MyWorld.Unity.Player
         /// B8 起这是**多源**入口：怪物近战（<c>CombatController</c>）、摔落
         /// （<see cref="TickFallDamage"/>）、饥饿（<see cref="TickHungerDamage"/>）都走这里，
         /// 死亡判定只有这一处，不要在各伤害源里各写一份。
+        /// </para>
+        /// <para>
+        /// m5 A2 起伤害**唯一真源是 <see cref="PlayerContext.Health"/>**（float Current/Max）——
+        /// 血条 UI、死亡判定、存档全都读它。本组件不再持有私有的 int 血条；场景里没有
+        /// PlayerContext（早期 / 纯逻辑测试）时静默跳过。
         /// </para></summary>
         public void TakeDamage(int amount, object attacker)
         {
             if (amount <= 0) return;
-            Health = System.Math.Max(0, Health - amount);
-            if (Health == 0)
+            var ctx = GetComponent<PlayerContext>();
+            if (ctx == null) return;
+            ctx.Health.Damage(amount);
+            if (ctx.Health.IsDead)
             {
-                var ctx = GetComponent<PlayerContext>();
-                ctx?.DeathScreen?.Show();
+                ctx.DeathScreen?.Show();
             }
         }
 
@@ -261,12 +261,15 @@ namespace MyWorld.Unity.Player
         /// 绑定到 <see cref="World"/> 之后公开属性 <see cref="VerticalVelocity"/> / <see cref="IsGrounded"/>
         /// 实际由 <see cref="PlayerState"/> 驱动，所以这里必须重建 _state 让其 Velocity.Y=0、IsGrounded=true；
         /// 只写私有 _default* 字段（未绑定时的 fallback）会被覆盖回原值，导致生产环境 Respawn 失败。
+        /// 生命回满写 <see cref="PlayerContext.Health"/>（m5 A2 起唯一真源）；
+        /// 场景里没有 PlayerContext 时跳过（与 TakeDamage 的容忍策略一致）。
         /// Core 的 <see cref="PlayerState"/> 字段（Hunger / Saturation）暂不写回——B8 接 pickup 时
         /// 再决定是否把 HungerSystem.Hunger 同步到 PlayerState.Hunger。</summary>
         public void Respawn(Vector3 spawnPoint)
         {
             transform.position = spawnPoint;
-            Health = MaxHealth;
+            var ctx = GetComponent<PlayerContext>();
+            ctx?.Health.ResetToFull();
 
             if (_world != null)
             {
@@ -282,7 +285,6 @@ namespace MyWorld.Unity.Player
                 _defaultIsGrounded = true;
             }
 
-            var ctx = GetComponent<PlayerContext>();
             if (ctx?.HungerSystem != null)
             {
                 ctx.HungerSystem.Hunger = HungerSystem.MaxHunger;

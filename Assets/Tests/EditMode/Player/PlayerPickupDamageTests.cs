@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using NUnit.Framework;
 using UnityEngine;
+using MyWorld.Core.Entities;
 using MyWorld.Core.Items;
 using MyWorld.Core.Math;
 using MyWorld.Core.Player;
@@ -12,6 +13,8 @@ namespace MyWorld.Core.Tests.Player
     /// <summary>
     /// B8：拾取掉落物 + 多源 TakeDamage（摔落 / 饥饿）。
     /// 全部走 PlayerController 的公开步进方法，不依赖 Update / Play 模式。
+    /// m5 A2 起伤害统一写 <see cref="PlayerContext"/>.Health（血条 / 存档唯一真源），
+    /// 断言从 PlayerController 私有 int Health 改为读 ctx.Health.Current。
     /// </summary>
     public class PlayerPickupDamageTests
     {
@@ -28,6 +31,9 @@ namespace MyWorld.Core.Tests.Player
             // Awake 会走 Destroy(this) 分支而不初始化 Inventory。
             _ctx.Inventory = new PlayerInventory();
             _ctx.HungerSystem = new HungerSystem();
+            // EditMode 下 AddComponent 不触发 Awake，Health 需要显式初始化，
+            // 否则默认 Current=0，伤害扣不进任何可见血条。
+            _ctx.Health = new Health(20f);
             _player = _go.AddComponent<PlayerController>();
         }
 
@@ -75,11 +81,11 @@ namespace MyWorld.Core.Tests.Player
             _player.ForceGroundedForTest();
             _player.TickFallDamage();
 
-            Assert.AreEqual(PlayerController.MaxHealth - 7, _player.Health, "摔落 10 格应扣 7 点血");
+            Assert.AreEqual(_ctx.Health.Max - 7, _ctx.Health.Current, "摔落 10 格应扣 7 点血");
 
             // 结算后峰值重置，再调一次不应重复扣血
             _player.TickFallDamage();
-            Assert.AreEqual(PlayerController.MaxHealth - 7, _player.Health, "着地后不应重复结算");
+            Assert.AreEqual(_ctx.Health.Max - 7, _ctx.Health.Current, "着地后不应重复结算");
         }
 
         [Test]
@@ -88,10 +94,10 @@ namespace MyWorld.Core.Tests.Player
             _ctx.HungerSystem = new HungerSystem { Hunger = 0, Saturation = 0f };
 
             _player.TickHungerDamage(9f);
-            Assert.AreEqual(PlayerController.MaxHealth, _player.Health, "不足 10 秒不扣血");
+            Assert.AreEqual(_ctx.Health.Max, _ctx.Health.Current, "不足 10 秒不扣血");
 
             _player.TickHungerDamage(1f);
-            Assert.AreEqual(PlayerController.MaxHealth - 1, _player.Health, "满 10 秒扣 1 点血");
+            Assert.AreEqual(_ctx.Health.Max - 1, _ctx.Health.Current, "满 10 秒扣 1 点血");
         }
 
         [Test]
@@ -101,7 +107,7 @@ namespace MyWorld.Core.Tests.Player
 
             _player.TickHungerDamage(30f);
 
-            Assert.AreEqual(PlayerController.MaxHealth, _player.Health, "不饥饿时不应扣血");
+            Assert.AreEqual(_ctx.Health.Max, _ctx.Health.Current, "不饥饿时不应扣血");
         }
     }
 }
