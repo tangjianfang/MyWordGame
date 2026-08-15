@@ -9,9 +9,9 @@ namespace MyWorld.Core.Quests
     {
         /// <summary>获得物品。事件里的 <see cref="QuestEvent.Count"/> 语义是「背包现存量」，见 <see cref="QuestCondition"/>。</summary>
         ObtainItem = 0,
-        /// <summary>合成产出物品。<see cref="QuestEvent.Count"/> 为本次产出数量。</summary>
+        /// <summary>合成产出物品。<see cref="QuestEvent.Count"/> 为本次产出数量，任务内**累计**判定。</summary>
         CraftItem = 1,
-        /// <summary>熔炉烧炼产出物品。<see cref="QuestEvent.Count"/> 为本次产出数量。</summary>
+        /// <summary>熔炉烧炼产出物品。<see cref="QuestEvent.Count"/> 为本次产出数量，任务内**累计**判定。</summary>
         SmeltItem = 2,
         /// <summary>跨过一次日出。无条件参数，事件到达即算。</summary>
         SurviveNight = 3,
@@ -50,7 +50,10 @@ namespace MyWorld.Core.Quests
     }
 
     /// <summary>
-    /// 单个任务的完成条件。物品类条件要求事件的类型、物品 id、数量三者都匹配；
+    /// 单个任务的完成条件。物品类条件要求事件的类型、物品 id 匹配；数量口径分两类
+    /// （fix1 起与文档对齐）：<b>ObtainItem</b> 单笔比较（事件 Count 是背包现存量）、
+    /// <b>CraftItem/SmeltItem</b> 任务内累计（事件 Count 是本次产出数量，累计值 ≥
+    /// <see cref="RequiredCount"/> 才完成——「需求量 &gt; 单次批量」的任务分多笔凑满）。
     /// <see cref="ConditionType.SurviveNight"/> 只看事件类型，<see cref="ItemId"/> 固定 0、
     /// <see cref="RequiredCount"/> 固定 1（供 HUD 显示 0/1 进度，不参与判定）。
     /// </summary>
@@ -89,5 +92,11 @@ namespace MyWorld.Core.Quests
     {
         public string CurrentQuestId;
         public int CompletedCount;
+        /// <summary>
+        /// 当前任务内累计的进度分子（fix1 新增）：CraftItem/SmeltItem 是任务激活以来匹配事件的
+        /// Count 累计，ObtainItem 是最近一次匹配事件携带的背包现存量。
+        /// 旧档缺此字段 = 0（Newtonsoft 默认值，自然兼容——最多把一个未完成任务的进度归零重攒）。
+        /// </summary>
+        public int Progress;
     }
 }

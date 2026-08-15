@@ -22,6 +22,13 @@ namespace MyWorld.Core.Quests
         private readonly Quest[] _chain;
         /// <summary>当前任务下标；等于 <c>_chain.Length</c> 表示全链完成。</summary>
         private int _index;
+        /// <summary>
+        /// 当前任务条件的进度分子（fix1 起累计在 Core，Unity 侧 HUD 只读不重复计账）。
+        /// 口径随条件类型：ObtainItem = 最近一次匹配事件携带的背包现存量（覆盖不累计）；
+        /// CraftItem/SmeltItem = 任务激活以来匹配事件 Count 的累计；SurviveNight 恒 0。
+        /// 任务完成切换 / Restore 时重置。
+        /// </summary>
+        private int _progress;
 
         private QuestSystem(Quest[] chain)
         {
@@ -33,6 +40,13 @@ namespace MyWorld.Core.Quests
 
         /// <summary>已完成的任务数（0..链长）。</summary>
         public int CompletedCount { get; private set; }
+
+        /// <summary>
+        /// 当前任务的进度分子（HUD 的 n/m 取 n 的**单一真源**）。任务未完成期间恒 ≤
+        /// <see cref="QuestCondition.RequiredCount"/>（完成瞬间清零切任务，超界的累计值不外泄）。
+        /// 全链完成后为 0。
+        /// </summary>
+        public int CurrentProgress => _progress;
 
         /// <summary>本章任务总数（供 C3 HUD「x/8」进度显示）。</summary>
         public int TotalCount => _chain.Length;
@@ -53,10 +67,15 @@ namespace MyWorld.Core.Quests
         /// 用一个事件尝试推进当前任务。返回 true 当且仅当这次事件使当前任务完成
         /// （随后 <see cref="Current"/> 已指向下一个任务或为 null）。
         /// <para>
-        /// 判定规则：物品类条件（ObtainItem/CraftItem/SmeltItem）要求事件类型、物品 id
-        /// 都相同且 <see cref="QuestEvent.Count"/> ≥ <see cref="QuestCondition.RequiredCount"/>；
-        /// SurviveNight 条件只看事件类型，无条件参数直接完成。
-        /// 当前为 null（全链完成）或条件不满足时返回 false，不抛异常。
+        /// 判定规则（fix1 起两类口径分开）：
+        /// <b>ObtainItem</b>——事件类型、物品 id 相同且事件的 <see cref="QuestEvent.Count"/>
+        /// （背包现存量）≥ <see cref="QuestCondition.RequiredCount"/>，单笔比较；
+        /// <b>CraftItem/SmeltItem</b>——事件类型、物品 id 相同即先累计
+        /// （<see cref="QuestEvent.Count"/> 是本次产出数量），累计值 ≥ Required 才完成
+        /// （「需求量 &gt; 单次批量」的任务分多笔凑满）；
+        /// <b>SurviveNight</b>——只看事件类型，无条件参数直接完成。
+        /// 类型/物品不匹配的事件不计进度也不判定。当前为 null（全链完成）或条件不满足时
+        /// 返回 false，不抛异常。
         /// </para>
         /// </summary>
         public bool TryComplete(QuestEvent evt)
@@ -66,23 +85,56 @@ namespace MyWorld.Core.Quests
             {
                 return false;
             }
-            if (!Matches(current.Condition, evt))
+            if (!TrackAndCheck(current.Condition, evt))
             {
                 return false;
             }
 
             CompletedCount++;
             _index++;
+            _progress = 0; // 切换任务：分子重新累计
             return true;
         }
 
-        /// <summary>导出存档快照：当前任务 id（全链完成为 null）+ 完成计数。</summary>
+        /// <summary>
+        /// 用一次事件更新当前条件的进度分子并判定是否达成。不匹配的事件原样返回 false、不动进度。
+        /// </summary>
+        private bool TrackAndCheck(QuestCondition condition, QuestEvent evt)
+        {
+            if (condition.Type == ConditionType.SurviveNight)
+            {
+                // SurviveNight 无条件参数：事件到达即满足，无中间进度
+                return evt.Type == QuestEventType.SurviveNight;
+            }
+
+            // ConditionType 与 QuestEventType 同名成员底层值相同（见 Quest.cs 注释），显式转换安全
+            if (evt.Type != (QuestEventType)condition.Type || evt.ItemId != condition.ItemId)
+            {
+                return false;
+            }
+
+            if (condition.Type == ConditionType.ObtainItem)
+            {
+                // 现存量口径：事件 Count 就是背包现存量，覆盖式更新 + 单笔比较
+                // （掉物品后现存量回落也如实反映，所以不累计）
+                _progress = evt.Count;
+                return evt.Count >= condition.RequiredCount;
+            }
+
+            // 产出口径（CraftItem/SmeltItem）：事件 Count 是本次产出数量，任务内累计后比较——
+            // 单笔永远凑不满的任务（炼 3 根铁锭、一次只取 1）靠多笔累计完成
+            _progress += evt.Count;
+            return _progress >= condition.RequiredCount;
+        }
+
+        /// <summary>导出存档快照：当前任务 id（全链完成为 null）+ 完成计数 + 当前进度分子。</summary>
         public QuestState SaveState()
         {
             return new QuestState
             {
                 CurrentQuestId = Current?.Id,
                 CompletedCount = CompletedCount,
+                Progress = _progress,
             };
         }
 
@@ -91,6 +143,7 @@ namespace MyWorld.Core.Quests
         /// <paramref name="state"/> 为 null 时跳过（旧档兼容 = 全新开始）；
         /// <see cref="QuestState.CurrentQuestId"/> 为 null/空时按完成计数区分全新开始（0）与全链完成（= 链长）；
         /// 任务 id 不属于本章任务链抛 <see cref="ArgumentException"/>（写严格，调用方按层捕获跳过）。
+        /// 累计进度取 <see cref="QuestState.Progress"/>（旧档缺字段 = 0，自然兼容）并夹非负。
         /// </summary>
         public void Restore(QuestState state)
         {
@@ -101,7 +154,7 @@ namespace MyWorld.Core.Quests
 
             if (string.IsNullOrEmpty(state.CurrentQuestId))
             {
-                // 无当前任务：完成计数打到链长 = 全链完成态，否则视为全新开始
+                // 无当前任务：完成计数打到链长 = 全链完成态，否则视为全新开始；两种都无进度可言
                 if (state.CompletedCount >= _chain.Length)
                 {
                     _index = _chain.Length;
@@ -112,6 +165,7 @@ namespace MyWorld.Core.Quests
                     _index = 0;
                     CompletedCount = 0;
                 }
+                _progress = 0;
                 return;
             }
 
@@ -123,25 +177,13 @@ namespace MyWorld.Core.Quests
                     // 完成计数夹回 [0, 链长]，坏档不至于把 HUD 的 x/8 挤爆
                     // 注意写全 System.Math——Core 里有个 MyWorld.Core.Math 命名空间会抢解析
                     CompletedCount = System.Math.Max(0, System.Math.Min(state.CompletedCount, _chain.Length));
+                    // 进度分子夹非负（负值坏档不合法但也不值得炸读档链路）
+                    _progress = System.Math.Max(0, state.Progress);
                     return;
                 }
             }
             throw new ArgumentException(
                 $"存档里的任务 id 不属于本章任务链：{state.CurrentQuestId}（链内共 {_chain.Length} 个任务）");
-        }
-
-        private static bool Matches(QuestCondition condition, QuestEvent evt)
-        {
-            if (condition.Type == ConditionType.SurviveNight)
-            {
-                // SurviveNight 无条件参数：事件到达即满足
-                return evt.Type == QuestEventType.SurviveNight;
-            }
-
-            // ConditionType 与 QuestEventType 同名成员底层值相同（见 Quest.cs 注释），显式转换安全
-            return evt.Type == (QuestEventType)condition.Type
-                && evt.ItemId == condition.ItemId
-                && evt.Count >= condition.RequiredCount;
         }
     }
 }

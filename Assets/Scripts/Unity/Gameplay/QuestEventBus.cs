@@ -13,7 +13,7 @@ namespace MyWorld.Unity.Gameplay
     /// 职责刻意保持「薄」：转发事件；当前任务命中完成的瞬间先经
     /// <see cref="PlayerContext.Experience"/>.Add 入账奖励经验，再触发
     /// <see cref="OnQuestCompleted"/> 钩子（C3 的 QuestHudUi 订阅它弹「完成」提示）。
-    /// 条件判定 / 链推进全在 Core 的 QuestSystem，本类不重复任何比较逻辑。
+    /// 条件判定 / 链推进 / 进度计账全在 Core 的 QuestSystem（单一真源），本类不重复任何比较逻辑。
     /// </para>
     /// <para>
     /// 挂在 PlayerContext 同一物体上（WorldBootstrap 装配）；昼夜观察在
@@ -33,14 +33,6 @@ namespace MyWorld.Unity.Gameplay
 
         private PlayerContext _ctx;
 
-        /// <summary>
-        /// 当前任务的进度分子（m6 C3 HUD 显示用）。口径随条件类型不同：
-        /// ObtainItem = 最近一次匹配事件携带的背包现存量（覆盖不累计——掉物品后现存量回落也如实反映）；
-        /// CraftItem/SmeltItem = 当前任务激活以来匹配事件 Count 的累计（事件语义是「本次产出数量」）。
-        /// 任务完成切换 / 重绑任务链时清零。
-        /// </summary>
-        private int _progress;
-
         /// <summary>上一帧观察到的世界时刻（tick）。跨夜判定用，见 <see cref="WatchNightCrossing"/>。</summary>
         private float _lastNightWatchTick = -1f;
 
@@ -50,14 +42,16 @@ namespace MyWorld.Unity.Gameplay
             _ctx = ctx;
             Quests = system;
             Instance = this; // EditMode 下 Awake 不会跑，这里兜底；运行时与 Awake 双保险
-            _progress = 0;   // 换链 = 进度作废，从 0 重新累计
+            // 进度分子不在这里清：fix1 起归 Core 计账（含 C4 的 Restore 恢复），总线只读
             ResetNightBaseline();
         }
 
         /// <summary>
         /// 当前任务进度查询（m6 C3 HUD 消费）：返回 (分子, 分母)。
         /// 分母取当前任务条件的 <see cref="QuestCondition.RequiredCount"/>；
-        /// 分子口径见 <c>_progress</c> 字段注释（ObtainItem 现存量 / CraftItem·SmeltItem 累计）。
+        /// 分子直接读 Core 的 <see cref="QuestSystem.CurrentProgress"/>（单一真源，fix1 起总线不再
+        /// 重复计账）——口径随条件类型：ObtainItem = 最近一次匹配事件的背包现存量（覆盖不累计）、
+        /// CraftItem/SmeltItem = 任务内匹配事件 Count 的累计、SurviveNight 恒 0。
         /// 无链或全链完成（<see cref="QuestSystem.Current"/> 为 null）时返回 (0, 0)——HUD 拿到后不画进度。
         /// </summary>
         public (int Progress, int Required) QuestProgress()
@@ -67,7 +61,7 @@ namespace MyWorld.Unity.Gameplay
             {
                 return (0, 0);
             }
-            return (_progress, current.Condition.RequiredCount);
+            return (Quests.CurrentProgress, current.Condition.RequiredCount);
         }
 
         /// <summary>
@@ -78,11 +72,8 @@ namespace MyWorld.Unity.Gameplay
         {
             if (Quests == null) return;
 
-            // m6 C3：判定完成之前先观察进度——完成那一笔事件也把分子抬到位，
-            // HUD 在打勾切换前能看到「4/4」而不是永远停在上一笔
-            ObserveProgress(Quests.Current, evt);
-
-            // TryComplete 成功后 Current 已前移，先取住「即将完成的任务」供钩子与经验入账用
+            // TryComplete 成功后 Current 已前移，先取住「即将完成的任务」供钩子与经验入账用。
+            // 进度累计也发生在 TryComplete 里（Core 单一真源），完成即清零切下一任务
             Quest completing = Quests.Current;
             if (!Quests.TryComplete(evt)) return;
 
@@ -92,38 +83,7 @@ namespace MyWorld.Unity.Gameplay
             {
                 _ctx.Experience.Add(completing.RewardExp);
             }
-            _progress = 0; // 完成即切换到下一任务，分子重新累计
             OnQuestCompleted?.Invoke(completing);
-        }
-
-        /// <summary>
-        /// 用一次事件更新当前任务的进度分子（m6 C3）。只观察「类型 + 物品 id 都与当前条件匹配」
-        /// 的事件；SurviveNight 无中间进度（事件到达即完成），不观察。
-        /// </summary>
-        private void ObserveProgress(Quest current, QuestEvent evt)
-        {
-            if (current == null)
-            {
-                return;
-            }
-            QuestCondition cond = current.Condition;
-            if (cond.Type == ConditionType.SurviveNight)
-            {
-                return;
-            }
-            // ConditionType 与 QuestEventType 同名成员底层值相同（见 Quest.cs 注释），显式转换安全
-            if (evt.Type != (QuestEventType)cond.Type || evt.ItemId != cond.ItemId)
-            {
-                return;
-            }
-            if (evt.Type == QuestEventType.ObtainItem)
-            {
-                _progress = evt.Count;  // 现存量口径：事件 Count 就是背包现存量，覆盖
-            }
-            else
-            {
-                _progress += evt.Count; // 产出口径：事件 Count 是本次产出数量，累计
-            }
         }
 
         /// <summary>

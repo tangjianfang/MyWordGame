@@ -15,7 +15,8 @@ namespace MyWorld.Unity.UI
     /// 打勾/完成卡的停留计时用可注入的 <c>Func&lt;float&gt;</c> 时钟（默认 <c>Time.time</c>），
     /// 过期判定惰性发生在 GetHudText 里——OnGUI 每帧调用它，即等于每帧步进，无需 Update。
     /// 进度数字经 <see cref="QuestEventBus.QuestProgress"/> 每帧现读（ObtainItem = 背包现存量、
-    /// CraftItem/SmeltItem = 事件累计），挖到 / 合成的同一帧就能看到数字变化。
+    /// CraftItem/SmeltItem = 事件累计，fix1 起两者都由 Core 的 QuestSystem 计账——单一真源），
+    /// 挖到 / 合成的同一帧就能看到数字变化。
     /// </para>
     /// </summary>
     public sealed class QuestHudUi : MonoBehaviour
