@@ -28,15 +28,17 @@ namespace MyWorld.Preview
             Console.WriteLine();
             PrintHeightMap(generator);
             Console.WriteLine();
+            PrintOreStats(generator);
+            Console.WriteLine();
             PrintMeshStats(generator);
         }
 
-        /// <summary>纵向剖面：直观展示地表起伏、土层厚度与水面。</summary>
+        /// <summary>纵向剖面：直观展示地表起伏、土层厚度、水面与地下矿层（m10 起下探到 y=-24）。</summary>
         private static void PrintCrossSection(WorldGenerator generator)
         {
             const int width = 110;
             const int top = 100;
-            const int bottom = 40;
+            const int bottom = -24;
 
             Console.WriteLine($"── 纵向剖面 (z=0, x=0..{width - 1}, y={bottom}..{top}) ──");
 
@@ -56,8 +58,50 @@ namespace MyWorld.Preview
             }
 
             Console.WriteLine("     +" + new string('-', width));
-            Console.WriteLine("     图例: '\"'草 '.'土 '#'石 ':'沙 '~'水 '_'基岩 ' '空气");
+            Console.WriteLine("     图例: '\"'草 '.'土 '#'石 ':'沙 '~'水 '_'基岩 '*'雪 ' '空气");
+            Console.WriteLine("     矿石: '$'金 '%'粗铁 '&'合金 '@'机元（地层：粗铁<48 金<32 合金<24 机元<16）");
         }
+
+        /// <summary>地下矿层统计（m10）：四矿在石层中的实测占比（含洞穴挖掉的部分），供调稀有度参数时对比。</summary>
+        private static void PrintOreStats(WorldGenerator generator)
+        {
+            const int chunkRadius = 2;   // 5×5 区块，y ∈ (MinY, 48) 的石层
+
+            long stone = 0;
+            long gold = 0, iron = 0, alloy = 0, essence = 0;
+            for (var chunkX = -chunkRadius; chunkX <= chunkRadius; chunkX++)
+            {
+                for (var chunkZ = -chunkRadius; chunkZ <= chunkRadius; chunkZ++)
+                {
+                    ChunkColumn column = generator.Generate(new ChunkPos(chunkX, chunkZ));
+                    for (int y = VoxelCoords.MinY + 1; y < OreFeature.RawIronMaxY; y++)
+                    for (var lz = 0; lz < VoxelCoords.ChunkSize; lz++)
+                    for (var lx = 0; lx < VoxelCoords.ChunkSize; lx++)
+                    {
+                        switch (column.GetBlock(lx, y, lz))
+                        {
+                            case BlockIds.Stone: stone++; break;
+                            case BlockIds.GoldOre: gold++; break;
+                            case BlockIds.RawIronOre: iron++; break;
+                            case BlockIds.SummerAlloyOre: alloy++; break;
+                            case BlockIds.MachineEssenceOre: essence++; break;
+                        }
+                    }
+                }
+            }
+
+            long solid = stone + gold + iron + alloy + essence;
+            Console.WriteLine($"── 地下矿层统计 ({(chunkRadius * 2 + 1) * (chunkRadius * 2 + 1)} 区块, y∈({VoxelCoords.MinY}, {OreFeature.RawIronMaxY}) 石层) ──");
+            Console.WriteLine($"     石头: {stone}");
+            Console.WriteLine($"     粗铁: {iron,7}  占石层 {Pct(iron, solid)}");
+            Console.WriteLine($"     金:   {gold,7}  占石层 {Pct(gold, solid)}");
+            Console.WriteLine($"     合金: {alloy,7}  占石层 {Pct(alloy, solid)}");
+            Console.WriteLine($"     机元: {essence,7}  占石层 {Pct(essence, solid)}");
+        }
+
+        private static string Pct(long part, long total) =>
+            total > 0 ? $"{part * 100.0 / total:F2}%" : "n/a";
+
 
         /// <summary>俯视高度图：用字符深浅表达海拔，检查大尺度地形是否自然。</summary>
         private static void PrintHeightMap(WorldGenerator generator)
@@ -200,6 +244,10 @@ namespace MyWorld.Preview
                 case BlockIds.Water: return '~';
                 case BlockIds.Bedrock: return '_';
                 case BlockIds.Snow: return '*';
+                case BlockIds.GoldOre: return '$';
+                case BlockIds.RawIronOre: return '%';
+                case BlockIds.SummerAlloyOre: return '&';
+                case BlockIds.MachineEssenceOre: return '@';
                 default: return ' ';
             }
         }

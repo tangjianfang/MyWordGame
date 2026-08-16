@@ -14,7 +14,7 @@ dotnet run --project tools/dotnet/MyWorld.Preview          # 默认种子
 dotnet run --project tools/dotnet/MyWorld.Preview 12345    # 指定种子
 ```
 
-输出三部分：纵向剖面、俯视高度图、贪心网格压缩比。
+输出四部分：纵向剖面（y=-24 起下探到矿层）、俯视高度图、地下矿层统计、贪心网格压缩比。
 
 **方块字形约定**（剖面图）：
 
@@ -24,6 +24,8 @@ dotnet run --project tools/dotnet/MyWorld.Preview 12345    # 指定种子
 | `.` | 泥土 | `:` | 沙 |
 | `#` | 石头 | `_` | 基岩 |
 | `*` | 雪方块 | | |
+| `$` | 金矿石 | `%` | 粗铁矿石 |
+| `&` | 夏季合金矿石 | `@` | 机元矿石 |
 | （空格） | 空气 | | |
 
 **高度渐变字形**（高度图，由低到高）：`  .:-=+*#%@`

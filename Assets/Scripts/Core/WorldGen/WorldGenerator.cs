@@ -63,7 +63,8 @@ namespace MyWorld.Core.WorldGen
                     // 以世界坐标而非区块内坐标采样，接缝两侧自然对齐
                     int surfaceY = SurfaceHeightAt(originX + localX, originZ + localZ);
                     surfaceYs[localX, localZ] = surfaceY;
-                    FillColumn(column, localX, localZ, surfaceY, BiomeAt(originX + localX, originZ + localZ));
+                    FillColumn(column, originX + localX, originZ + localZ, surfaceY,
+                        BiomeAt(originX + localX, originZ + localZ), _seed);
                 }
             }
 
@@ -182,8 +183,16 @@ namespace MyWorld.Core.WorldGen
             }
         }
 
-        private static void FillColumn(ChunkColumn column, int localX, int localZ, int surfaceY, Biome biome)
+        /// <summary>
+        /// 沿一根列从基岩填到地表：基岩 → 石层（嵌矿）→ 表土 → 地表。
+        /// 嵌矿只发生在石头分支——地表/表土/基岩的方块选择不受 <see cref="OreFeature"/> 影响。
+        /// 参数用世界坐标（哈希按世界坐标散列，与区块生成顺序无关）。
+        /// </summary>
+        private static void FillColumn(ChunkColumn column, int worldX, int worldZ, int surfaceY, Biome biome, int seed)
         {
+            int localX = VoxelCoords.WorldToLocal(worldX);
+            int localZ = VoxelCoords.WorldToLocal(worldZ);
+
             column.SetBlock(localX, VoxelCoords.MinY, localZ, BlockIds.Bedrock);
 
             for (int y = VoxelCoords.MinY + 1; y <= surfaceY; y++)
@@ -199,7 +208,8 @@ namespace MyWorld.Core.WorldGen
                 }
                 else
                 {
-                    block = BlockIds.Stone;
+                    // m10 A2：石层按世界坐标哈希嵌矿，无矿时 OreAt 返回 Stone
+                    block = OreFeature.OreAt(seed, worldX, y, worldZ);
                 }
 
                 column.SetBlock(localX, y, localZ, block);
