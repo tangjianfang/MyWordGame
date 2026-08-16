@@ -6,6 +6,7 @@ using MyWorld.Core.Player;
 using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Audio;
+using MyWorld.Unity.Combat;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Rendering;
 using MyWorld.Unity.UI;
@@ -102,7 +103,11 @@ namespace MyWorld.Unity.Player
             {
                 _selection.ShowAt(hit.X, hit.Y, hit.Z);
 
-                if (Input.GetMouseButtonDown(0))
+                // m9 A1 分流：mob 命中优先于挖掘——准星 4m 内瞄着 mob 时本帧左键归攻击
+                // （CombatController 同帧会挥击），不挖 mob 身后的方块。判定与攻击共用
+                // 同一条射线（CombatController.IsMobInCrosshair ↔ TryAttack），两路永不漂移；
+                // 不依赖两个 Update 的执行顺序，所以这里独立查询而非读攻击方的返回值。
+                if (Input.GetMouseButtonDown(0) && !CombatController.IsMobInCrosshair(_player.Eye))
                 {
                     // 挖：把命中格设为空气，标脏，重建，并按 BlockDrops spawn ItemDropEntity
                     BreakAt(hit.X, hit.Y, hit.Z);
