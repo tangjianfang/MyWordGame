@@ -11,7 +11,10 @@ namespace MyWorld.Core.Entities
     /// <para>
     /// Phase D 扩展（spec line 171）：加 <c>MobKind.Pig / Cow / Chicken / Zombie</c> switch，
     /// type-specific 行为——猪/牛/鸡 走 Passive 流（wander + 玩家靠近 Flee），
-    /// 新僵尸走 Hostile 流（chase 32 格 + attack 8 格）+ 死亡自动触发 <see cref="MobDropTable"/>。
+    /// 新僵尸走 Hostile 流（chase/attack 半径由 <c>mob.ChaseRadius / mob.AttackRange</c> 控制）
+    /// + 死亡自动触发 <see cref="MobDropTable"/>。
+    /// m7 A2 平衡：新僵尸 AttackRange 8→4、ChaseRadius 32→20，且白天（<c>isNight=false</c>）
+    /// 不追——与友好动物一样走 wander，威胁只在夜里成立。
     /// 既有 mobTypeId 1-5（Passive/Hostile/Neutral 分类）行为不变。
     /// </para>
     /// </summary>
@@ -38,7 +41,15 @@ namespace MyWorld.Core.Entities
         /// </summary>
         public static MobDropTable DropTable { get; set; }
 
-        public static void Tick(Mob mob, Float3 playerPos, World world, TimeOfDay time, float dt)
+        /// <summary>
+        /// m7 A2：昼夜开关（是否夜晚）。false 时僵尸（<see cref="MobKind.Zombie"/>）不追玩家、
+        /// 走 wander。生产侧由 <c>MobManager.IsNightPhase</c>（单一真源）算好传入；
+        /// 默认 true 保持既有调用与测试的语义（Core 单测常不传时钟）。
+        /// 旧 Hostile 分支的昼夜判定仍以 <paramref name="time"/> 为准，不受本参数影响。
+        /// </summary>
+        /// <param name="isNight">是否夜晚（默认 true）。</param>
+        public static void Tick(Mob mob, Float3 playerPos, World world, TimeOfDay time, float dt,
+            bool isNight = true)
         {
             if (!mob.IsAlive) return;
             if (mob.HitFlashTimer > 0) mob.HitFlashTimer -= dt;
@@ -64,7 +75,8 @@ namespace MyWorld.Core.Entities
             }
 
             float distSq = DistanceSquared(playerPos, mob.Position);
-            bool isNight = time != null && time.IsNight;
+            // 旧 Hostile 分支沿用时钟判定（既有契约：白天当友好动物）
+            bool timeIsNight = time != null && time.IsNight;
 
             switch (mob.Kind)
             {
@@ -72,7 +84,7 @@ namespace MyWorld.Core.Entities
                     TickPassive(mob, playerPos, distSq, dt, world);
                     break;
                 case MobKind.Hostile:
-                    if (!isNight && mob.State != MobState.FleeingFromAttacker)
+                    if (!timeIsNight && mob.State != MobState.FleeingFromAttacker)
                     {
                         // 白天：和友好动物一样行为
                         TickPassive(mob, playerPos, distSq, dt, world);
@@ -91,8 +103,17 @@ namespace MyWorld.Core.Entities
                     TickPassive(mob, playerPos, distSq, dt, world);
                     break;
                 case MobKind.Zombie:
-                    // 新僵尸：永远追玩家（不分昼夜）；chase/attack 半径由 mob.ChaseRadius / mob.AttackRange 控制
-                    TickHostile(mob, playerPos, distSq, dt, world);
+                    // m7 A2：白天（isNight=false）不追——与友好动物一样走 wander（TickPassive），
+                    // 威胁只在夜里成立。isNight 由宿主传入（MobManager.IsNightPhase 单一真源），
+                    // 不在此读第二套时钟。chase/attack 半径由 mob.ChaseRadius / mob.AttackRange 控制。
+                    if (isNight)
+                    {
+                        TickHostile(mob, playerPos, distSq, dt, world);
+                    }
+                    else
+                    {
+                        TickPassive(mob, playerPos, distSq, dt, world);
+                    }
                     break;
 
                 // Task D6：Villager 占位。中立友好：保持 Idle、零速度，不 flee、不 chase。
@@ -106,6 +127,10 @@ namespace MyWorld.Core.Entities
 
         private static void TickPassive(Mob mob, Float3 playerPos, float distSq, float dt, World world)
         {
+            // m7 A2：从追击切回被动流（僵尸入昼 / 旧 Hostile 天亮）时清掉 Chasing 残留——
+            // 否则 Chasing 不进下面的 switch，State 永远停在 Chasing 且速度保持夜里的追击向量
+            if (mob.State == MobState.Chasing) mob.State = MobState.Idle;
+
             // 被玩家吓跑
             if (distSq < ScareRadiusSq && mob.State != MobState.FleeingFromAttacker)
             {

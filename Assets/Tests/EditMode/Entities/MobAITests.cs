@@ -12,8 +12,9 @@ namespace MyWorld.Core.Tests.Entities
 {
     /// <summary>
     /// Phase D 第一批测试：在现有 <see cref="Mob.Create"/> + <see cref="MobAI.Tick"/> API 上
-    /// 验证 type-specific 行为（spec line 173/181：PIG/COW/CHICKEN 巡逻+怕玩家、ZOMBIE 32 格追击、
+    /// 验证 type-specific 行为（spec line 173/181：PIG/COW/CHICKEN 巡逻+怕玩家、ZOMBIE 追击、
     /// 死亡触发 Drop）。Phase D 扩展既有 state machine，5 个新测试。
+    /// 追击半径 m7 A2 由 32 收窄到 20（僵尸平衡，详见 ZombieBalanceTests）。
     /// </summary>
     [TestFixture]
     public class MobAITests
@@ -53,20 +54,20 @@ namespace MyWorld.Core.Tests.Entities
         [Test]
         public void ZombieChasesOnlyWithinAggroRange()
         {
-            // 新僵尸 (MobTypeId 9)：32 格 chase 半径
+            // 新僵尸 (MobTypeId 9)：m7 A2 起 chase 半径 20（原 32，收窄理由见 ZombieBalanceTests）
             var z = Mob.Create(9, new Float3(0, 64, 0));
             Assert.That(z.Kind, Is.EqualTo(MobKind.Zombie));
-            Assert.That(z.ChaseRadius, Is.EqualTo(32f), "新僵尸 chase 半径应为 32");
+            Assert.That(z.ChaseRadius, Is.EqualTo(20f), "新僵尸 chase 半径应为 20（m7 A2）");
 
-            // 玩家 16 格外、32 格内，应转入 Chasing
-            MobAI.Tick(z, new Float3(20, 64, 0), null, new TimeOfDay(), 0.1f);
+            // 玩家 15 格（≤20），应转入 Chasing
+            MobAI.Tick(z, new Float3(15, 64, 0), null, new TimeOfDay(), 0.1f);
             Assert.That(z.State, Is.EqualTo(MobState.Chasing),
-                "新僵尸 32 格内应追击玩家");
+                "新僵尸 20 格内应追击玩家");
 
-            // 玩家跑到 50 格外（远超 32 格），下次 tick 应脱离 Chasing
-            MobAI.Tick(z, new Float3(50, 64, 0), null, new TimeOfDay(), 0.1f);
+            // 玩家跑到 25 格外（超 20 格），下次 tick 应脱离 Chasing
+            MobAI.Tick(z, new Float3(25, 64, 0), null, new TimeOfDay(), 0.1f);
             Assert.That(z.State, Is.Not.EqualTo(MobState.Chasing),
-                "新僵尸超 32 格不应追击");
+                "新僵尸超 20 格不应追击");
         }
 
         [Test]

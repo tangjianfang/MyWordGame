@@ -26,7 +26,7 @@ namespace MyWorld.Core.Entities
         public float HitFlashTimer;    // 受伤红闪剩余时间
         public float DeathTimer;       // Dying 计时
         public float AttackCooldown;   // 下次可攻击剩余时间
-        public float AttackRange = 1.6f;   // 不同 mob 攻击距离不同（skeleton=6, 新僵尸=8）
+        public float AttackRange = 1.6f;   // 不同 mob 攻击距离不同（skeleton=6, 新僵尸=4——m7 A2 由 8 收窄）
 
         // creeper 专用：自爆倒计时（>0 表示正在引爆中）
         public float FuseTimer;
@@ -57,7 +57,9 @@ namespace MyWorld.Core.Entities
                 6 => new Mob { MobTypeId = 6, Kind = MobKind.Pig, Health = new Health(10), Position = position, WanderCooldown = 2f, MoveSpeed = 1.5f },
                 7 => new Mob { MobTypeId = 7, Kind = MobKind.Cow, Health = new Health(12), Position = position, WanderCooldown = 2f, MoveSpeed = 1.0f },
                 8 => new Mob { MobTypeId = 8, Kind = MobKind.Chicken, Health = new Health(4), Position = position, WanderCooldown = 2f, MoveSpeed = 0.5f },
-                9 => new Mob { MobTypeId = 9, Kind = MobKind.Zombie, Health = new Health(20), Position = position, AttackDamage = 2f, AttackRange = 8f, ChaseRadius = 32f, WanderCooldown = 2f, MoveSpeed = 3.5f },
+                // m7 A2 平衡：AttackRange 8→4、ChaseRadius 32→20（追击半径收窄 +
+                // 白天不追见 MobAI.Tick；僵尸昼夜压着玩家打是死亡循环威胁侧根因）
+                9 => new Mob { MobTypeId = 9, Kind = MobKind.Zombie, Health = new Health(20), Position = position, AttackDamage = 2f, AttackRange = 4f, ChaseRadius = 20f, WanderCooldown = 2f, MoveSpeed = 3.5f },
 
                 // Task D6：Villager 占位 mobTypeId。MobAI 走中立分支（stand still），
                 // MoveSpeed 留 0（不靠 wander / flee 速度）。

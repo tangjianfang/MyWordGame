@@ -13,7 +13,7 @@ using UnityEngine;
 namespace MyWorld.Unity.Combat
 {
     /// <summary>
-    /// 动物总管理：spawn + tick + 渲染。
+    /// 动物总管理：spawn + tick + 渲染 + despawn（m7 A2：距玩家 &gt;<see cref="DespawnDistance"/> 格移除）。
     /// 玩家 16 米半径内的 chunk 才会生成。
     /// 友好动物白天全天生成，僵尸仅夜晚生成。
     /// <para>
@@ -27,6 +27,13 @@ namespace MyWorld.Unity.Combat
         public int SpawnRadiusChunks = 1;
         public float SpawnChancePerSecond = 0.4f;
         public int MaxMobs = 24;
+
+        /// <summary>
+        /// m7 A2：距玩家超过该距离（格）的 mob 被 despawn。
+        /// 此前 Update 只加不减，僵尸永不消失——玩家复活/走远后威胁仍挂着，
+        /// 是死亡循环威胁侧根因之一。
+        /// </summary>
+        public const float DespawnDistance = 40f;
 
         // 白天候选 mob（按优先级排序：先猪，后牛/鸡、村民）
         private static readonly MobKind[] DayCandidates = { MobKind.Pig, MobKind.Cow, MobKind.Chicken, MobKind.Villager };
@@ -122,18 +129,18 @@ namespace MyWorld.Unity.Combat
             if (_player == null) return;
             float dt = Time.deltaTime;
 
+            // 昼夜判定（m5 A1 单一真源）：AI tick（m7 A2 僵尸白天不追）
+            // 与刷怪光照共用同一次计算
+            float dayPhase = _time != null ? _time.DayPhase01 : 0.5f;
+            bool isNight = IsNightPhase(dayPhase);
+
             // 1) 清理已死 mob
             for (int i = _mobs.Count - 1; i >= 0; i--)
             {
                 var m = _mobs[i];
                 if (m.State == MobState.Dead)
                 {
-                    if (_views.TryGetValue(m.EntityId, out var go))
-                    {
-                        Destroy(go);
-                        _views.Remove(m.EntityId);
-                    }
-                    _mobs.RemoveAt(i);
+                    RemoveMobAt(i);
                 }
                 else if (m.State == MobState.Dying)
                 {
@@ -149,11 +156,14 @@ namespace MyWorld.Unity.Combat
                 }
             }
 
-            // 2) tick AI
+            // 1.5) m7 A2 despawn：离玩家太远的 mob 直接移除（只加不减的旧账，见 DespawnDistance）
+            TickDespawn();
+
+            // 2) tick AI（m7 A2：传 isNight——僵尸白天走 wander 不追）
             for (int i = 0; i < _mobs.Count; i++)
             {
                 var m = _mobs[i];
-                MobAI.Tick(m, Float3_From(_player.position), _world, _time, dt);
+                MobAI.Tick(m, Float3_From(_player.position), _world, _time, dt, isNight);
             }
 
             // 推进玩家死亡状态
@@ -164,13 +174,53 @@ namespace MyWorld.Unity.Combat
 
             // 3) spawn：用 _spawnAccum 控制频率，到点调用 TickSpawn 走规则判定
             _spawnAccum += dt * SpawnChancePerSecond;
-            float dayPhase = _time != null ? _time.DayPhase01 : 0.5f;
             while (_spawnAccum >= 1f && _mobs.Count < MaxMobs)
             {
                 _spawnAccum -= 1f;
                 int seed = unchecked((int)(Time.time * 1000.0f) ^ _nextEntityId);
                 TickSpawn(seed, dayPhase);
             }
+        }
+
+        /// <summary>
+        /// m7 A2：despawn 检查——距玩家超过 <see cref="DespawnDistance"/> 的 mob 直接移除
+        /// （置 Dead 后复用 <see cref="RemoveMobAt"/> 死亡清理路径：销毁视图 + 移出列表）。
+        /// Update 每帧调用；公开供 EditMode 测试单独驱动。
+        /// Dying 中的 mob 不参与（让死亡动画与掉落自然走完）。
+        /// </summary>
+        public void TickDespawn()
+        {
+            if (_player == null) return;
+            var playerPos = Float3_From(_player.position);
+            float despawnSq = DespawnDistance * DespawnDistance;
+            for (int i = _mobs.Count - 1; i >= 0; i--)
+            {
+                var m = _mobs[i];
+                if (!m.IsAlive) continue;
+                if (MobAI.DistanceSquared(m.Position, playerPos) > despawnSq)
+                {
+                    m.State = MobState.Dead;
+                    RemoveMobAt(i);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 把第 <paramref name="index"/> 只 mob 移出世界：销毁视图 GameObject + 移出列表。
+        /// 死亡清理与 despawn（<see cref="TickDespawn"/>）共用这一条路径。
+        /// EditMode 测试直接调 TickDespawn 时 Destroy 不可用（编辑器不允许延迟销毁），
+        /// 按播放状态切换 DestroyImmediate。
+        /// </summary>
+        private void RemoveMobAt(int index)
+        {
+            var m = _mobs[index];
+            if (_views.TryGetValue(m.EntityId, out var go))
+            {
+                if (Application.isPlaying) Destroy(go);
+                else DestroyImmediate(go);
+                _views.Remove(m.EntityId);
+            }
+            _mobs.RemoveAt(index);
         }
 
         /// <summary>
