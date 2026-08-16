@@ -5,13 +5,16 @@
 // 整个文件用 #if UNITY_EDITOR 包裹（与 MobDeathDropTests 同款）。
 using System.Collections.Generic;
 using System.Reflection;
+using MyWorld.Core.Blocks;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Items;
 using MyWorld.Core.Math;
+using MyWorld.Core.Voxel;
 using MyWorld.Unity.Bootstrap;
 using MyWorld.Unity.Combat;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Player;
+using MyWorld.Unity.UI;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -66,9 +69,24 @@ namespace MyWorld.Core.Tests.Combat
             return host;
         }
 
+        /// <summary>最小方块注册表：air + stone（solid）。视线遮挡测试只用到实心方块，
+        /// 不必走 BlockRegistryLoader 读全表（与 BlockBreakDropTests.BuildRegistry 同款）。</summary>
+        private static BlockRegistry BuildMinimalRegistry()
+        {
+            return BlockRegistry.FromJson(new[]
+            {
+                @"{ ""id"": ""air"", ""numericId"": 0, ""solid"": false, ""opaque"": false }",
+                @"{ ""id"": ""stone"", ""numericId"": 1, ""textures"": { ""all"": ""stone"" } }",
+            });
+        }
+
         [SetUp]
         public void SetUp()
         {
+            // fix1：两个指针门是静态状态，防别的 fixture 泄漏进来（也防本 fixture 泄漏出去）
+            BlockInteraction.InputLocked = false;
+            UiCursorGate.Reset();
+
             _ctxHost = new GameObject("PlayerAttackTestCtx");
             _ctx = _ctxHost.AddComponent<PlayerContext>();
             InvokeAwake(_ctx); // 显式触发 Awake，让 Instance = _ctx
@@ -91,6 +109,8 @@ namespace MyWorld.Core.Tests.Combat
         public void TearDown()
         {
             CombatEvents.Reset(); // 清掉本 fixture 期间可能挂上的战斗事件订阅
+            BlockInteraction.InputLocked = false;
+            UiCursorGate.Reset();
             foreach (var go in _spawned)
             {
                 if (go != null) Object.DestroyImmediate(go);
@@ -195,12 +215,13 @@ namespace MyWorld.Core.Tests.Combat
         }
 
         // ─── 判定分流：mob 命中优先于挖掘 ──────────────────────────────────
+        // world/registry 传 null = 未绑定世界（视线复核跳过），隔离纯射线行为
 
         [Test]
         public void IsMobInCrosshair_WithinRange_True()
         {
             SpawnPigAhead(2f);
-            Assert.That(CombatController.IsMobInCrosshair(_eyeChild.transform), Is.True,
+            Assert.That(CombatController.IsMobInCrosshair(_eyeChild.transform, null, null), Is.True,
                 "4m 内准星瞄着猪应判命中（BlockInteraction 据此抑制同帧挖矿）");
         }
 
@@ -208,15 +229,80 @@ namespace MyWorld.Core.Tests.Combat
         public void IsMobInCrosshair_BeyondRange_False()
         {
             SpawnPigAhead(6f);
-            Assert.That(CombatController.IsMobInCrosshair(_eyeChild.transform), Is.False,
+            Assert.That(CombatController.IsMobInCrosshair(_eyeChild.transform, null, null), Is.False,
                 "6m 外不在攻击射程内，不应抑制挖矿");
         }
 
         [Test]
         public void IsMobInCrosshair_NoMob_False()
         {
-            Assert.That(CombatController.IsMobInCrosshair(_eyeChild.transform), Is.False,
+            Assert.That(CombatController.IsMobInCrosshair(_eyeChild.transform, null, null), Is.False,
                 "准星前没有 mob 时不应抑制挖矿");
+        }
+
+        // ─── fix1（I1）：模态 UI 开着时不攻击（与 BlockInteraction 同款指针门） ──
+
+        [Test]
+        public void TryAttack_UiCursorGateOpen_NoEffect()
+        {
+            var pig = SpawnPigAhead(2f).GetComponent<MobView>().Mob;
+            UiCursorGate.Open(); // 背包/工作台等模态 UI 打开（指针解锁可见）
+
+            try
+            {
+                bool hit = _combat.TryAttack();
+                Assert.That(hit, Is.False, "模态 UI 开着时不应能攻击（点 UI 格子不该误伤准星后的 mob）");
+                Assert.That(pig.Health.Current, Is.EqualTo(10f), "UI 开着时的攻击不应扣血");
+            }
+            finally
+            {
+                UiCursorGate.Reset();
+            }
+        }
+
+        [Test]
+        public void TryAttack_HelpMenuInputLocked_NoEffect()
+        {
+            var pig = SpawnPigAhead(2f).GetComponent<MobView>().Mob;
+            BlockInteraction.InputLocked = true; // HelpMenuUi 打开期间置位（帮助菜单滑条）
+
+            try
+            {
+                bool hit = _combat.TryAttack();
+                Assert.That(hit, Is.False, "InputLocked（帮助菜单）开着时不应能攻击");
+                Assert.That(pig.Health.Current, Is.EqualTo(10f), "InputLocked 时的攻击不应扣血");
+            }
+            finally
+            {
+                BlockInteraction.InputLocked = false;
+            }
+        }
+
+        // ─── fix1（I2）：视线遮挡——chunk mesh 没有 Physics collider，穿墙判定 ──
+
+        [Test]
+        public void TryAttack_WallBetween_BlocksAttack_WallRemoved_Hits()
+        {
+            // eye 在 (0,0,0) 朝 +Z；墙放在 (0,0,1)（玩家与 2m 处的猪之间）；猪 collider z∈[1.5,2.5]
+            var world = new World();
+            var registry = BuildMinimalRegistry();
+            world.SetBlock(0, 0, 1, BlockIds.Stone);
+            _combat.World = world;
+            _combat.Registry = registry;
+            var pig = SpawnPigAhead(2f).GetComponent<MobView>().Mob;
+
+            // chunk mesh 无 collider → physics 射线穿墙仍会碰到猪的 collider；
+            // 视线复核必须用体素射线把这次命中拦下来
+            bool blocked = _combat.TryAttack();
+            Assert.That(blocked, Is.False, "墙挡视线：physics 射线穿墙碰到 mob 也不应命中");
+            Assert.That(pig.Health.Current, Is.EqualTo(10f), "隔墙攻击不应扣血");
+
+            // 拆墙后视线通畅 → 命中（第一次挥击已消耗冷却，注入拨回）
+            world.SetBlock(0, 0, 1, BlockIds.Air);
+            _combat.LastAttackTime -= CombatController.AttackCooldown;
+            bool hit = _combat.TryAttack();
+            Assert.That(hit, Is.True, "拆墙后视线通畅，应命中");
+            Assert.That(pig.Health.Current, Is.EqualTo(9f), "拆墙后空手伤害 1：10 → 9");
         }
     }
 }

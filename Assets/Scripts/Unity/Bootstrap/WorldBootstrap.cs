@@ -129,6 +129,10 @@ namespace MyWorld.Unity.Bootstrap
             _combat = gameObject.AddComponent<CombatController>();
             _combat.Player = _player;
             _combat.Hand = _hand;
+            // m9 A1 fix1（I2）：注入世界与方块表——攻击命中前的体素视线复核要用
+            // （chunk mesh 无 Physics collider，mob 射线会穿墙）。
+            _combat.World = _world;
+            _combat.Registry = _registry;
 
             // 12. 动物系统
             _mobManager = gameObject.AddComponent<MobManager>();

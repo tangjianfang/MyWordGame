@@ -107,7 +107,9 @@ namespace MyWorld.Unity.Player
                 // （CombatController 同帧会挥击），不挖 mob 身后的方块。判定与攻击共用
                 // 同一条射线（CombatController.IsMobInCrosshair ↔ TryAttack），两路永不漂移；
                 // 不依赖两个 Update 的执行顺序，所以这里独立查询而非读攻击方的返回值。
-                if (Input.GetMouseButtonDown(0) && !CombatController.IsMobInCrosshair(_player.Eye))
+                // fix1（I2）后该判定含视线复核：墙后有 mob 时不抑制——正好挖那堵墙。
+                if (Input.GetMouseButtonDown(0)
+                    && !CombatController.IsMobInCrosshair(_player.Eye, _world, _registry))
                 {
                     // 挖：把命中格设为空气，标脏，重建，并按 BlockDrops spawn ItemDropEntity
                     BreakAt(hit.X, hit.Y, hit.Z);

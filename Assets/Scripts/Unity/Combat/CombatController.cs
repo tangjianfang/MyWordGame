@@ -1,9 +1,13 @@
+using MyWorld.Core.Blocks;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Items;
 using MyWorld.Core.Math;
+using MyWorld.Core.Physics;
 using MyWorld.Core.Player;
+using MyWorld.Core.Voxel;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Player;
+using MyWorld.Unity.UI;
 using UnityEngine;
 
 namespace MyWorld.Unity.Combat
@@ -17,6 +21,13 @@ namespace MyWorld.Unity.Combat
     /// <see cref="ResolveAttackDamage"/> 解析（空手/非武器 1 点，武器取物品表 attackDamage）。
     /// mob 命中优先于挖掘：<see cref="MyWorld.Unity.Player.BlockInteraction"/> 挖掘前查
     /// <see cref="IsMobInCrosshair"/>，准星 4m 内瞄着 mob 时同帧不挖。
+    /// </para>
+    /// <para>
+    /// m9 A1 fix1（评审 I1+I2）：I1——攻击入口挂与 BlockInteraction 同款的模态 UI 指针门
+    /// （<see cref="MyWorld.Unity.Player.BlockInteraction.InputLocked"/> /
+    /// <see cref="UiCursorGate.IsOpen"/>），菜单开着点 UI 不再隔着界面打 mob；I2——chunk mesh
+    /// 没有 Physics collider，mob 射线会穿墙命中，命中前用 <see cref="VoxelRaycaster"/> 做
+    /// 体素视线复核（玩家→mob 之间有实心方块则不命中）。
     /// </para>
     /// <para>
     /// m7 A3：右键吃食物已移交 <see cref="MyWorld.Unity.Player.BlockInteraction"/>（统一右键路由，
@@ -35,6 +46,13 @@ namespace MyWorld.Unity.Combat
 
         public HandController Hand;
         public PlayerController Player;
+
+        /// <summary>fix1（I2）：视线复核用的世界。由 WorldBootstrap 注入；
+        /// null（旧场景 / 无世界测试）时与 <see cref="Registry"/> 一起跳过复核，保持纯射线行为。</summary>
+        public World World;
+
+        /// <summary>fix1（I2）：视线复核用的方块表（判 Solid）。与 <see cref="World"/> 成对注入。</summary>
+        public BlockRegistry Registry;
 
         /// <summary>上次挥击时刻（<c>Time.time</c> 基准，含挥空的挥击）。public 是给 EditMode
         /// 测试的时间注入口（brief：时间注入或字段直改）——EditMode 下 <c>Time.time</c> 冻结，
@@ -80,6 +98,10 @@ namespace MyWorld.Unity.Combat
         {
             var ctx = PlayerContext.Instance;
             if (ctx == null || Player == null || Player.Eye == null) return false;
+
+            // fix1（I1）：模态 UI 开着时不攻击——与 BlockInteraction.Update 同款指针门。
+            // 去门禁（m9 A1）后这里成了新漏洞：菜单里点滑条/格子会隔着 UI 打到准星后的 mob。
+            if (BlockInteraction.InputLocked || UiCursorGate.IsOpen) return false;
 
             // 冷却节流：距上次挥击不足 AttackCooldown 直接吞掉本次点击（含挥空也算冷却）
             if (Time.time - LastAttackTime < AttackCooldown) return false;
@@ -132,32 +154,50 @@ namespace MyWorld.Unity.Combat
         /// m9 A1：准星 <see cref="AttackRange"/> 内是否瞄着 mob——「mob 命中优先于挖掘」的
         /// 分流信号，<see cref="MyWorld.Unity.Player.BlockInteraction"/> 挖掘前调用
         /// （准星瞄着 mob 时本帧左键归攻击，不挖 mob 身后的方块）。与 <see cref="TryAttack"/>
-        /// 的找目标共用同一条射线（<see cref="FindMobHit"/>），判定方式与旧 DoAttack 完全一致。
+        /// 的找目标共用同一条射线（<see cref="FindMobHit"/>），含 fix1（I2）的视线复核——
+        /// 墙后有 mob 时不抑制挖矿（正好挖那堵墙）。
         /// </summary>
-        public static bool IsMobInCrosshair(Transform eye)
+        public static bool IsMobInCrosshair(Transform eye, World world, BlockRegistry registry)
         {
-            return FindMobHit(eye, out _);
+            return FindMobHit(eye, world, registry, out _);
         }
 
         /// <summary>
         /// 准星射线找 mob：从眼睛朝 <see cref="AttackRange"/> 米，命中最近 collider 且挂着
         /// <see cref="MobView"/> 才算命中（判定方式自旧 DoAttack 原样沿用——部位 cube 的
-        /// collider 已被 MobAssembly 移除，射线只认 host 的 BoxCollider；地形 collider 挡在
-        /// 前面时射线先命中地形 → 未命中，天然视线判定）。
+        /// collider 已被 MobAssembly 移除，射线只认 host 的 BoxCollider）。
+        /// fix1（I2）：chunk mesh 没有 Physics collider，这条射线<b>会穿墙</b>——命中后必须经
+        /// <see cref="IsOccluded"/> 体素视线复核（玩家→mob 之间无实心方块）才算数。
         /// </summary>
-        private static bool FindMobHit(Transform eye, out RaycastHit hit)
+        private static bool FindMobHit(Transform eye, World world, BlockRegistry registry, out RaycastHit hit)
         {
             hit = default;
             if (eye == null) return false;
             var ray = new Ray(eye.position, eye.forward);
             if (!Physics.Raycast(ray, out hit, AttackRange)) return false;
-            return hit.collider != null && hit.collider.GetComponent<MobView>() != null;
+            if (hit.collider == null || hit.collider.GetComponent<MobView>() == null) return false;
+            return !IsOccluded(eye, world, registry, hit.distance);
+        }
+
+        /// <summary>
+        /// fix1（I2）：体素视线复核——沿同一条眼射线跑 <see cref="VoxelRaycaster"/>
+        /// （<see cref="WorldSolidSource"/> 判 Solid），命中点比 mob 更近处有实心方块即被遮挡。
+        /// 世界/方块表未注入（null）时跳过复核，保持纯射线旧行为（旧场景 / 无世界测试）。
+        /// </summary>
+        private static bool IsOccluded(Transform eye, World world, BlockRegistry registry, float mobDistance)
+        {
+            if (world == null || registry == null) return false;
+            var source = new WorldSolidSource(world, registry);
+            var origin = new Float3(eye.position.x, eye.position.y, eye.position.z);
+            var direction = new Float3(eye.forward.x, eye.forward.y, eye.forward.z);
+            var voxel = VoxelRaycaster.Cast(source, origin, direction, mobDistance);
+            return voxel.Hit && voxel.Distance < mobDistance;
         }
 
         private bool DoAttack(float damage)
         {
-            // 简单射线：从眼睛朝 4 米。命中 mob 的 collider 即扣血
-            if (!FindMobHit(Player.Eye, out var hit)) return false;
+            // 简单射线：从眼睛朝 4 米。命中 mob 的 collider 即扣血（视线被墙挡则不命中）
+            if (!FindMobHit(Player.Eye, World, Registry, out var hit)) return false;
 
             var mobComp = hit.collider.GetComponent<MobView>();
             var mob = mobComp.Mob;
