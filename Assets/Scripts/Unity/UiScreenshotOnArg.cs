@@ -10,13 +10,18 @@ namespace MyWorld.Unity
     /// 但 <see cref="ScreenCapture.CaptureScreenshot"/> 抓完整 backbuffer，含 IMGUI。
     /// <para>
     /// standalone 跑 <c>MyWordGame.exe --ui-shot -screen-width 1280 -screen-height 720</c>：
-    /// 自动截 hotbar / 背包 / 工作台 / 帮助菜单 四张 PNG 到 <c>Builds/screenshots/</c>，
+    /// 自动截 hotbar / 背包 / 工作台 / 暂停菜单 / 帮助菜单 五张 PNG 到 <c>Builds/screenshots/</c>，
     /// 写 <c>ui.done</c> 哨兵文件后退出。由 <see cref="Bootstrap.WorldBootstrap"/> 在
     /// Awake 末尾按启动参数条件挂载——无参数时零开销（启动读一次 args 即返回）。
     /// </para>
     /// <para>
-    /// m6 终审修 M5：第 4 张 ui-help.png 让帮助菜单的视觉项（按键表双栏 + 进度区）
-    /// 也进机器侧验证，不再只靠父子实机。
+    /// m6 终审修 M5：ui-help.png 让帮助菜单的视觉项（按键表双栏 + 进度区）也进
+    /// 机器侧验证，不再只靠父子实机（m6 时是第 4 张，m8 B3 插入暂停菜单后退居第 5）。
+    /// </para>
+    /// <para>
+    /// m8 B3：工作台之后加拍第 4 张 ui-pause.png（Esc 暂停菜单，居中三按钮面板）——
+    /// 经 <see cref="UI.PauseMenuUi.SetOpen(bool)"> 与 Esc 按键同一条路径打开，
+    /// 顺带把「timeScale=0 下 IMGUI 照常绘制 / 截图流程不被真暂停卡住」也验了。
     /// </para>
     /// </summary>
     public sealed class UiScreenshotOnArg : MonoBehaviour
@@ -73,25 +78,36 @@ namespace MyWorld.Unity
                     }
                     break;
 
-                case 3: // 关工作台、开帮助菜单（m6 终审修 M5 第 4 张），截图
+                case 3: // 关工作台、开暂停菜单（m8 B3 第 4 张），截图
                     if (_frames >= CaptureSettleFrames)
                     {
                         var wb = FindWorkbenchUi();
                         if (wb != null) wb.SetOpen(false);
+                        FindPauseMenuUi()?.SetOpen(true); // 与 Esc 同路：timeScale=0 真暂停
+                        Capture("ui-pause.png");
+                        NextPhase();
+                    }
+                    break;
+
+                case 4: // 关暂停（恢复 timeScale=1）、开帮助菜单（m6 终审修 M5），截图
+                    if (_frames >= CaptureSettleFrames)
+                    {
+                        var pause = FindPauseMenuUi();
+                        if (pause != null) pause.SetOpen(false);
                         FindHelpMenuUi()?.SetOpen(true);
                         Capture("ui-help.png");
                         NextPhase();
                     }
                     break;
 
-                case 4: // 等最后一张 PNG 落盘 → 写哨兵 → 退出
+                case 5: // 等最后一张 PNG 落盘 → 写哨兵 → 退出
                     if (_frames >= CaptureSettleFrames
                         && (File.Exists(OutputPath("ui-help.png")) || _frames >= FlushTimeoutFrames))
                     {
                         File.WriteAllText(OutputPath("ui.done"), string.Empty);
-                        Debug.Log("[UiScreenshotOnArg] 四张 UI 截图完成，退出。");
+                        Debug.Log("[UiScreenshotOnArg] 五张 UI 截图完成，退出。");
                         Application.Quit();
-                        _phase = 5;
+                        _phase = 6;
                     }
                     break;
             }
@@ -111,6 +127,9 @@ namespace MyWorld.Unity
 
         private static HelpMenuUi FindHelpMenuUi() =>
             FindObjectOfType<HelpMenuUi>();
+
+        private static PauseMenuUi FindPauseMenuUi() =>
+            FindObjectOfType<PauseMenuUi>();
 
         private void Capture(string fileName)
         {

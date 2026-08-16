@@ -43,6 +43,11 @@ namespace MyWorld.Core.Tests.Visual
         private const int HelpMenuW = 720;
         private const int HelpMenuH = 660;
 
+        /// <summary>暂停菜单面板尺寸（PauseMenuUi.DrawMenu 的换算结果：宽 720，
+        /// 高 = 标题 44 + 三按钮行 3×42 + 底距 12 = 182，设置未展开 / 无失败提示时）。</summary>
+        private const int PauseMenuW = 720;
+        private const int PauseMenuH = 182;
+
         /// <summary>截图目录（与 ScreenshotCapture / UiScreenshotOnArg 同一处 Builds/screenshots）。</summary>
         private static readonly string ScreenshotDir =
             Path.Combine(Application.dataPath, "..", "Builds", "screenshots");
@@ -199,6 +204,61 @@ namespace MyWorld.Core.Tests.Visual
                     $"帮助菜单内区平均亮度 {avg:F1}（>=110）说明深色面板没画上（纯游戏画面）");
                 Assert.That(darkFrac, Is.GreaterThan(0.8f),
                     $"帮助菜单内区暗像素占比 {darkFrac * 100f:F1}%（<80%），面板叠加可疑");
+            }
+            finally { Object.DestroyImmediate(tex); }
+        }
+
+        [Test]
+        public void Pause_MenuPanel_HasDarkOverlay()
+        {
+            var tex = LoadOrNull("ui-pause.png");
+            if (tex == null) Assert.Ignore("无 --ui-shot 产物，本断言只在完整流水线生效");
+            try
+            {
+                Assert.That(tex.width, Is.GreaterThan(PauseMenuW + 80),
+                    $"截图宽度 {tex.width} 装不下暂停菜单 + 两侧对照带，产物异常");
+                Assert.That(tex.height, Is.GreaterThan(PauseMenuH + 40),
+                    $"截图高度 {tex.height} 装不下暂停菜单，产物异常");
+
+                // 菜单居中 720×182。三颗按钮横贯 x∈[bg.x+24, bg.x+width-48+24]（亮色
+                // GUI.Button 皮肤），不能整块采样亮度；改采按钮到不了的左右边缘带
+                //（x∈[left+4,left+20) 与 [left+700,left+716)，纯 GUI.Box 深色叠加），
+                // 与紧邻面板外的同 y 对照带（纯游戏画面）比对：面板画上时边缘带显著更暗
+                //（B2 基线：GUI.Box 叠加把区域亮度约减半，130→69）。相对比较 + 绝对上限
+                // 双门槛：相对项保证「居中面板存在」本身，绝对项与其余 UI 断言同口径。
+                int left = (tex.width - PauseMenuW) / 2;
+                int top = (tex.height - PauseMenuH) / 2;
+                int inLum = 0, inN = 0, outLum = 0, outN = 0;
+                for (int y = top + 8; y < top + PauseMenuH - 8; y += 4)
+                {
+                    for (int x = left + 4; x < left + 20; x += 4)
+                    {
+                        inLum += Luminance(PixelAtScreenY(tex, x, y));
+                        inN++;
+                    }
+                    for (int x = left + 700; x < left + 716; x += 4)
+                    {
+                        inLum += Luminance(PixelAtScreenY(tex, x, y));
+                        inN++;
+                    }
+                    for (int x = left - 20; x < left - 4; x += 4)
+                    {
+                        outLum += Luminance(PixelAtScreenY(tex, x, y));
+                        outN++;
+                    }
+                    for (int x = left + 724; x < left + 740; x += 4)
+                    {
+                        outLum += Luminance(PixelAtScreenY(tex, x, y));
+                        outN++;
+                    }
+                }
+                float inside = (float)inLum / inN;
+                float outside = (float)outLum / outN;
+                Assert.That(inside, Is.LessThan(100f),
+                    $"暂停面板边缘带平均亮度 {inside:F1}（>=100）说明深色面板没画上（纯游戏画面）");
+                Assert.That(inside, Is.LessThan(outside * 0.8f),
+                    $"面板边缘带 {inside:F1} 未显著低于同 y 纯游戏画面带 {outside:F1}（应 <80%）——" +
+                    "居中面板不存在（ui-pause.png 疑似没开菜单就截了）");
             }
             finally { Object.DestroyImmediate(tex); }
         }
