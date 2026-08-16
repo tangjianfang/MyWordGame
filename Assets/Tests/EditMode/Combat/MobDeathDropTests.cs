@@ -227,6 +227,60 @@ namespace MyWorld.Core.Tests.Combat
             Assert.That(drop.Content.Value.Count, Is.EqualTo(3),
                 "ItemDropEntity.Count 应等于 LastDrops 的 Count（X1 透传 count）");
         }
+
+        // ─── m9 A3：击杀经验入账（猪 3 / 牛 5 / 鸡 2 / 僵尸 10） ─────────────
+
+        /// <summary>
+        /// 经验常量表：猪 3 / 牛 5 / 鸡 2 / 僵尸 10（spec §3「击杀经验」）；
+        /// 不在表内的 kind（旧 Passive/Hostile、Villager）为 0——打死不白给分。
+        /// </summary>
+        [Test]
+        public void KillExperience_Constants()
+        {
+            Assert.That(MobManager.KillExperience(MobKind.Pig), Is.EqualTo(3), "杀猪 +3");
+            Assert.That(MobManager.KillExperience(MobKind.Cow), Is.EqualTo(5), "杀牛 +5");
+            Assert.That(MobManager.KillExperience(MobKind.Chicken), Is.EqualTo(2), "杀鸡 +2");
+            Assert.That(MobManager.KillExperience(MobKind.Zombie), Is.EqualTo(10), "杀僵尸 +10");
+            Assert.That(MobManager.KillExperience(MobKind.Passive), Is.EqualTo(0),
+                "旧 Passive 不在经验表内");
+            Assert.That(MobManager.KillExperience(MobKind.Hostile), Is.EqualTo(0),
+                "旧 Hostile 不在经验表内");
+            Assert.That(MobManager.KillExperience(MobKind.Villager), Is.EqualTo(0),
+                "村民不可杀不计分");
+        }
+
+        /// <summary>
+        /// 死因标记置位的 mob 经 <see cref="MobManager.GrantKillExperience"/> 入账经验，
+        /// 并复位标记（幂等：同一尸体只发一次——Update 的 Dying 分支每帧都会调）。
+        /// </summary>
+        [Test]
+        public void GrantKillExperience_AddsToContext_AndResetsFlag()
+        {
+            var pig = Mob.Create(6, new Float3(5f, 70f, 5f));
+            pig.KilledByPlayer = true; // 模拟 TakeHit 致死一击的标记
+            Assume.That(_ctx.Experience.Current, Is.EqualTo(0), "前置：初始经验 0");
+
+            _mgr.GrantKillExperience(pig);
+
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(3), "杀猪应 +3 经验");
+            Assert.That(pig.KilledByPlayer, Is.False, "入账后应复位死因标记");
+
+            _mgr.GrantKillExperience(pig); // Dying 倒计时内第二次调用：应 no-op
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(3),
+                "标记已复位，重复入账不应再加经验（幂等）");
+        }
+
+        /// <summary>非玩家击杀（despawn / 苦力怕自爆等未置标记）不产生经验。</summary>
+        [Test]
+        public void GrantKillExperience_FlagNotSet_IsNoOp()
+        {
+            var zombie = Mob.Create(9, new Float3(5f, 70f, 5f)); // 未置 KilledByPlayer
+
+            _mgr.GrantKillExperience(zombie);
+
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(0),
+                "死因不可归玩家时不应入账经验");
+        }
     }
 }
 #endif

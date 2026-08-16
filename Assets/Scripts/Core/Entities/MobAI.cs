@@ -65,21 +65,14 @@ namespace MyWorld.Core.Entities
             if (mob.AttackCooldown > 0) mob.AttackCooldown -= dt;
 
             // Phase D 新增：自动死亡检测。若 Health 已经降到 0 但 State 还没转 Dying
-            // （旧代码路径由 Unity 侧 CombatController.DoAttack 直接置 Dying；这里兜住
-            // 测试/Core-only 路径），转 Dying + 调 MobDropTable 写入 LastDrops。
+            // （Core-only 路径：测试直扣 Health / 未来环境伤害；玩家近战自 m9 A3 起由
+            // TakeHit 致死分支同步转），转 Dying + 调 MobDropTable 写入 LastDrops。
             // X4.5：优先用 JSON 驱动的 DropTable（RollAll 独立掷每条 entry，支持
             // Pig 1-3 porkchop / Zombie 0-2 rotten_flesh + 5% iron_ingot）；未注入时
             // 回退到静态 Items.ItemDropTable.Drop（legacy count=1，保持单测/旧场景）。
             if (mob.Health.IsDead)
             {
-                mob.State = MobState.Dying;
-                if (mob.DeathTimer <= 0f) mob.DeathTimer = DefaultDeathTimer;
-                if (mob.LastDrops == null)
-                {
-                    mob.LastDrops = DropTable != null
-                        ? DropTable.RollAll(mob.Kind, ComputeDropSeed(mob))
-                        : Items.ItemDropTable.Drop(mob.Kind);
-                }
+                TransitionToDying(mob);
                 return;
             }
 
@@ -138,25 +131,43 @@ namespace MyWorld.Core.Entities
         }
 
         /// <summary>
-        /// m9 A2：Core 统一受击入口（Unity 侧 <c>CombatController.DoAttack</c> 调它，A3 接线）。
+        /// m9 A2：Core 统一受击入口（Unity 侧 <c>CombatController.DoAttack</c> 调它）。
         /// 扣血 + 记录攻击者位置（<see cref="Mob.LastAttackerPos"/>，逃跑方向基准）+
         /// 受击红闪（<see cref="HitFlashDuration"/>）。
         /// 被动动物（Passive/Pig/Cow/Chicken）额外触发逃跑：进
         /// <see cref="MobState.FleeingFromAttacker"/>、<see cref="Mob.FleeUntil"/> 重置为
         /// <see cref="FleeDuration"/> 秒；敌对（Hostile/Zombie）与 Villager 受击不逃，
         /// 按原 AI 行动（spec 非目标「AI 大改」）。
-        /// 本击致死时不置逃跑——死亡序列由 <see cref="Tick"/> 兜底
-        /// （Health.IsDead → Dying + LastDrops），不在此直置 Dying。
+        /// <para>
+        /// m9 A3（修断环③）：致死一击<b>内联</b>走 <see cref="TransitionToDying"/> 死亡序列
+        /// （Dying + LastDrops + <see cref="Mob.KilledByPlayer"/> 死因标记），不再等下一帧
+        /// Tick 兜底——旧 Unity 路径由 CombatController 直置 Dying，绕得 LastDrops 永远
+        /// 不可达（Tick 首行 <c>!IsAlive</c> 早退），打死不掉肉。苦力怕自爆仍在 TickCreeper
+        /// 里直置 Dying（它没有玩家击杀语义，也不走本入口），两路互不影响。
+        /// </para>
+        /// <para>
+        /// 尸体（Dying/Dead）再受击整体短路（A2 评审 Minor 2）：不闪红、不重掷掉落、
+        /// 不重发死亡序列。
+        /// </para>
         /// </summary>
         /// <param name="mob">被击中的 mob。</param>
         /// <param name="attackerPos">攻击者位置（逃跑方向 = 远离它）。</param>
         /// <param name="damage">伤害值（&lt;=0 由 Health.Damage 忽略）。</param>
-        public static void TakeHit(Mob mob, Float3 attackerPos, float damage)
+        /// <returns>true = 本次受击是致死一击（已转 Dying + 写 LastDrops）。</returns>
+        public static bool TakeHit(Mob mob, Float3 attackerPos, float damage)
         {
+            if (!mob.IsAlive) return false; // 尸体免再伤（A2 评审 Minor 2）
+
             mob.Health.Damage(damage);
             mob.LastAttackerPos = attackerPos;
             mob.HitFlashTimer = HitFlashDuration;
-            if (mob.Health.IsDead) return; // 打死不逃：交 Tick 死亡序列处理
+            if (mob.Health.IsDead)
+            {
+                // 打死不逃：死亡序列同步走完（TakeHit 当前唯一生产调用方是玩家近战）
+                mob.KilledByPlayer = true;
+                TransitionToDying(mob);
+                return true;
+            }
 
             switch (mob.Kind)
             {
@@ -168,6 +179,26 @@ namespace MyWorld.Core.Entities
                     mob.FleeUntil = FleeDuration;
                     break;
                 // Hostile / Zombie / Villager / Neutral：不逃，保持既有行为
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// m9 A3：统一死亡序列——转 <see cref="MobState.Dying"/> + 默认倒计时 + 写
+        /// <see cref="Mob.LastDrops"/>（JSON 表优先，legacy 静态表兜底）。
+        /// <see cref="TakeHit"/> 致死分支与 <see cref="Tick"/> 的 IsDead 兜底共用，
+        /// 保证「玩家击杀」与「Core-only 路径死亡」掉落语义一致（修断环③：掉肉必经此处）。
+        /// 幂等：LastDrops 已写过（非 null）不重掷；DeathTimer 已置（&gt;0）不重置。
+        /// </summary>
+        private static void TransitionToDying(Mob mob)
+        {
+            mob.State = MobState.Dying;
+            if (mob.DeathTimer <= 0f) mob.DeathTimer = DefaultDeathTimer;
+            if (mob.LastDrops == null)
+            {
+                mob.LastDrops = DropTable != null
+                    ? DropTable.RollAll(mob.Kind, ComputeDropSeed(mob))
+                    : Items.ItemDropTable.Drop(mob.Kind);
             }
         }
 

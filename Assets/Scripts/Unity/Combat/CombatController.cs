@@ -34,6 +34,13 @@ namespace MyWorld.Unity.Combat
     /// 经 HungerSystem.Eat 喂饥饿）。原先这里右键吃食物回的是 Health——既绕过了饥饿系统，
     /// 又和放方块抢同一次右键，留着必然双重消耗物品，故整支删除。
     /// </para>
+    /// <para>
+    /// m9 A3（修断环③）：伤害统一走 <see cref="MyWorld.Core.Entities.MobAI.TakeHit"/>——
+    /// 扣血/红闪/受击逃跑/死亡序列（Dying + LastDrops + 死因标记）全在 Core 序列内，
+    /// 本组件不再直扣 Health、不再直置 Dying。打死掉肉由
+    /// <see cref="MyWorld.Unity.Combat.MobManager.SpawnDropsForMob"/> 消费 LastDrops，
+    /// 击杀经验由 <see cref="MyWorld.Unity.Combat.MobManager.KillExperience"/> 入账。
+    /// </para>
     /// </summary>
     public sealed class CombatController : MonoBehaviour
     {
@@ -196,25 +203,28 @@ namespace MyWorld.Unity.Combat
 
         private bool DoAttack(float damage)
         {
-            // 简单射线：从眼睛朝 4 米。命中 mob 的 collider 即扣血（视线被墙挡则不命中）
+            // 简单射线：从眼睛朝 4 米。命中 mob 的 collider 即受击（视线被墙挡则不命中）
             if (!FindMobHit(Player.Eye, World, Registry, out var hit)) return false;
 
             var mobComp = hit.collider.GetComponent<MobView>();
             var mob = mobComp.Mob;
-            // m9 A1：伤害由 ResolveAttackDamage 解析后传入（空手 1 / 武器 attackDamage）。
-            // A3 将把扣血/死亡改走 MobAI.TakeHit 统一入口（受击逃跑 + 死亡序列），此处先保持直扣。
-            mob.Health.Damage(damage);
-            mob.HitFlashTimer = 0.2f;
+            // m9 A3（修断环③）：伤害改走 MobAI.TakeHit 统一入口——扣血 + 受击红闪 +
+            // 被动逃跑都在 Core 序列内；致死时由 TakeHit 死亡分支转 Dying + 写 LastDrops
+            // + 置 KilledByPlayer。Unity 侧不再直扣 Health / 直置 Dying——旧直置路径绕过
+            // MobAI 的 LastDrops 写入（Tick 首行 !IsAlive 早退令其不可达），打死不掉肉。
+            // 伤害值由 ResolveAttackDamage 解析后传入（空手 1 / 武器 attackDamage）。
+            var attackerPos = new Float3(
+                Player.Eye.position.x, Player.Eye.position.y, Player.Eye.position.z);
+            bool killed = MobAI.TakeHit(mob, attackerPos, damage);
             CombatEvents.RaiseDealt(new DamageEvent(
                 DamageSource.Melee, damage, attacker: 0, victim: mob.EntityId,
                 hit: new Float3(hit.point.x, hit.point.y, hit.point.z)));
             CombatEvents.RaiseTaken(new DamageEvent(
                 DamageSource.Melee, damage, attacker: 0, victim: mob.EntityId,
                 hit: new Float3(hit.point.x, hit.point.y, hit.point.z)));
-            if (mob.Health.IsDead)
+            if (killed)
             {
-                mob.State = MobState.Dying;
-                mob.DeathTimer = 0.5f;
+                // 击杀事件只在致死一击发（TakeHit 返回 true；尸体补刀经守卫短路不再重发）
                 CombatEvents.RaiseDied(new DamageEvent(
                     DamageSource.Melee, damage, attacker: 0, victim: mob.EntityId,
                     hit: new Float3(hit.point.x, hit.point.y, hit.point.z)));

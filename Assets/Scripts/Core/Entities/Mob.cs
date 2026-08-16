@@ -44,6 +44,12 @@ namespace MyWorld.Core.Entities
         // Phase D 新增：死亡时由 MobAI.Tick 写入的掉落表结果，Unity 侧可在 Dying 时取用
         public ItemStack[] LastDrops;
 
+        // m9 A3：死因标记——MobAI.TakeHit 致死一击置 true（当前 TakeHit 的唯一生产调用方是
+        // 玩家近战 CombatController.DoAttack）。Unity 侧 MobManager 在 Dying 序列里据此入账
+        // 击杀经验（猪 3/牛 5/鸡 2/僵尸 10），发完复位（幂等）。
+        // mob 不入存档（level.dat 只存 seed/时间/玩家/熔炉/掉落物），无序列化面。
+        public bool KilledByPlayer;
+
         public bool IsAlive => State != MobState.Dead && State != MobState.Dying;
 
         public static Mob Create(int mobTypeId, Float3 position)

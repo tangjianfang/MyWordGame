@@ -169,12 +169,19 @@ namespace MyWorld.Unity.Combat
                 {
                     m.DeathTimer -= dt;
                     if (m.DeathTimer <= 0) m.State = MobState.Dead;
-                    // X1 fix-up：MobAI.Tick 写入 mob.LastDrops；Unity 侧负责把每条
+                    // X1 fix-up：MobAI 写入 mob.LastDrops（m9 A3 起玩家击杀经 TakeHit 死亡分支
+                    // 同步写入，Core-only 死亡仍由 MobAI.Tick 兜底）；Unity 侧负责把每条
                     // 实例化为 ItemDropEntity 并加到 PlayerContext.ItemDrops，让玩家可以拾取。
                     // SpawnDropsForMob 自身幂等（清空 LastDrops 后 no-op），所以多次 tick 安全。
                     if (m.LastDrops != null)
                     {
                         SpawnDropsForMob(m);
+                    }
+                    // m9 A3：击杀经验入账（TakeHit 致死置 KilledByPlayer；GrantKillExperience
+                    // 发完复位标记，Dying 倒计时内多帧调用不重发）
+                    if (m.KilledByPlayer)
+                    {
+                        GrantKillExperience(m);
                     }
                 }
             }
@@ -468,6 +475,43 @@ namespace MyWorld.Unity.Combat
                 ctx.ItemDrops.Add(drop);
             }
             mob.LastDrops = null;
+        }
+
+        /// <summary>
+        /// m9 A3：击杀经验常量表（spec §3「击杀经验」）——猪 3 / 牛 5 / 鸡 2 / 僵尸 10。
+        /// 不在表内的 kind（旧 Passive/Hostile、Villager）为 0。
+        /// </summary>
+        public static int KillExperience(MobKind kind)
+        {
+            switch (kind)
+            {
+                case MobKind.Pig: return 3;
+                case MobKind.Cow: return 5;
+                case MobKind.Chicken: return 2;
+                case MobKind.Zombie: return 10;
+                default: return 0;
+            }
+        }
+
+        /// <summary>
+        /// m9 A3：给玩家入账击杀经验。mob 由 <see cref="MobAI.TakeHit"/> 致死时标记
+        /// <see cref="Mob.KilledByPlayer"/>，Update 的 Dying 分支调用本方法——与掉肉
+        /// （<see cref="SpawnDropsForMob"/>）同一处观察死亡，两样奖励不漂移。
+        /// 与掉落独立结算：僵尸 rotten_flesh 是 50% 概率，可能一滴肉不掉但经验照发。
+        /// 入账后复位标记（幂等，Dying 倒计时 0.5s 内每帧调用只发一次）；
+        /// 无 PlayerContext（早期/测试场景）时只复位不入账，为 no-op。
+        /// </summary>
+        public void GrantKillExperience(Mob mob)
+        {
+            if (mob == null || !mob.KilledByPlayer) return;
+            mob.KilledByPlayer = false; // 先复位：入账与否都只发一次
+            var ctx = PlayerContext.Instance;
+            if (ctx == null) return;
+            int amount = KillExperience(mob.Kind);
+            if (amount > 0)
+            {
+                ctx.Experience.Add(amount);
+            }
         }
 
         private static int FindSurfaceY(World world, int x, int z)

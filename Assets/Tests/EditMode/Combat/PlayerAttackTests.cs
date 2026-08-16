@@ -39,6 +39,9 @@ namespace MyWorld.Core.Tests.Combat
         private ItemDatabase _items;
         private readonly List<GameObject> _spawned = new List<GameObject>();
 
+        // m9 A3：击杀掉肉（SpawnDropsForMob）与经验入账（GrantKillExperience）都住在 MobManager
+        private MobManager _mgr;
+
         /// <summary>EditMode 下 AddComponent 不会自动触发 MonoBehaviour.Awake，
         /// 用反射显式调用（与 MobDeathDropTests / PlayerControllerEyeTests 同款）。</summary>
         private static void InvokeAwake(MonoBehaviour mb)
@@ -53,15 +56,21 @@ namespace MyWorld.Core.Tests.Combat
         /// 攻击判定只认「host collider + MobView.Mob」（部位 cube 的 collider 已被 MobAssembly
         /// 移除），所以测试不走 MobView.Attach 的部位拼装，直接挂 BoxCollider + MobView。
         /// </summary>
-        private GameObject SpawnPigAhead(float dist)
+        private GameObject SpawnPigAhead(float dist) => SpawnMobAhead(6, dist);
+
+        /// <summary>
+        /// m9 A3：<see cref="SpawnPigAhead"/> 的通用版——准星正前方造指定 mobTypeId 的 mob
+        /// （鸡 8 / 僵尸 9 等），击杀链路测试用。
+        /// </summary>
+        private GameObject SpawnMobAhead(int mobTypeId, float dist)
         {
-            var host = new GameObject("Pig@" + dist);
+            var host = new GameObject("Mob" + mobTypeId + "@" + dist);
             _spawned.Add(host);
             host.transform.position = _eyeChild.transform.position
                                       + _eyeChild.transform.forward * dist;
             host.AddComponent<BoxCollider>(); // 默认 1×1×1
             var view = host.AddComponent<MobView>();
-            view.Mob = Mob.Create(6, new Float3(
+            view.Mob = Mob.Create(mobTypeId, new Float3(
                 host.transform.position.x, host.transform.position.y, host.transform.position.z));
             // EditMode 下 transform 改动不自动同步物理世界（全限定：裸 Physics 会被
             // 解析成 MyWorld.Core.Physics 命名空间）
@@ -103,6 +112,14 @@ namespace MyWorld.Core.Tests.Combat
 
             _combat = _playerHost.AddComponent<CombatController>();
             _combat.Player = player; // Hand 留 null：TryAttack 对 null Hand 安全跳过
+
+            // m9 A3：MobManager 挂独立 host（world/time 留 null——测试不驱动 Update，
+            // 只直调 SpawnDropsForMob / GrantKillExperience，与 MobDeathDropTests 同款）
+            var mgrHost = new GameObject("PlayerAttackTestMobMgr");
+            _spawned.Add(mgrHost);
+            _mgr = mgrHost.AddComponent<MobManager>();
+            _mgr.Bind(world: null, time: null, player: _playerHost.transform,
+                generator: null, rules: null);
         }
 
         [TearDown]
@@ -303,6 +320,140 @@ namespace MyWorld.Core.Tests.Combat
             bool hit = _combat.TryAttack();
             Assert.That(hit, Is.True, "拆墙后视线通畅，应命中");
             Assert.That(pig.Health.Current, Is.EqualTo(9f), "拆墙后空手伤害 1：10 → 9");
+        }
+
+        // ─── m9 A3：死亡统一序列——打死掉肉 + 击杀经验（修断环③，打猎闭环合龙） ──
+
+        /// <summary>EditMode 下 Time.time 冻结，连续攻击前把冷却拨回（A1 同款时间注入）。</summary>
+        private void RewindCooldown()
+        {
+            _combat.LastAttackTime -= CombatController.AttackCooldown;
+        }
+
+        /// <summary>
+        /// 空手 4 下打死鸡（4 血 × 1 伤）→ 真实 drop_tables 链路掉生鸡肉：
+        /// TakeHit 死亡分支写 LastDrops（chicken=1017）→ SpawnDropsForMob →
+        /// PlayerContext.ItemDrops 出现可拾取的真物品。打死瞬间 LastDrops 非空即
+        /// 「CombatController_NoDirectDying」的行为断言——击杀必经 MobAI 序列，
+        /// 不再是旧 DoAttack 的直置 Dying（那条路 LastDrops 永远不可达）。
+        /// </summary>
+        [Test]
+        public void KillAnimal_DropsMeat()
+        {
+            // 注入生产同源的 JSON 掉落表（WorldBootstrap 从 StreamingAssets 加载的那张）
+            MobAI.DropTable = MobDropTable.Load(System.IO.Path.Combine(
+                Application.streamingAssetsPath, "mobs", "drop_tables.json"));
+            try
+            {
+                var chicken = SpawnMobAhead(8, 2f).GetComponent<MobView>().Mob; // 鸡 4 血
+                Assume.That(chicken.Health.Current, Is.EqualTo(4f), "前置：鸡满血 4");
+
+                for (int i = 0; i < 4; i++)
+                {
+                    RewindCooldown();
+                    Assert.That(_combat.TryAttack(), Is.True, $"第 {i + 1} 击应命中");
+                }
+
+                Assert.That(chicken.Health.IsDead, Is.True, "空手 4 × 1 伤应打死 4 血鸡");
+                Assert.That(chicken.State, Is.EqualTo(MobState.Dying),
+                    "致死应由 MobAI.TakeHit 死亡分支转 Dying（CombatController 不再直置）");
+                Assert.That(chicken.LastDrops, Is.Not.Null,
+                    "打死瞬间 LastDrops 应非空——击杀路径必经 MobAI 死亡序列（断环③修复）");
+                bool meatInDrops = false;
+                foreach (var stack in chicken.LastDrops)
+                {
+                    if (stack.ItemId == ItemDropTable.ChickenItemId) meatInDrops = true;
+                }
+                Assert.That(meatInDrops, Is.True,
+                    "LastDrops 应含 chicken (1017)——真实 drop_tables 链路");
+
+                // 掉肉落场：LastDrops → SpawnDropsForMob → PlayerContext.ItemDrops
+                _mgr.SpawnDropsForMob(chicken);
+                bool meatOnGround = false;
+                foreach (var d in _ctx.ItemDrops)
+                {
+                    if (d.Content.HasValue && d.Content.Value.ItemId == ItemDropTable.ChickenItemId)
+                    {
+                        meatOnGround = true;
+                    }
+                }
+                Assert.That(meatOnGround, Is.True,
+                    "打死鸡后地上应有可拾取的生鸡肉（打猎→掉肉→吃的闭环合龙）");
+            }
+            finally
+            {
+                MobAI.DropTable = null; // 静态注入不外泄给其它 fixture
+            }
+        }
+
+        /// <summary>杀猪 +3 经验：木剑（4 伤）3 下打死 10 血猪，前两下不击杀不入账。</summary>
+        [Test]
+        public void KillGrantsExperience_Pig_Plus3()
+        {
+            var sword = _items.GetById("wooden_sword");
+            Assume.That(sword.AttackDamage, Is.EqualTo(4f), "前置：wooden_sword.attackDamage=4");
+            _ctx.Inventory.SetSlot(_ctx.Inventory.SelectedHotbarIndex,
+                new ItemStack(sword.NumericId, 1));
+            var pig = SpawnPigAhead(2f).GetComponent<MobView>().Mob;
+            Assume.That(_ctx.Experience.Current, Is.EqualTo(0), "前置：初始经验 0");
+
+            RewindCooldown(); _combat.TryAttack();
+            RewindCooldown(); _combat.TryAttack();
+            Assert.That(pig.Health.Current, Is.EqualTo(2f), "木剑 2 下：10 → 2");
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(0), "未击杀不入账经验");
+            Assert.That(pig.KilledByPlayer, Is.False, "未击杀不置死因标记");
+
+            RewindCooldown();
+            Assert.That(_combat.TryAttack(), Is.True, "第三击应命中");
+            Assert.That(pig.State, Is.EqualTo(MobState.Dying), "木剑 3 下应打死猪");
+            Assert.That(pig.KilledByPlayer, Is.True, "致死一击应置死因标记（经验入账依据）");
+
+            _mgr.GrantKillExperience(pig);
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(3), "杀猪应 +3 经验");
+        }
+
+        /// <summary>杀僵尸 +10 经验：铁剑（10 伤）2 下打死 20 血僵尸。</summary>
+        [Test]
+        public void KillGrantsExperience_Zombie_Plus10()
+        {
+            var sword = _items.GetById("iron_sword");
+            Assume.That(sword.AttackDamage, Is.EqualTo(10f), "前置：iron_sword.attackDamage=10");
+            _ctx.Inventory.SetSlot(_ctx.Inventory.SelectedHotbarIndex,
+                new ItemStack(sword.NumericId, 1));
+            var zombie = SpawnMobAhead(9, 2f).GetComponent<MobView>().Mob; // 僵尸 20 血
+            Assume.That(zombie.Health.Current, Is.EqualTo(20f), "前置：僵尸满血 20");
+
+            RewindCooldown(); _combat.TryAttack();
+            RewindCooldown(); Assert.That(_combat.TryAttack(), Is.True, "第二击应命中");
+
+            Assert.That(zombie.State, Is.EqualTo(MobState.Dying), "铁剑 2 下应打死僵尸");
+            Assert.That(zombie.KilledByPlayer, Is.True, "致死一击应置死因标记");
+
+            _mgr.GrantKillExperience(zombie);
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(10), "杀僵尸应 +10 经验");
+        }
+
+        /// <summary>
+        /// A1 评审 O1 直测（挖矿分流方向 2）：准星与 mob 之间有实心方块 →
+        /// <see cref="CombatController.IsMobInCrosshair"/> 为 false，BlockInteraction
+        /// 挖矿照常（正好挖那堵墙）；拆墙后信号恢复 true（与方向 1 对称）。
+        /// </summary>
+        [Test]
+        public void Dig_WhenMobBehindWall_Proceeds()
+        {
+            var world = new World();
+            var registry = BuildMinimalRegistry();
+            world.SetBlock(0, 0, 1, BlockIds.Stone); // eye(0,0,0) 与 2m 处猪之间的墙
+            SpawnPigAhead(2f);
+
+            Assert.That(
+                CombatController.IsMobInCrosshair(_eyeChild.transform, world, registry),
+                Is.False, "墙后有 mob：视线被实心方块挡住，不应抑制挖矿（正好挖那堵墙）");
+
+            world.SetBlock(0, 0, 1, BlockIds.Air);
+            Assert.That(
+                CombatController.IsMobInCrosshair(_eyeChild.transform, world, registry),
+                Is.True, "拆墙后视线通畅，mob 信号应恢复 true（方向 1 对称面）");
         }
     }
 }
