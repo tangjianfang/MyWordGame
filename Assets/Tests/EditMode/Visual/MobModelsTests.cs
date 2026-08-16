@@ -16,12 +16,15 @@
 //   6) 色值：body/head 沿用 m5 表（UrpMaterialFactory.MobBodyColor/MobHeadColor），
 //      新增部位色照 spec（猪鼻 #C87880、牛角 #D8D0C0、鸡嘴 #D9A03D、鸡冠 #C03028）
 //   7) 旧三类（Passive/Hostile/Neutral）保底 body+head 两部位不倒退
+//   8) 体型序：鸡 ≈0.8 且 < 猪 < 牛（评审 I-1，鸡「最小」辨识点守卫）
+//   9) 非 body/head 的 9 处附属部位色逐个比对 + Hex 非法字面量报错返品红（评审 I-2）
 // UNITY_EDITOR 包裹确保 dotnet 链不参与（dotnet 基线 473 不变）。
 using System.Collections.Generic;
 using MyWorld.Core.Entities;
 using MyWorld.Unity.Rendering;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace MyWorld.Core.Tests.Visual
 {
@@ -237,6 +240,76 @@ namespace MyWorld.Core.Tests.Visual
                 kind + " 旧三类保底 body+head 两部位不倒退");
             Assert.That(Find(parts, "body"), Is.Not.Null, kind + " 保底应含 body");
             Assert.That(Find(parts, "head"), Is.Not.Null, kind + " 保底应含 head");
+        }
+
+        [Test]
+        public void Build_Chicken_SmallestMobWithHeightAboutPointEight()
+        {
+            // spec §1 辨识点：鸡「最小+红冠」——站高 ≈0.8，且必须比猪（矮胖 ~0.85）还矮，
+            // 否则「体型最小」的辨识点失效（评审 I-1）
+            float chicken = HeightOf(MobKind.Chicken);
+            Assert.That(chicken, Is.EqualTo(0.8f).Within(0.05f),
+                "鸡站高应 ≈0.8（spec 体高 ~0.8，实际 " + chicken.ToString("F3") + "）");
+            Assert.That(chicken, Is.LessThan(HeightOf(MobKind.Pig)),
+                "鸡应是最小生物，站高须 < 猪（实际 鸡 " + chicken.ToString("F3") +
+                " / 猪 " + HeightOf(MobKind.Pig).ToString("F3") + "）");
+            Assert.That(HeightOf(MobKind.Pig), Is.LessThan(HeightOf(MobKind.Cow)),
+                "体型序守卫：猪（矮胖 ~0.85）应 < 牛（高大 ~1.35）");
+        }
+
+        [Test]
+        public void Build_NonBodyHeadColorsFollowSpecTable()
+        {
+            // 评审 I-2：9 处非 body/head 色值字面量逐个守卫（写错靠断言暴露，不靠肉眼）
+            var chicken = MobModels.Build(MobKind.Chicken);
+            AssertColorsClose(Find(chicken, "legL").Value.Color, Hex("#D9A03D"), "鸡腿（同鸡嘴黄）");
+            AssertColorsClose(Find(chicken, "legR").Value.Color, Hex("#D9A03D"), "鸡腿（同鸡嘴黄）");
+
+            var zombie = MobModels.Build(MobKind.Zombie);
+            AssertColorsClose(Find(zombie, "armL").Value.Color, Hex("#6FA05C"), "僵尸臂（外露肤色，同 m5 头色）");
+            AssertColorsClose(Find(zombie, "armR").Value.Color, Hex("#6FA05C"), "僵尸臂（外露肤色，同 m5 头色）");
+            AssertColorsClose(Find(zombie, "legL").Value.Color, Hex("#5A8A4A"), "僵尸腿（同 m5 body 色）");
+            AssertColorsClose(Find(zombie, "legR").Value.Color, Hex("#5A8A4A"), "僵尸腿（同 m5 body 色）");
+
+            var villager = MobModels.Build(MobKind.Villager);
+            AssertColorsClose(Find(villager, "armLower").Value.Color, Hex("#7A5C3E"), "村民抱胸臂（袍色）");
+            AssertColorsClose(Find(villager, "armUpper").Value.Color, Hex("#7A5C3E"), "村民抱胸臂（袍色）");
+            AssertColorsClose(Find(villager, "nose").Value.Color, Hex("#C8986A"), "村民长鼻（头肤色加深一档）");
+
+            foreach (var legacy in new[] { MobKind.Passive, MobKind.Hostile, MobKind.Neutral })
+            {
+                var parts = MobModels.Build(legacy);
+                AssertColorsClose(Find(parts, "body").Value.Color, Hex("#8A8A8A"), legacy + " 保底 body 中性灰");
+                AssertColorsClose(Find(parts, "head").Value.Color, Hex("#9A9A9A"), legacy + " 保底 head 中性灰");
+            }
+
+            // 猪/牛四条腿 = 各自 body 色（m5 表），一并守卫
+            AssertColorsClose(Find(MobModels.Build(MobKind.Pig), "legFL").Value.Color,
+                UrpMaterialFactory.MobBodyColor(MobKind.Pig), "猪腿（body 色）");
+            AssertColorsClose(Find(MobModels.Build(MobKind.Cow), "legFL").Value.Color,
+                UrpMaterialFactory.MobBodyColor(MobKind.Cow), "牛腿（body 色）");
+        }
+
+        [Test]
+        public void Hex_IllegalLiteral_LogsErrorAndReturnsMagenta()
+        {
+            // 评审 I-2：色值字面量写错不能静默透明（部位隐形看不见）——必须报错并返品红立刻暴露
+            var hex = typeof(MobModels).GetMethod("Hex",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(hex, Is.Not.Null, "MobModels 应有私有的 Hex 封装");
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("MobModels\\.Hex"));
+            var color = (Color)hex.Invoke(null, new object[] { "#ZZZZZZ" });
+            Assert.That(color, Is.EqualTo(Color.magenta), "非法色值应返品红（magenta）暴露问题");
+        }
+
+        private static float HeightOf(MobKind kind)
+        {
+            float maxY = float.MinValue;
+            foreach (var part in MobModels.Build(kind))
+            {
+                maxY = Mathf.Max(maxY, part.LocalPosition.y + part.Size.y * 0.5f);
+            }
+            return maxY;
         }
 
         private static MobPart? Find(MobPart[] parts, string name)

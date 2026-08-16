@@ -76,13 +76,15 @@ namespace MyWorld.Unity.Rendering
                 case MobKind.Chicken:
                     return new[]
                     {
-                        // 最小竖身体 + 红头 + 黄嘴 + 头顶红冠（0.2×0.1×0.15，长边沿前后向铺成脊），体高 ~0.97
-                        new MobPart("body", new Vector3(0.4f, 0.5f, 0.5f), new Vector3(0f, 0.55f, 0f), Hex("#F0EDE5")),
-                        new MobPart("head", new Vector3(0.3f, 0.3f, 0.3f), new Vector3(0f, 0.75f, 0.25f), Hex("#D94F3D")),
-                        new MobPart("beak", new Vector3(0.15f, 0.1f, 0.1f), new Vector3(0f, 0.72f, 0.45f), Hex("#D9A03D")),
-                        new MobPart("comb", new Vector3(0.1f, 0.1f, 0.2f), new Vector3(0f, 0.92f, 0.22f), Hex("#C03028")),
-                        new MobPart("legL", new Vector3(0.08f, 0.3f, 0.08f), new Vector3(0.09f, 0.15f, 0f), Hex("#D9A03D"), IsLeg: true, LegPhase: 0f),
-                        new MobPart("legR", new Vector3(0.08f, 0.3f, 0.08f), new Vector3(-0.09f, 0.15f, 0f), Hex("#D9A03D"), IsLeg: true, LegPhase: Mathf.PI),
+                        // 最小竖身体 + 红头 + 黄嘴 + 头顶红冠（0.2×0.1×0.15，长边沿前后向铺成脊）。
+                        // spec 原尺寸按比例缩（腿 0.3→0.22、身高 0.5→0.38、头 0.3→0.26、嘴/冠同步缩），
+                        // 站高 ~0.79（spec 体高 ~0.8）且严格小于猪 0.85——「体型最小」是鸡的核心辨识点（评审 I-1）
+                        new MobPart("body", new Vector3(0.4f, 0.38f, 0.45f), new Vector3(0f, 0.41f, 0f), Hex("#F0EDE5")),
+                        new MobPart("head", new Vector3(0.26f, 0.26f, 0.26f), new Vector3(0f, 0.6f, 0.16f), Hex("#D94F3D")),
+                        new MobPart("beak", new Vector3(0.14f, 0.09f, 0.09f), new Vector3(0f, 0.57f, 0.335f), Hex("#D9A03D")),
+                        new MobPart("comb", new Vector3(0.08f, 0.09f, 0.18f), new Vector3(0f, 0.745f, 0.16f), Hex("#C03028")),
+                        new MobPart("legL", new Vector3(0.08f, 0.22f, 0.08f), new Vector3(0.08f, 0.11f, 0f), Hex("#D9A03D"), IsLeg: true, LegPhase: 0f),
+                        new MobPart("legR", new Vector3(0.08f, 0.22f, 0.08f), new Vector3(-0.08f, 0.11f, 0f), Hex("#D9A03D"), IsLeg: true, LegPhase: Mathf.PI),
                     };
                 case MobKind.Zombie:
                     return new[]
@@ -120,7 +122,13 @@ namespace MyWorld.Unity.Rendering
 
         private static Color Hex(string hex)
         {
-            ColorUtility.TryParseHtmlString(hex, out var c);
+            if (!ColorUtility.TryParseHtmlString(hex, out var c))
+            {
+                // 色值字面量写错不能静默透明（out 参数是 0,0,0,0，部位会整个隐形）——
+                // 报错 + 返品红，跑测试/进游戏第一眼就暴露（评审 I-2）
+                Debug.LogError("MobModels.Hex 颜色字面量非法: " + hex + "（应为 #RRGGBB 格式，检查部位表色值）");
+                return Color.magenta;
+            }
             return c;
         }
     }
