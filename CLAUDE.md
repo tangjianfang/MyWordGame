@@ -232,6 +232,16 @@ Newtonsoft Json 包是必需的，缺了 Core 编译失败。
   拾取吸附状态机在 Core `ItemDropEntity.TickPickup`——半径 **2.5m** 内飞向玩家，
   贴脸 0.3m 才入包，`TryPickupBy` 只做完成判定
 
+**造型与暂停约定（milestone-8 起）**：
+
+- 五生物（猪牛鸡僵尸村民）造型是 `Rendering/MobModels` **纯静态部位表**（部位尺寸/位置/颜色/
+  腿相位），`MobView` 按表拼装（模式抄 `PlayerVisual`），部位表坐标约定「脚底中心为原点、
+  面朝 +Z」——改造型改表不改代码，EditMode 直接断言表
+- Esc 暂停（`UI/PauseMenuUi`）打开即 `Time.timeScale = 0` 真暂停、关闭恢复 1；退出保存全程
+  保持 0，**依赖 timeScale 的系统别用 `unscaledDeltaTime`**（退出停留窗用 `unscaledTime` 是例外）
+- 三滑条设置面板是公共组件 `UI/SettingsPanelUi`，帮助菜单（H）与暂停菜单共用同一实例——
+  调灵敏度/音量/FOV 别再建第二套
+
 编辑器菜单 `MyWorld/` 下有五个批处理入口，都能用 `-executeMethod` 无头跑：
 
 | 菜单项 | 方法 | 作用 |
