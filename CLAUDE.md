@@ -10,7 +10,7 @@ MyWordGame 是一个自研体素沙盒游戏（Unity 6 + 纯 C# Core 层），�
 全部在**仓库根目录**执行，**不需要安装 Unity**：
 
 ```bash
-dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 461 个）
+dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 473 个）
 dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTests"   # 单个测试类
 dotnet build tools/dotnet/MyWorld.Tools.sln              # 编译三个工程
 
@@ -214,6 +214,23 @@ Newtonsoft Json 包是必需的，缺了 Core 编译失败。
 - UI（IMGUI/OnGUI）视觉验证必须走 `--ui-shot` 截图管线（`visual-smoke.sh` 1c 步骤）——
   `Camera.Render` 拍不到 IMGUI，只有 standalone 的 `ScreenCapture.CaptureScreenshot`
   能抓到含 IMGUI 的完整 backbuffer
+
+**生存层约定（milestone-7 起）**：
+
+- 玩家受伤**唯一入口**是 `PlayerController.TakeDamage`（摔落/饥饿/怪物近战全走它）——
+  直写 `PlayerContext.Health.Damage` 会绕过复活后的 3 秒无敌帧（`RespawnAtSpawn` 设
+  `InvincibleUntil`，重生固定回世界出生点，不消费 `LastDeathPosition`）
+- 僵尸平衡参数是 C# 常量（不进 JSON）：**白天不追**（`MobAI.Tick` 的 `isNight` 参数，
+  真源 `MobManager.IsNightPhase`）、AttackRange **4** / ChaseRadius **20**、距玩家
+  >40 格 despawn（`MobManager.DespawnDistance`）
+- 右键路由**食物优先**：选中槽 `ItemDefinition.IsEdible`（= HealAmount > 0）时右键=吃
+  （`HungerSystem.Eat`，饥饿+饱和同回），不放方块；`CombatController` 的旧右键吃分支
+  已删，别加回来——双路并存会一次右键双扣物品
+- 帮助菜单（H）的「保存并退出」走 `SaveLoadService.SaveNow(async:false)` 同步落盘后
+  0.5s 退出（保存失败不退出、可重试）；Alt+F4 走既有 `OnApplicationQuit` 同步保存
+- 掉落物视觉是 `ItemDropView`（0.25 格悬浮自转小方块，颜色取物品贴图均值色）；
+  拾取吸附状态机在 Core `ItemDropEntity.TickPickup`——半径 **2.5m** 内飞向玩家，
+  贴脸 0.3m 才入包，`TryPickupBy` 只做完成判定
 
 编辑器菜单 `MyWorld/` 下有五个批处理入口，都能用 `-executeMethod` 无头跑：
 
