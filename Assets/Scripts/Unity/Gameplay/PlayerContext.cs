@@ -27,8 +27,10 @@ namespace MyWorld.Unity.Gameplay
         public FurnaceSystem FurnaceSystem;
 
         /// <summary>世界里正在飞的掉落物（B7 <see cref="ItemDropEntity"/>）。
-        /// 挖方块时 spawn，<see cref="MyWorld.Unity.Player.PlayerController.PickupNearbyDrops"/>
-        /// 每帧检查并把范围内的收进背包。永不为 null，直接 Add / Remove 即可。</summary>
+        /// 挖方块时 spawn；m7 B1 起 <see cref="MyWorld.Unity.Player.PlayerController.PickupNearbyDrops"/>
+        /// 每帧按吸附语义推进（进 2.5m 圈飞向玩家，贴脸入包），
+        /// <see cref="MyWorld.Unity.Items.ItemDropViewRegistry"/> 同步建/毁小方块视图。
+        /// 永不为 null，直接 Add / Remove 即可。</summary>
         public readonly System.Collections.Generic.List<ItemDropEntity> ItemDrops =
             new System.Collections.Generic.List<ItemDropEntity>();
         public MyWorld.Unity.UI.DeathScreenUi DeathScreen;

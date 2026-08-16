@@ -152,7 +152,13 @@ namespace MyWorld.Core.Tests.Quests
 
             _host.transform.position = Vector3.zero;
             _ctx.ItemDrops.Add(new ItemDropEntity(new ItemStack(1000, 3), new Float3(0.5f, 0f, 0f)));
-            int picked = _player.PickupNearbyDrops();
+            // m7 B1 吸附语义：0.5m 在吸附半径内但 > 0.3m 完成距离，逐步步进到入包
+            int picked = 0, steps = 0;
+            while (_ctx.ItemDrops.Count > 0 && steps < 600)
+            {
+                picked += _player.PickupNearbyDrops(1f / 60f);
+                steps++;
+            }
 
             Assert.That(picked, Is.EqualTo(3), "掉落物应照常进包（事件接线不改变拾取行为）");
             Assert.That(_ctx.Inventory.CountOf(1000), Is.EqualTo(5));
@@ -226,7 +232,13 @@ namespace MyWorld.Core.Tests.Quests
 
             _host.transform.position = Vector3.zero;
             _ctx.ItemDrops.Add(new ItemDropEntity(new ItemStack(1000, 1), new Float3(0.5f, 0f, 0f)));
-            int picked = _player.PickupNearbyDrops();
+            // m7 B1 吸附语义：逐步步进到入包（0.5m → 贴脸 <0.3m）
+            int picked = 0, steps = 0;
+            while (_ctx.ItemDrops.Count > 0 && steps < 600)
+            {
+                picked += _player.PickupNearbyDrops(1f / 60f);
+                steps++;
+            }
 
             Assert.That(picked, Is.EqualTo(1), "无总线时拾取行为不受影响");
             Assert.That(_ctx.Inventory.CountOf(1000), Is.EqualTo(1));
@@ -500,7 +512,13 @@ namespace MyWorld.Core.Tests.Quests
 
             _host.transform.position = Vector3.zero;
             _ctx.ItemDrops.Add(new ItemDropEntity(new ItemStack(1000, 1), new Float3(0.5f, 0f, 0f)));
-            _player.PickupNearbyDrops();
+            // m7 B1 吸附语义：逐步步进到入包（0.5m → 贴脸 <0.3m）
+            int steps = 0;
+            while (_ctx.ItemDrops.Count > 0 && steps < 600)
+            {
+                _player.PickupNearbyDrops(1f / 60f);
+                steps++;
+            }
 
             Assert.That(_bus.Quests.Current.Id, Is.EqualTo("ch1_02_craft_planks"),
                 "拾取原木完成 ch1_01 后应停在 ch1_02");

@@ -13,6 +13,8 @@ namespace MyWorld.Core.Tests.Player
     /// <summary>
     /// B8：拾取掉落物 + 多源 TakeDamage（摔落 / 饥饿）。
     /// 全部走 PlayerController 的公开步进方法，不依赖 Update / Play 模式。
+    /// m7 B1 起拾取是吸附语义（进 2.5m 圈 → 飞向玩家 → 贴脸 &lt;0.3m 才入包），
+    /// 拾取测试显式传 dt 逐步步进。
     /// m5 A2 起伤害统一写 <see cref="PlayerContext"/>.Health（血条 / 存档唯一真源），
     /// 断言从 PlayerController 私有 int Health 改为读 ctx.Health.Current。
     /// </summary>
@@ -44,15 +46,28 @@ namespace MyWorld.Core.Tests.Player
         }
 
         [Test]
-        public void 范围内的掉落物被拾取并进背包()
+        public void 吸附到位后掉落物入包()
         {
             _go.transform.position = new Vector3(10f, 5f, 10f);
             var drop = new ItemDropEntity(new ItemStack(7, 3), new Float3(10.5f, 5f, 10f));
             _ctx.ItemDrops.Add(drop);
 
-            int picked = _player.PickupNearbyDrops();
+            // m7 B1 吸附语义：0.5m 在吸附半径（2.5m）内但 > 完成距离（0.3m），
+            // 第一帧只开始飞（Attracting），不立即入包
+            int first = _player.PickupNearbyDrops(1f / 60f);
+            Assert.AreEqual(0, first, "吸附刚开始未到位，本帧不应入包");
+            Assert.IsTrue(drop.Attracting, "2.5m 内应标记吸附");
+            Assert.AreEqual(1, _ctx.ItemDrops.Count, "掉落物应还在列表里飞行");
 
-            Assert.AreEqual(3, picked, "应拾取 3 个");
+            // 手动步进到吸附到位（EditMode 不自动跑 Update）；600 帧上限防死循环
+            int picked = first, steps = 0;
+            while (_ctx.ItemDrops.Count > 0 && steps < 600)
+            {
+                picked += _player.PickupNearbyDrops(1f / 60f);
+                steps++;
+            }
+
+            Assert.AreEqual(3, picked, "到位后累计应拾取 3 个");
             Assert.AreEqual(0, _ctx.ItemDrops.Count, "拾取后掉落物应从列表移除");
             Assert.IsNull(drop.Content, "掉落物内容应置空");
             Assert.AreEqual(3, _ctx.Inventory.GetSlot(0).Count, "背包首格应有 3 个");
@@ -65,8 +80,8 @@ namespace MyWorld.Core.Tests.Player
             _go.transform.position = Vector3.zero;
             _ctx.ItemDrops.Add(new ItemDropEntity(new ItemStack(7, 3), new Float3(9f, 0f, 0f)));
 
-            Assert.AreEqual(0, _player.PickupNearbyDrops());
-            Assert.AreEqual(1, _ctx.ItemDrops.Count, "范围外掉落物应保留");
+            Assert.AreEqual(0, _player.PickupNearbyDrops(1f / 60f));
+            Assert.AreEqual(1, _ctx.ItemDrops.Count, "9m 远超 2.5m 吸附半径，掉落物应保留");
         }
 
         [Test]

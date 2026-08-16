@@ -222,17 +222,24 @@ namespace MyWorld.Unity.Player
             }
         }
 
-        // ─── 拾取掉落物 ───────────────────────────────────────────────────────
+        // ─── 拾取掉落物（m7 B1：吸附式） ─────────────────────────────────────
 
-        /// <summary>把 <see cref="PlayerContext.ItemDrops"/> 里落在拾取半径内的掉落物收进背包，
-        /// 返回本次实际拾取的物品总数。背包塞不下时**保留**掉落物（部分塞入的按剩余量回写），
-        /// 玩家腾出格子后还能再捡。
+        /// <summary>每帧入口（<see cref="Update"/> 调）：用 <c>Time.deltaTime</c> 步进吸附拾取。
+        /// 语义详见 <see cref="PickupNearbyDrops(float)"/>。</summary>
+        public int PickupNearbyDrops() => PickupNearbyDrops(Time.deltaTime);
+
+        /// <summary>把 <see cref="PlayerContext.ItemDrops"/> 里的掉落物按吸附语义收进背包，
+        /// 返回本次实际拾取的物品总数。m7 B1 起**半径内不再立即入包**：
+        /// 状态机在 Core 的 <c>ItemDropEntity.TickPickup</c>——进 2.5m 圈标记 Attracting、
+        /// 每帧以 8m/s 向玩家飞、距玩家 &lt;0.3m 时本方法才入包（视觉上「吸过来」）。
+        /// <paramref name="dt"/> 显式传入，EditMode 测试手动步进不依赖 Time.deltaTime。
+        /// <para>背包塞不下时**保留**掉落物（部分塞入的按剩余量回写），玩家腾出格子后还能再捡。</para>
         /// <para>
         /// m6 C2：物品真正进包的这一刻发 ObtainItem 事件（Count=背包现存量）。
         /// 挖方块（<see cref="BlockInteraction.BreakAt"/>）spawn 的掉落物也走这里进包，
         /// 所以 ObtainItem **只在拾取点发一次**——挖矿路径天然被覆盖且不会双计。
         /// </para></summary>
-        public int PickupNearbyDrops()
+        public int PickupNearbyDrops(float dt)
         {
             var ctx = GetComponent<PlayerContext>();
             if (ctx == null || ctx.Inventory == null || ctx.ItemDrops.Count == 0) return 0;
@@ -250,9 +257,11 @@ namespace MyWorld.Unity.Player
                     continue;
                 }
 
-                if (!drop.TryPickupBy(self, Time.time, out int picked)) continue;
+                // 状态机（进圈 → 飞行 → 贴脸）返回 false = 本帧未到位，继续飞
+                if (!drop.TickPickup(self, Time.time, dt)) continue;
 
                 var stack = drop.Content.Value;
+                int picked = stack.Count;
                 if (ctx.Inventory.TryAdd(stack, out int leftover))
                 {
                     drop.MarkPicked();
@@ -261,7 +270,8 @@ namespace MyWorld.Unity.Player
                 }
                 else if (leftover < picked)
                 {
-                    // 背包只塞下一部分：掉落物按剩余量重建，等玩家腾格子后再捡
+                    // 背包只塞下一部分：掉落物按剩余量重建，等玩家腾格子后再捡。
+                    // 位置就在玩家脚下（吸附刚到位），下一帧会重新进圈吸附重试
                     var rebuilt = new Core.Items.ItemDropEntity(
                         stack.WithCount(leftover), drop.Position);
                     rebuilt.SpawnTime = drop.SpawnTime; // F1 follow-up：保留原 spawn 时刻，宽限期不重置
