@@ -59,12 +59,29 @@ namespace MyWorld.Unity.Combat
             if (ev.VictimEntityId != 0) return;
             var ctx = PlayerContext.Instance;
             if (ctx == null) return;
+
+            // m7 A1 fix1：伤害统一入口。僵尸近战 / 苦力怕爆炸此前在这里直写
+            // ctx.Health.Damage，绕过 PlayerController.TakeDamage 的复活无敌帧——
+            // 守尸连杀（A1 要解决的核心威胁）对无敌零保护。改经 TakeDamage 后
+            // 无敌早退 / 血条 / 死亡画面（含 Death.OnDeath）都在一处结算；
+            // 回满血交给 RespawnAtSpawn，不再需要死亡瞬间 ResetToFull 的旧补丁。
+            var pc = _player != null
+                ? _player.GetComponent<MyWorld.Unity.Player.PlayerController>()
+                : null;
+            if (pc != null)
+            {
+                pc.TakeDamage((int)ev.Amount, ev.AttackerEntityId);
+                // 经验：被击中也算 1 点（可选）
+                ctx.Experience.Add(1);
+                return;
+            }
+
+            // 兜底：场景里没有 PlayerController（早期 / 纯逻辑场景）时保持旧直写路径
             ctx.Health.Damage(ev.Amount);
-            // 经验：被击中也算 1 点（可选）
             ctx.Experience.Add(1);
 
-            // 触发死亡
-            if (ctx.Health.IsDead && ctx.Death.IsAlive)
+            // 触发死亡（仅兜底路径需要：主路径的死亡已由 TakeDamage → DeathScreenUi 处理）
+            if (ctx.Health.IsDead && ctx.Death != null && ctx.Death.IsAlive)
             {
                 ctx.Death.OnDeath(new MyWorld.Core.Math.Float3(
                     _player != null ? _player.position.x : 0,

@@ -1,10 +1,12 @@
 #if UNITY_EDITOR
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Math;
 using MyWorld.Core.Player;
 using MyWorld.Core.Voxel;
+using MyWorld.Unity.Combat;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Player;
 
@@ -50,6 +52,9 @@ namespace MyWorld.Core.Tests.Player
         [TearDown]
         public void TearDown()
         {
+            // CombatEvents 是 static event，EditMode 下 DestroyImmediate 不触发
+            // MobManager.OnDisable 退订，不 Reset 会把订阅泄漏给后续测试。
+            CombatEvents.Reset();
             Object.DestroyImmediate(_go);
         }
 
@@ -112,6 +117,57 @@ namespace MyWorld.Core.Tests.Player
             _player.TakeDamage(10, null);
             Assert.That(_ctx.Health.Current, Is.EqualTo(hpAfterRespawn - 10f).Within(0.001f),
                 "无敌帧过期后伤害应正常结算");
+        }
+
+        [Test]
+        public void 无敌帧内怪物近战不掉血_结束后正常结算()
+        {
+            // 走真实事件链：僵尸近战 / 苦力怕爆炸都由 MobAI 发 CombatEvents.OnDamageTaken
+            // （victim=0 即玩家），MobManager.HandleDamageTaken 订阅后结算。
+            // EditMode 下生命周期不自动跑：PlayerContext.Instance 由 Awake 建立、
+            // MobManager 的订阅在 OnEnable，都用反射显式触发（与 DeathScreenUiWireTests
+            // 的 InvokeAwake 同法）。
+            InvokeAwake(_ctx);
+            var mgr = _go.AddComponent<MobManager>();
+            mgr.Bind(null, null, _go.transform);
+            InvokeOnEnable(mgr);
+
+            _player.RespawnAtSpawn(); // 进入 3 秒无敌
+            float hp = _ctx.Health.Current;
+
+            CombatEvents.RaiseTaken(new DamageEvent(
+                DamageSource.Melee, 5f, attacker: 7, victim: 0, default));
+            Assert.That(_ctx.Health.Current, Is.EqualTo(hp).Within(0.001f),
+                "无敌帧内僵尸近战（CombatEvents → MobManager 链路）不应掉血——"
+                + "A1 要解决的核心威胁就是守尸僵尸，这条链路直写 Health 会绕过无敌帧");
+
+            _player.InvincibleUntil = UnityEngine.Time.time - 0.01f;
+            CombatEvents.RaiseTaken(new DamageEvent(
+                DamageSource.Melee, 5f, attacker: 7, victim: 0, default));
+            Assert.That(_ctx.Health.Current, Is.EqualTo(hp - 5f).Within(0.001f),
+                "无敌结束后同一链路应正常掉血");
+        }
+
+        /// <summary>EditMode 下 AddComponent 不会触发 MonoBehaviour.OnEnable
+        /// （订阅 CombatEvents 的入口在那里），用反射显式调用。</summary>
+        private static void InvokeOnEnable(MonoBehaviour mb)
+        {
+            var method = mb.GetType().GetMethod(
+                "OnEnable",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, mb.GetType().Name + " 应有私有 OnEnable");
+            method.Invoke(mb, null);
+        }
+
+        /// <summary>EditMode 下 AddComponent 不会触发 MonoBehaviour.Awake
+        /// （PlayerContext.Instance 单例在这里建立），用反射显式调用。</summary>
+        private static void InvokeAwake(MonoBehaviour mb)
+        {
+            var method = mb.GetType().GetMethod(
+                "Awake",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, mb.GetType().Name + " 应有私有 Awake");
+            method.Invoke(mb, null);
         }
     }
 }

@@ -126,9 +126,11 @@ namespace MyWorld.Unity.Player
         /// <see cref="MyWorld.Unity.UI.DeathScreenUi"/> 显示死亡画面。<paramref name="attacker"/>
         /// 保留给未来的伤害归属 / 成就系统，这里不用。
         /// <para>
-        /// B8 起这是**多源**入口：怪物近战（<c>CombatController</c>）、摔落
-        /// （<see cref="TickFallDamage"/>）、饥饿（<see cref="TickHungerDamage"/>）都走这里，
-        /// 死亡判定只有这一处，不要在各伤害源里各写一份。
+        /// B8 起这是**多源**入口：摔落（<see cref="TickFallDamage"/>）、饥饿
+        /// （<see cref="TickHungerDamage"/>）都走这里，死亡判定只有这一处，
+        /// 不要在各伤害源里各写一份。m7 A1 fix1 起怪物伤害也并入：僵尸近战 /
+        /// 苦力怕爆炸由 <c>MobManager.HandleDamageTaken</c> 把 <c>CombatEvents</c>
+        /// 事件转发到这里（不再直写 <c>ctx.Health</c>），本方法成为玩家伤害唯一入口。
         /// </para>
         /// <para>
         /// m5 A2 起伤害**唯一真源是 <see cref="PlayerContext.Health"/>**（float Current/Max）——
@@ -137,8 +139,9 @@ namespace MyWorld.Unity.Player
         /// </para></summary>
         public void TakeDamage(int amount, object attacker)
         {
-            // m7 A1：复活无敌帧——无敌期内所有伤害源（近战 / 摔落 / 饥饿）一律忽略，
-            // 给玩家脱离出生点周边危险的窗口，打断「复活即被守尸连杀」的死亡循环。
+            // m7 A1：复活无敌帧——无敌期内伤害一律忽略，给玩家脱离出生点周边
+            // 危险的窗口，打断「复活即被守尸连杀」的死亡循环。fix1 起怪物近战 /
+            // 苦力怕爆炸 / 摔落 / 饥饿四类伤害源都经本方法进入，无敌帧同时生效。
             if (Time.time < InvincibleUntil) return;
             if (amount <= 0) return;
             var ctx = GetComponent<PlayerContext>();
