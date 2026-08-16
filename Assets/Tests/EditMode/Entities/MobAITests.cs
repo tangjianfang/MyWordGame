@@ -12,9 +12,10 @@ namespace MyWorld.Core.Tests.Entities
 {
     /// <summary>
     /// Phase D 第一批测试：在现有 <see cref="Mob.Create"/> + <see cref="MobAI.Tick"/> API 上
-    /// 验证 type-specific 行为（spec line 173/181：PIG/COW/CHICKEN 巡逻+怕玩家、ZOMBIE 追击、
+    /// 验证 type-specific 行为（spec line 173/181：PIG/COW/CHICKEN 巡逻、ZOMBIE 追击、
     /// 死亡触发 Drop）。Phase D 扩展既有 state machine，5 个新测试。
     /// 追击半径 m7 A2 由 32 收窄到 20（僵尸平衡，详见 ZombieBalanceTests）。
+    /// m9 A2：被动动物「靠近惊跑」退役（受击才逃，见 MobFleeTests）。
     /// </summary>
     [TestFixture]
     public class MobAITests
@@ -71,16 +72,17 @@ namespace MyWorld.Core.Tests.Entities
         }
 
         [Test]
-        public void PigFleesWhenPlayerClose()
+        public void PigDoesNotFleeWhenPlayerClose()
         {
-            // 新猪 (MobTypeId 6)：MobKind.Pig，路由到 TickPassive
+            // m9 A2 修正（原 m3 断言「3 格内进 Scared」）：靠近惊跑退役、受击才逃
+            // （TakeHit 路径见 MobFleeTests）——否则 8m 惊跑 > 4m 攻击距离，玩家打不到猪
             var pig = Mob.Create(6, new Float3(0, 64, 0));
             Assert.That(pig.Kind, Is.EqualTo(MobKind.Pig));
 
-            // 玩家 3 格内（< ScareRadius=8），应进入 Scared
+            // 玩家 3 格内贴身也不应惊跑，应站定 Idle 可被攻击
             MobAI.Tick(pig, new Float3(3, 64, 0), null, new TimeOfDay(), 0.1f);
-            Assert.That(pig.State, Is.EqualTo(MobState.Scared),
-                "新猪玩家靠近应害怕逃跑");
+            Assert.That(pig.State, Is.EqualTo(MobState.Idle),
+                "玩家靠近不应惊跑——受击才逃（m9 A2 修断环②）");
         }
 
         [Test]

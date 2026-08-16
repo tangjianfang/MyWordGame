@@ -24,6 +24,10 @@ namespace MyWorld.Core.Entities
         public float LastAttackTime;
         public Float3 LastAttackerPos;
         public float HitFlashTimer;    // 受伤红闪剩余时间
+
+        // m9 A2：受击逃跑剩余时间（秒）。MobAI.TakeHit 置为 MobAI.FleeDuration（3s），
+        // TickPassive 逐帧递减，归零即退出 FleeingFromAttacker 回落 wander 流。
+        public float FleeUntil;
         public float DeathTimer;       // Dying 计时
         public float AttackCooldown;   // 下次可攻击剩余时间
         public float AttackRange = 1.6f;   // 不同 mob 攻击距离不同（skeleton=6, 新僵尸=4——m7 A2 由 8 收窄）
@@ -53,9 +57,11 @@ namespace MyWorld.Core.Entities
                 4 => new Mob { MobTypeId = 4, Kind = MobKind.Hostile, Health = new Health(16), Position = position, AttackDamage = 3f, AttackRange = 6f, WanderCooldown = 2f },
                 5 => new Mob { MobTypeId = 5, Kind = MobKind.Hostile, Health = new Health(20), Position = position, WanderCooldown = 2f },
 
-                // Phase D 新增 mobTypeId（spec line 173 type-specific）
+                // Phase D 新增 mobTypeId（spec line 173 type-specific）。
+                // m9 A2 血量平衡：猪 10 / 牛 15 / 鸡 4——木剑 4 伤 3 下杀猪、5 下杀牛、1 下杀鸡，
+                // 与「打一下→追→再打」的逃跑节奏（见 MobAI.TakeHit）配套。
                 6 => new Mob { MobTypeId = 6, Kind = MobKind.Pig, Health = new Health(10), Position = position, WanderCooldown = 2f, MoveSpeed = 1.5f },
-                7 => new Mob { MobTypeId = 7, Kind = MobKind.Cow, Health = new Health(12), Position = position, WanderCooldown = 2f, MoveSpeed = 1.0f },
+                7 => new Mob { MobTypeId = 7, Kind = MobKind.Cow, Health = new Health(15), Position = position, WanderCooldown = 2f, MoveSpeed = 1.0f },
                 8 => new Mob { MobTypeId = 8, Kind = MobKind.Chicken, Health = new Health(4), Position = position, WanderCooldown = 2f, MoveSpeed = 0.5f },
                 // m7 A2 平衡：AttackRange 8→4、ChaseRadius 32→20（追击半径收窄 +
                 // 白天不追见 MobAI.Tick；僵尸昼夜压着玩家打是死亡循环威胁侧根因）

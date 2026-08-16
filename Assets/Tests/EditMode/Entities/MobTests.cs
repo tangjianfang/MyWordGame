@@ -33,11 +33,14 @@ namespace MyWorld.Core.Tests.Entities
         }
 
         [Test]
-        public void Passive_PlayerClose_BecomesScared()
+        public void Passive_PlayerClose_NoLongerScared()
         {
+            // m9 A2 修正（原 m3 断言「靠近进 Scared」）：靠近惊跑退役、受击才逃
+            // （MobAI.TakeHit）——否则 8m 惊跑半径 > 4m 攻击距离，玩家永远贴不了身。
             var pig = Mob.Create(1, new Float3(0, 64, 0));
             MobAI.Tick(pig, new Float3(2, 64, 0), null, new TimeOfDay(), 0.1f);
-            Assert.That(pig.State, Is.EqualTo(MobState.Scared));
+            Assert.That(pig.State, Is.EqualTo(MobState.Idle),
+                "玩家靠近应保持 Idle 站定（受击才逃，m9 A2）");
         }
 
         [Test]
@@ -54,8 +57,9 @@ namespace MyWorld.Core.Tests.Entities
             var z = Mob.Create(3, new Float3(0, 64, 0));
             var day = new TimeOfDay { CurrentTick = 6000 };  // 正午
             MobAI.Tick(z, new Float3(2, 64, 0), null, day, 0.1f);
-            Assert.That(z.State, Is.EqualTo(MobState.Scared),
-                "白天僵尸看到玩家应该害怕而非追击");
+            // m9 A2：白天走被动流且不再靠近惊跑，应保持 Idle（不追也不逃）
+            Assert.That(z.State, Is.EqualTo(MobState.Idle),
+                "白天僵尸看到玩家不追击（被动流，m9 A2 起靠近也不再惊跑）");
         }
 
         [Test]
