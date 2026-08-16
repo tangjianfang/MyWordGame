@@ -99,6 +99,17 @@ namespace MyWorld.Unity.Bootstrap
                 _playerContext.Inventory.SetSlot(0, new ItemStack(starterDef.NumericId, 64));
             }
 
+            // 7.5 玩家音效（m9 B1 fix1 挪前）：此前没有任何场景/脚本挂 PlayerAudioSystem，
+            // footstep/place/break 三条音效在 build 里全是哑的（Resources/Audio 下的
+            // ogg 一直在却没人播）。**必须挂在步骤 8/9 之前**——PlayerController.Awake
+            // 与 BlockInteraction.Bind 都在回调里一次性缓存 _audio 引用（之后不再重查），
+            // 晚挂它们缓存到的就是 null（B1 首版挂在 10.5 曾踩此坑，EditMode 结构断言
+            // 见 PlayerAudioSystemTests.MountOrder_*）。挂上后既有三音复活，
+            // m9 B1 的命中打击音（PlayHit，缺失时程序生成闷响）也有了落点——
+            // BlockInteraction / PlayerController / CombatController 都按
+            // 「同宿主/父链查找」取它。
+            gameObject.AddComponent<MyWorld.Unity.Audio.PlayerAudioSystem>();
+
             // 8. 玩家控制器
             // 出生 Y 现算（m5 A2）：地表 +2 格落地，根治固定 Y=120 的出生摔落伤害。
             // 序列化字段只取 X/Z 作水平出生点；Y 忽略场景里保存的旧值（Preview.unity
@@ -124,13 +135,6 @@ namespace MyWorld.Unity.Bootstrap
 
             // 10. 手部
             _hand = gameObject.AddComponent<HandController>();
-
-            // 10.5 玩家音效（m9 B1）：此前没有任何场景/脚本挂 PlayerAudioSystem，
-            // footstep/place/break 三条音效在 build 里全是哑的（Resources/Audio 下的
-            // ogg 一直在却没人播）。挂上后既有三音复活，m9 B1 的命中打击音
-            // （PlayHit，缺失时程序生成闷响）也才有落点——BlockInteraction /
-            // PlayerController / CombatController 都按「同宿主/父链查找」取它。
-            gameObject.AddComponent<MyWorld.Unity.Audio.PlayerAudioSystem>();
 
             // 11. 战斗
             _combat = gameObject.AddComponent<CombatController>();
