@@ -74,16 +74,19 @@ namespace MyWorld.Unity.UI
             }
         }
 
-        /// <summary>真正执行复活：传送玩家到 <see cref="DeathSystem.LastDeathPosition"/>，
-        /// 内部 <see cref="PlayerController.Respawn"/> 已经会回满 HP / Hunger / 重置速度状态。
+        /// <summary>真正执行复活：m7 A1 起一律回世界出生点
+        /// （<see cref="PlayerController.Bind"/> 记录的 spawn），不再把
+        /// <see cref="DeathSystem.LastDeathPosition"/> 传回去——旧版复活点 = 死亡位置，
+        /// 僵尸守尸时原地复活立刻再被围殴，形成死亡循环。
+        /// 内部 <see cref="PlayerController.RespawnAtSpawn"/> 复用 Respawn 既有逻辑
+        /// 回满 HP / Hunger / 重置速度状态，并额外开启 3 秒无敌帧。
         /// 按钮点击 / 倒计时结束都走这里，确保两条路径一致。</summary>
         private void TriggerRespawn(PlayerContext ctx)
         {
             var pc = ctx.GetComponent<PlayerController>();
             if (pc != null)
             {
-                var pos = ctx.Death.LastDeathPosition;
-                pc.Respawn(new Vector3(pos.X, pos.Y, pos.Z));
+                pc.RespawnAtSpawn();
             }
             _visible = false;
         }

@@ -137,6 +137,9 @@ namespace MyWorld.Unity.Player
         /// </para></summary>
         public void TakeDamage(int amount, object attacker)
         {
+            // m7 A1：复活无敌帧——无敌期内所有伤害源（近战 / 摔落 / 饥饿）一律忽略，
+            // 给玩家脱离出生点周边危险的窗口，打断「复活即被守尸连杀」的死亡循环。
+            if (Time.time < InvincibleUntil) return;
             if (amount <= 0) return;
             var ctx = GetComponent<PlayerContext>();
             if (ctx == null) return;
@@ -321,6 +324,30 @@ namespace MyWorld.Unity.Player
             _starveTimer = 0f;
         }
 
+        // ─── m7 A1：安全重生（复活回出生点 + 短无敌帧） ─────────────────────
+        // 旧版 DeathScreenUi 把 DeathSystem.LastDeathPosition 传回 Respawn，
+        // 复活点 = 死亡位置：僵尸守尸时玩家原地复活立刻再被围殴，形成死亡循环。
+
+        /// <summary>Bind 时记录的世界出生点（WorldBootstrap 传入 SurfaceHeightAt+2）。</summary>
+        private Float3 _spawnPosition;
+
+        /// <summary>复活无敌帧时长（秒）。复活后这段时间内 <see cref="TakeDamage"/> 全部忽略。</summary>
+        public const float InvincibleSeconds = 3f;
+
+        /// <summary>复活无敌截止时刻（<see cref="Time.time"/> 基准）。
+        /// <c>Time.time &lt; InvincibleUntil</c> 期间伤害整体早退。公开字段是为了
+        /// EditMode 测试直接改写以跳过真实等待 3 秒，运行时只由 RespawnAtSpawn 写。</summary>
+        public float InvincibleUntil;
+
+        /// <summary>复活回世界出生点：复用 <see cref="Respawn"/>（传送 + 回满血 / 饥饿 +
+        /// 清摔落 / 饥饿累计状态，不双恢复）再开启 <see cref="InvincibleSeconds"/> 秒无敌。
+        /// 未 Bind 过时 _spawnPosition 为默认 (0,0,0)，行为兜底与旧版 Respawn(Vector3.zero) 一致。</summary>
+        public void RespawnAtSpawn()
+        {
+            Respawn(new Vector3(_spawnPosition.X, _spawnPosition.Y, _spawnPosition.Z));
+            InvincibleUntil = Time.time + InvincibleSeconds;
+        }
+
         /// <summary>由 <c>WorldBootstrap</c> 在世界准备好之后调用。</summary>
         public void Bind(World world, BlockRegistry registry, Float3 spawnPosition)
         {
@@ -333,6 +360,7 @@ namespace MyWorld.Unity.Player
                 Gravity = gravity
             };
 
+            _spawnPosition = spawnPosition; // m7 A1：复活点 = 世界出生点
             _state = PlayerState.AtRest(spawnPosition);
             ApplyToTransform();
         }
