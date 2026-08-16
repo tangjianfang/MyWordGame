@@ -22,6 +22,10 @@ namespace MyWorld.Unity.UI
         private Texture2D _selectEdge;
         private Texture2D _countBg;
         private Texture2D _missingTex;
+
+        /// <summary>m10 B1：耐久条的暗色底轨与纯白填充块（1×1，填充靠 GUI.color 染色）。</summary>
+        private Texture2D _durabilityTrack;
+        private Texture2D _durabilityFill;
         private readonly System.Collections.Generic.Dictionary<string, Texture2D> _texCache =
             new System.Collections.Generic.Dictionary<string, Texture2D>();
 
@@ -48,6 +52,12 @@ namespace MyWorld.Unity.UI
             _missingTex = new Texture2D(1, 1);
             _missingTex.SetPixel(0, 0, new Color(0.6f, 0.2f, 0.9f, 1f));
             _missingTex.Apply();
+            _durabilityTrack = new Texture2D(1, 1);
+            _durabilityTrack.SetPixel(0, 0, new Color(0f, 0f, 0f, 0.8f));
+            _durabilityTrack.Apply();
+            _durabilityFill = new Texture2D(1, 1);
+            _durabilityFill.SetPixel(0, 0, Color.white);
+            _durabilityFill.Apply();
         }
 
         /// <summary>
@@ -170,10 +180,64 @@ namespace MyWorld.Unity.UI
                         GUI.Label(new Rect(rect.x + SlotSize - 20, rect.y + SlotSize - 19, 18, 16),
                             stack.Count.ToString(), _countStyle);
                     }
+
+                    // m10 B1：选中格的耐久条（图标下方，宽=剩余比例，绿→红）。只画选中格——
+                    // 9 格全画会让孩子以为其它格也要盯着；正在用的那把才需要看耐久
+                    if (i == ctx.Inventory.SelectedHotbarIndex)
+                    {
+                        float? ratio = ComputeDurabilityRatio(stack, def);
+                        if (ratio.HasValue)
+                        {
+                            DrawDurabilityBar(rect, ratio.Value);
+                        }
+                    }
                 }
             }
 
             DrawEatHint(ctx);
+        }
+
+        /// <summary>
+        /// m10 B1：耐久条本体——暗色底轨全宽 + 彩色填充按剩余比例截宽，画在图标下缘 2px 处。
+        /// </summary>
+        private void DrawDurabilityBar(Rect slotRect, float ratio)
+        {
+            const int barHeight = 5;
+            float x = slotRect.x + (SlotSize - IconDrawSize) / 2f;    // 与图标左对齐
+            float y = slotRect.y + (SlotSize + IconDrawSize) / 2f + 2f; // 图标底 + 2px
+
+            GUI.DrawTexture(new Rect(x, y, IconDrawSize, barHeight), _durabilityTrack);
+            Color prev = GUI.color;
+            GUI.color = DurabilityBarColor(ratio);
+            GUI.DrawTexture(new Rect(x, y, IconDrawSize * ratio, barHeight), _durabilityFill);
+            GUI.color = prev;
+        }
+
+        /// <summary>
+        /// m10 B1：选中物品的耐久比例（0..1），耐久条宽度的数据源。
+        /// 返回 null = 不画条（空槽 / 无物品定义 / 物品未声明
+        /// <see cref="ItemDefinition.MaxDurability"/>——剑/斧/锹与普通物品都不画）。
+        /// <b>Metadata=0 视为满耐久（返回 1）</b>：旧存档/预填/刚合成的工具没有编码，
+        /// 不能显示成空条吓孩子。纯静态：EditMode 测试直接断言契约（OnGUI 本身不跑）。
+        /// </summary>
+        public static float? ComputeDurabilityRatio(ItemStack stack, ItemDefinition def)
+        {
+            if (def == null || def.MaxDurability <= 0 || stack.IsEmpty) return null;
+            if (!stack.HasDurability) return 1f;
+            int max = stack.MaxDurability;
+            return max <= 0 ? 0f : Mathf.Clamp01((float)stack.CurrentDurability / max);
+        }
+
+        /// <summary>
+        /// m10 B1：耐久条颜色——满耐久绿、耐久尽红、中间线性过渡（Lerp）。
+        /// 纯静态与 <see cref="ComputeDurabilityRatio"/> 同款供测试断言。
+        /// </summary>
+        public static Color DurabilityBarColor(float ratio)
+        {
+            return Color.Lerp(
+                new Color(0.92f, 0.25f, 0.2f),   // 耐久尽：红
+                new Color(0.35f, 0.85f, 0.3f),   // 满耐久：绿
+                Mathf.Clamp01(ratio));
         }
 
         /// <summary>

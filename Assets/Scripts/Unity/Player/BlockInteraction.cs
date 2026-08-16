@@ -191,6 +191,11 @@ namespace MyWorld.Unity.Player
         /// 孩子的「木镐挖铁 40 小时」按 MC 制修正为门槛而非时长（spec §需求评估存档 §130）。
         /// </para>
         /// <para>
+        /// m10 B1 镐耐久：方块成功挖掉（含门槛不够的「白挖」）→ 选中镐耐久 -1
+        /// （<see cref="ApplyDigDurability"/>）；耐久尽 → 镐从选中槽消失 + 一次性
+        /// 「镐子坏掉了！」提示（碎块散落+扎脚是 B2）。
+        /// </para>
+        /// <para>
         /// 顺序与既有 <c>Update</c> 行为对齐：先清方块 → 标脏（让玩家视觉立刻看到破坏）→ 播音效 →
         /// spawn 掉落。无 PlayerContext / 无 BlockDrops 表 / 挖空气 / drops 表里没条目均 no-op。
         /// </para>
@@ -212,6 +217,9 @@ namespace MyWorld.Unity.Player
             _world.SetBlock(x, y, z, BlockIds.Air);
             _views?.MarkBlockChanged(x, y, z);
             _audio?.PlayBreak();
+
+            // m10 B1：挖掉即磨损（白挖也算——工具挥出去了就是用了，与 MC 一致）
+            ApplyDigDurability();
 
             if (!tierOk)
             {
@@ -382,12 +390,61 @@ namespace MyWorld.Unity.Player
         }
 
         /// <summary>
-        /// m10 A3：hotbar 上方的一次性文字提示。简单 GUI.Label，不做 toast 系统；
-        /// 提示不活跃时本方法第一行就 return，平时零开销。
+        /// m10 B1：挖掉方块成功 → 选中镐耐久 -1。判定链与 TryEatSelectedFood 同款防御：
+        /// PlayerContext / Inventory / 物品定义任一未就绪 no-op；只有物品表声明了
+        /// <see cref="ItemDefinition.MaxDurability"/> 的物品（当前=六把镐）才磨损。
+        /// 扣减走 <see cref="ItemStack.WithDurabilityUsed"/>：Metadata=0 的存量工具
+        /// 视为满耐久，首次挖掘才落编码。耐久尽 → 选中槽清空 + 一次性提示
+        /// （B1 先「消失+提示」；碎块散落+0.5 扎脚伤害是 B2）。
+        /// </summary>
+        private void ApplyDigDurability()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Inventory == null) return;
+
+            var def = ctx.GetSelectedDefinition();
+            if (def == null || def.MaxDurability <= 0) return;
+
+            int idx = ctx.Inventory.SelectedHotbarIndex;
+            var stack = ctx.Inventory.GetSlot(idx);
+            var after = stack.WithDurabilityUsed(def.MaxDurability);
+            ctx.Inventory.SetSlot(idx, after);
+            if (after.IsEmpty)
+            {
+                ShowToolBreakHint();
+            }
+        }
+
+        /// <summary>m10 B1：镐坏提示显示时长（秒），与门槛提示同款「不叠不刷」语义。</summary>
+        private const float ToolBreakHintDuration = 2f;
+
+        /// <summary>m10 B1：镐坏提示画在门槛提示上方 30px（两者同时出现时不叠字）。</summary>
+        private const float ToolBreakHintBottomOffset = ToolTierHintBottomOffset + 30f;
+
+        /// <summary>m10 B1：镐耐久尽提示的累计触发次数。public 是给 EditMode 测试断言
+        /// 「触发一次、显示窗口内不重复」用的（OnGUI 本身 EditMode 不跑）。</summary>
+        public int ToolBreakHintCount { get; private set; }
+
+        private float _toolBreakHintUntil = float.NegativeInfinity;
+
+        /// <summary>m10 B1：记录一次「镐子坏掉了！」提示。显示窗口（2s）内重复损坏
+        /// （比如接连挖碎两把旧镐）不叠加不重置——与 ShowToolTierHint 同款语义。</summary>
+        private void ShowToolBreakHint()
+        {
+            if (Time.time < _toolBreakHintUntil) return;
+            ToolBreakHintCount++;
+            _toolBreakHintUntil = Time.time + ToolBreakHintDuration;
+        }
+
+        /// <summary>
+        /// m10 A3：hotbar 上方的一次性文字提示（m10 B1 起两行：门槛提示 + 镐坏提示）。
+        /// 简单 GUI.Label，不做 toast 系统；两种提示都不活跃时本方法第一行就 return，平时零开销。
         /// </summary>
         private void OnGUI()
         {
-            if (ToolTierHintCount == 0 || Time.time >= _toolTierHintUntil) return;
+            bool tierActive = ToolTierHintCount > 0 && Time.time < _toolTierHintUntil;
+            bool breakActive = ToolBreakHintCount > 0 && Time.time < _toolBreakHintUntil;
+            if (!tierActive && !breakActive) return;
 
             if (_toolTierHintStyle == null)
             {
@@ -401,9 +458,19 @@ namespace MyWorld.Unity.Player
             }
 
             const float width = 220f;
-            var rect = new Rect(
-                (Screen.width - width) / 2f, Screen.height - ToolTierHintBottomOffset, width, 26f);
-            GUI.Label(rect, "需要更好的镐", _toolTierHintStyle);
+            if (tierActive)
+            {
+                var rect = new Rect(
+                    (Screen.width - width) / 2f, Screen.height - ToolTierHintBottomOffset, width, 26f);
+                GUI.Label(rect, "需要更好的镐", _toolTierHintStyle);
+            }
+
+            if (breakActive)
+            {
+                var rect = new Rect(
+                    (Screen.width - width) / 2f, Screen.height - ToolBreakHintBottomOffset, width, 26f);
+                GUI.Label(rect, "镐子坏掉了！", _toolTierHintStyle);
+            }
         }
     }
 }

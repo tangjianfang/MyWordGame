@@ -40,6 +40,15 @@ namespace MyWorld.Core.Items
         /// </summary>
         public int ToolTier;
 
+        /// <summary>
+        /// m10 B1 耐久上限：能承受的消耗次数（挖一个方块 / 挥击一次都算 1）。
+        /// 0 = 无耐久概念（非工具或未声明，永不磨损）；取值 1..255——
+        /// <see cref="ItemStack"/> 的 Metadata 只有 8 位存上限（m3 预留编码），
+        /// 超范围在 <see cref="ItemDatabase"/> 加载层即抛。镐类必须显式声明
+        /// （BlockGatingTests 有守卫），剑/斧/锹 m10 暂不启用（保持 0）。
+        /// </summary>
+        public int MaxDurability;
+
         public override string ToString() => $"Item({Id}, id={NumericId})";
     }
 }

@@ -132,6 +132,17 @@ namespace MyWorld.Core.Items
                     $"物品 {id} 的 toolTier 为 {toolTier}，必须 ≥ 0（0=徒手 / 1=木镐 / 2=石镐 / 3=铁镐 / 4=钻石镐，且只有镐类物品该写字段）。");
             }
 
+            // m10 B1 耐久上限：ItemStack.Metadata 只有 8 位存 max（m3 预留编码，硬上限 255），
+            // 照抄 MC 原值（钻镐 1561）会在运行时被静默截断——加载层就拦下，逼着数据显式缩放进
+            // 1..255。0 = 未声明（默认），与「负数」都视为无耐久概念，但负数没有意义照旧立刻报
+            var maxDurability = (int?)root["maxDurability"] ?? 0;
+            if (maxDurability < 0 || maxDurability > 255)
+            {
+                throw new InvalidDataException(
+                    $"物品 {id} 的 maxDurability 为 {maxDurability}，必须在 0..255（Metadata 只用 8 位存上限；" +
+                    "MC 原值如钻石镐 1561 放不下，请按比例缩写，如 255=顶级封顶）。");
+            }
+
             var def = new ItemDefinition
             {
                 Id = id,
@@ -144,6 +155,7 @@ namespace MyWorld.Core.Items
                 IsTool = (bool?)root["isTool"] ?? false,
                 MiningLevel = (int?)root["miningLevel"] ?? 0,
                 ToolTier = toolTier,
+                MaxDurability = maxDurability,
             };
 
             return (def, numericIdToken != null);

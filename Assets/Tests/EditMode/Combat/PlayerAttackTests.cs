@@ -455,6 +455,32 @@ namespace MyWorld.Core.Tests.Combat
                 CombatController.IsMobInCrosshair(_eyeChild.transform, world, registry),
                 Is.True, "拆墙后视线通畅，mob 信号应恢复 true（方向 1 对称面）");
         }
+
+        // ─── m10 B1：攻击路径的耐久初始化以 JSON maxDurability 为准 ──────────
+
+        /// <summary>
+        /// m10 B1 一致性：镐类已声明 maxDurability，攻击磨损的上限必须取 JSON 值；
+        /// 未声明的旧工具（剑/斧/锹）沿用 m3 的 MiningLevel 档位表。
+        /// 不统一的话：孩子先拿镐打一下怪再挖矿，镐上限就被 m3 旧表钉死
+        /// （木镐 35 而不是 59），hotbar 耐久条与 JSON 永远对不上。
+        /// </summary>
+        [Test]
+        public void TryAttack_WithPickaxe_InitializesDurabilityFromItemJson()
+        {
+            var pick = _items.GetById("wooden_pickaxe");
+            Assume.That(pick.MaxDurability, Is.EqualTo(59),
+                "前置：wooden_pickaxe.maxDurability 应为 59（MC 原值）");
+            _ctx.Inventory.SetSlot(_ctx.Inventory.SelectedHotbarIndex,
+                new ItemStack(pick.NumericId, 1));
+
+            _combat.TryAttack(); // 没有 mob 也照走耐久分支（m3 起挥击即磨损）
+
+            var stack = _ctx.Inventory.GetSelected();
+            Assert.That(stack.HasDurability, Is.True, "挥击一次后耐久位应已写入（m3 行为）");
+            Assert.That(stack.MaxDurability, Is.EqualTo(59),
+                "上限应取 JSON maxDurability，不是 m3 旧档位表的 35");
+            Assert.That(stack.CurrentDurability, Is.EqualTo(58), "挥击一次扣 1 点");
+        }
     }
 }
 #endif

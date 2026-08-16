@@ -126,14 +126,20 @@ namespace MyWorld.Unity.Combat
             int damage = ResolveAttackDamage(ctx.Inventory.GetSelected(), ctx.Items);
             bool hitMob = DoAttack(damage);
 
-            // 工具耐久：选中的工具如果还没设过 max durability，先设一次（plan3c）
+            // 工具耐久：选中的工具如果还没设过 max durability，先设一次（plan3c）。
+            // m10 B1 起上限优先取 items/*.json 的 maxDurability（镐类已声明，与挖矿扣减
+            // 同源）；未声明的旧工具（剑/斧/锹）沿用 m3 的 MiningLevel 档位表——
+            // 两条初始化路径永不给同一把工具写不同的 max
             if (def != null && def.IsTool)
             {
                 int idx = ctx.Inventory.SelectedHotbarIndex;
                 var stack = ctx.Inventory.GetSlot(idx);
                 if (!stack.HasDurability)
                 {
-                    ctx.Inventory.SetSlot(idx, stack.WithMaxDurability(DefaultToolDurability(def.MiningLevel)));
+                    int max = def.MaxDurability > 0
+                        ? def.MaxDurability
+                        : DefaultToolDurability(def.MiningLevel);
+                    ctx.Inventory.SetSlot(idx, stack.WithMaxDurability(max));
                 }
                 var after = ctx.Inventory.GetSlot(idx).DamageOnce();
                 ctx.Inventory.SetSlot(idx, after);

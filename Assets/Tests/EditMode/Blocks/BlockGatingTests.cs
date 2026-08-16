@@ -207,6 +207,59 @@ namespace MyWorld.Core.Tests.Blocks
         }
 
         /// <summary>
+        /// m10 B1：真实 items/*.json 六把镐的耐久阶梯。木/石/铁照 MC 原值（59/131/250，
+        /// 恰好放得进 Metadata 的 8 位上限）；钻 1561 / 下界合金 2031 超 255 放不下，封顶 255
+        /// （顶级镐的进阶差异在 toolTier/攻击力，不在耐久）；基岩镐是彩蛋终局镐，同样 255。
+        /// 改任何一把的耐久这里立刻红。
+        /// </summary>
+        [Test]
+        public void RealItems_PickaxeMaxDurability_MatchTheLadder()
+        {
+            var items = ItemDatabase.FromJson(
+                Directory.GetFiles(LocateItemsDirectory(), "*.json").Select(File.ReadAllText));
+
+            (string id, int expected)[] expected =
+            {
+                ("wooden_pickaxe", 59),
+                ("stone_pickaxe", 131),
+                ("iron_pickaxe", 250),
+                ("diamond_pickaxe", 255),
+                ("netherite_pickaxe", 255),
+                ("bedrock_pickaxe", 255),
+            };
+
+            foreach ((string id, int durability) in expected)
+            {
+                Assert.That(items.TryGetById(id, out var def), Is.True, $"{id} 应在真实物品表中");
+                Assert.That(def.MaxDurability, Is.EqualTo(durability),
+                    $"{id} 的 maxDurability 应为 {durability}（MC 原值放不进 8 位编码的一律封顶 255）");
+            }
+        }
+
+        /// <summary>
+        /// m10 B1 守卫：所有 <c>*_pickaxe</c> 必须显式声明 <c>maxDurability</c>（漏写即红）。
+        /// 缺省 0 = 无耐久概念，挖矿永不磨损——「镐子会碎」直接静默失效，
+        /// 实机上同样无线索可查，与上面 toolTier 守卫同款在数据层拦下。
+        /// </summary>
+        [Test]
+        public void RealItems_EveryPickaxe_ExplicitlyDeclaresMaxDurability()
+        {
+            var items = ItemDatabase.FromJson(
+                Directory.GetFiles(LocateItemsDirectory(), "*.json").Select(File.ReadAllText));
+
+            string[] pickaxeIds = items.ById.Keys
+                .Where(id => id.EndsWith("_pickaxe", StringComparison.Ordinal))
+                .OrderBy(id => id, StringComparer.Ordinal)
+                .ToArray();
+
+            foreach (string id in pickaxeIds)
+            {
+                Assert.That(items.GetById(id).MaxDurability, Is.InRange(1, 255),
+                    $"{id} 是镐类物品，必须显式声明 maxDurability（1..255）——漏写会让它永不磨损");
+            }
+        }
+
+        /// <summary>
         /// 真实 blocks/*.json 的 hardness + minToolTier 组合出 spec §1 的整张
         /// (block, toolTier) → 秒 矩阵。JSON 数据改坏（比如石头 hardness 偏离 1）
         /// 在这里立刻失败——它是 Unity 侧 BlockInteraction.BreakTime 查表的数据源。

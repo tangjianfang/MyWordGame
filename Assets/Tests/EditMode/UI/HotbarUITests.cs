@@ -2,7 +2,9 @@
 using MyWorld.Core.Items;
 using MyWorld.Core.Player;
 using MyWorld.Unity.Bootstrap;
+using MyWorld.Unity.UI;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace MyWorld.Core.Tests.UI
 {
@@ -51,6 +53,59 @@ namespace MyWorld.Core.Tests.UI
                 "plank 物品必须在物品库里（WorldBootstrap 依赖它做默认热键栏预填）");
             Assert.That(def.NumericId, Is.GreaterThan(0),
                 "plank 必须有有效 numericId（auto-assign 应从 1000 起）");
+        }
+
+        // ─── m10 B1：选中格耐久条的纯计算（比例 + 绿→红配色） ────────────────
+        // OnGUI 本身 EditMode 不跑，可测的部分全部收敛进两个纯静态。
+
+        [Test]
+        public void ComputeDurabilityRatio_FreshTool_MetadataZero_IsFull()
+        {
+            var def = new ItemDefinition { Id = "wooden_pickaxe", MaxDurability = 59 };
+            var stack = new ItemStack(1400, 1); // Metadata=0：旧存档 / 刚合成
+
+            Assert.That(HotbarUI.ComputeDurabilityRatio(stack, def), Is.EqualTo(1f),
+                "Metadata=0 视为满耐久——旧存档/预填/刚合成的镐不炸、也不显示空条");
+        }
+
+        [Test]
+        public void ComputeDurabilityRatio_Worn_IsCurrentOverMax()
+        {
+            var def = new ItemDefinition { Id = "wooden_pickaxe", MaxDurability = 59 };
+            var stack = new ItemStack(1400, 1).WithMaxDurability(59);
+            for (int i = 0; i < 30; i++)
+            {
+                stack = stack.DamageOnce(); // 剩 29
+            }
+
+            Assert.That(HotbarUI.ComputeDurabilityRatio(stack, def),
+                Is.EqualTo(29f / 59f).Within(1e-4f),
+                "条宽比例 = 剩余耐久 / 上限");
+        }
+
+        [Test]
+        public void ComputeDurabilityRatio_NoDurabilityConcept_ReturnsNull()
+        {
+            var nonTool = new ItemDefinition { Id = "cobblestone", MaxDurability = 0 };
+            Assert.That(HotbarUI.ComputeDurabilityRatio(new ItemStack(1003, 64), nonTool), Is.Null,
+                "未声明耐久的物品不画条");
+            Assert.That(HotbarUI.ComputeDurabilityRatio(ItemStack.Empty, nonTool), Is.Null,
+                "空槽不画条");
+            Assert.That(HotbarUI.ComputeDurabilityRatio(new ItemStack(1400, 1), null), Is.Null,
+                "查不到物品定义（防御路径）也不画条");
+        }
+
+        [Test]
+        public void DurabilityBarColor_FullGreen_EmptyRed_MidBetween()
+        {
+            Color full = HotbarUI.DurabilityBarColor(1f);
+            Color empty = HotbarUI.DurabilityBarColor(0f);
+            Color mid = HotbarUI.DurabilityBarColor(0.5f);
+
+            Assert.That(full.g, Is.GreaterThan(full.r), "满耐久应偏绿");
+            Assert.That(empty.r, Is.GreaterThan(empty.g), "耐久尽应偏红");
+            Assert.That(mid.r, Is.GreaterThan(full.r), "半耐久比满耐久更红");
+            Assert.That(mid.r, Is.LessThan(empty.r), "半耐久比耐久尽更不红（线性过渡）");
         }
     }
 }

@@ -7,5 +7,6 @@
   "attackDamage": 99,
   "isTool": true,
   "miningLevel": 99,
-  "toolTier": 99
+  "toolTier": 99,
+  "maxDurability": 255
 }
