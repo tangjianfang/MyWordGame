@@ -1,7 +1,8 @@
 #if UNITY_EDITOR
 // m10 B1：挖掉方块成功 → 选中镐耐久 -1 的 Unity 侧行为（BlockInteraction.BreakAt）。
 // 契约：扣减走 ItemStack.WithDurabilityUsed(def.MaxDurability)（Metadata=0 存量兼容），
-// 耐久尽 → 镐从选中槽消失 + hotbar 上方一次性提示「镐子坏掉了！」（碎块散落是 B2）。
+// 耐久尽 → 镐从选中槽消失 + hotbar 上方一次性提示（m10 B2 起文案「镐碎了！」并散碎块，
+// 碎块行为由 PickaxeShardTests 覆盖）。
 // 依赖 Unity MonoBehaviour（PlayerContext / BlockInteraction），dotnet 链跑不动，
 // 整个文件用 #if UNITY_EDITOR 包裹（与 BlockToolTierTests 同款）；Core 侧的纯扣减
 // 语义由 DurabilityTests / ItemDatabaseTests（dotnet + EditMode 双链）覆盖。

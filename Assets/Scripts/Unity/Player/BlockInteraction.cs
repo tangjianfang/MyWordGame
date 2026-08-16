@@ -8,6 +8,7 @@ using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Audio;
 using MyWorld.Unity.Combat;
 using MyWorld.Unity.Gameplay;
+using MyWorld.Unity.Items;
 using MyWorld.Unity.Rendering;
 using MyWorld.Unity.UI;
 using UnityEngine;
@@ -193,7 +194,7 @@ namespace MyWorld.Unity.Player
         /// <para>
         /// m10 B1 镐耐久：方块成功挖掉（含门槛不够的「白挖」）→ 选中镐耐久 -1
         /// （<see cref="ApplyDigDurability"/>）；耐久尽 → 镐从选中槽消失 + 一次性
-        /// 「镐子坏掉了！」提示（碎块散落+扎脚是 B2）。
+        /// 「镐碎了！」提示 + 碎块散落（m10 B2：4-6 块，落地扎脚 0.5 伤，2s 消失）。
         /// </para>
         /// <para>
         /// 顺序与既有 <c>Update</c> 行为对齐：先清方块 → 标脏（让玩家视觉立刻看到破坏）→ 播音效 →
@@ -219,7 +220,7 @@ namespace MyWorld.Unity.Player
             _audio?.PlayBreak();
 
             // m10 B1：挖掉即磨损（白挖也算——工具挥出去了就是用了，与 MC 一致）
-            ApplyDigDurability();
+            ApplyDigDurability(x, y, z);
 
             if (!tierOk)
             {
@@ -394,10 +395,11 @@ namespace MyWorld.Unity.Player
         /// PlayerContext / Inventory / 物品定义任一未就绪 no-op；只有物品表声明了
         /// <see cref="ItemDefinition.MaxDurability"/> 的物品（当前=六把镐）才磨损。
         /// 扣减走 <see cref="ItemStack.WithDurabilityUsed"/>：Metadata=0 的存量工具
-        /// 视为满耐久，首次挖掘才落编码。耐久尽 → 选中槽清空 + 一次性提示
-        /// （B1 先「消失+提示」；碎块散落+0.5 扎脚伤害是 B2）。
+        /// 视为满耐久，首次挖掘才落编码。耐久尽 → 选中槽清空 + 一次性「镐碎了！」提示
+        /// + <see cref="PickaxeShard.SpawnScatter"/> 碎块散落（m10 B2，孩子的原创机制：
+        /// 4-6 块、落地扎脚 0.5 伤、2s 消失）。坐标参数参与碎块数掷点的哈希。
         /// </summary>
-        private void ApplyDigDurability()
+        private void ApplyDigDurability(int x, int y, int z)
         {
             var ctx = PlayerContext.Instance;
             if (ctx == null || ctx.Inventory == null) return;
@@ -412,11 +414,22 @@ namespace MyWorld.Unity.Player
             if (after.IsEmpty)
             {
                 ShowToolBreakHint();
+                // m10 B2：碎裂。stack 是磨损前的完整物品栈（碎块颜色取这把镐的贴图均值色）；
+                // 场景里没有 PlayerController（旧 fixture / 纯逻辑测试）时没有伤害对象与
+                // 出生锚点，跳过——与 SetBlockDrops 缺表的容忍策略一致。
+                if (_player != null)
+                {
+                    PickaxeShard.SpawnScatter(_player, stack, ctx.Items, x, y, z);
+                }
             }
         }
 
         /// <summary>m10 B1：镐坏提示显示时长（秒），与门槛提示同款「不叠不刷」语义。</summary>
         private const float ToolBreakHintDuration = 2f;
+
+        /// <summary>m10 B2：镐碎裂提示文案。B1 只「坏掉了」，B2 起真的有碎块散落扎脚——
+        /// 换成「碎」。public const 是给 EditMode 测试锁文案防误改（OnGUI 本身 EditMode 不跑）。</summary>
+        public const string ToolBreakHintText = "镐碎了！";
 
         /// <summary>m10 B1：镐坏提示画在门槛提示上方 30px（两者同时出现时不叠字）。</summary>
         private const float ToolBreakHintBottomOffset = ToolTierHintBottomOffset + 30f;
@@ -427,8 +440,8 @@ namespace MyWorld.Unity.Player
 
         private float _toolBreakHintUntil = float.NegativeInfinity;
 
-        /// <summary>m10 B1：记录一次「镐子坏掉了！」提示。显示窗口（2s）内重复损坏
-        /// （比如接连挖碎两把旧镐）不叠加不重置——与 ShowToolTierHint 同款语义。</summary>
+        /// <summary>m10 B1：记录一次「<see cref="ToolBreakHintText"/>」提示。显示窗口（2s）内
+        /// 重复损坏（比如接连挖碎两把旧镐）不叠加不重置——与 ShowToolTierHint 同款语义。</summary>
         private void ShowToolBreakHint()
         {
             if (Time.time < _toolBreakHintUntil) return;
@@ -469,7 +482,7 @@ namespace MyWorld.Unity.Player
             {
                 var rect = new Rect(
                     (Screen.width - width) / 2f, Screen.height - ToolBreakHintBottomOffset, width, 26f);
-                GUI.Label(rect, "镐子坏掉了！", _toolTierHintStyle);
+                GUI.Label(rect, ToolBreakHintText, _toolTierHintStyle);
             }
         }
     }

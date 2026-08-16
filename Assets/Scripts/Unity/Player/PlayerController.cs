@@ -137,7 +137,14 @@ namespace MyWorld.Unity.Player
         /// 血条 UI、死亡判定、存档全都读它。本组件不再持有私有的 int 血条；场景里没有
         /// PlayerContext（早期 / 纯逻辑测试）时静默跳过。
         /// </para></summary>
-        public void TakeDamage(int amount, object attacker)
+        public void TakeDamage(int amount, object attacker) => TakeDamage((float)amount, attacker);
+
+        /// <summary>
+        /// m10 B2：小数伤害入口（镐碎块扎脚 0.5 点）。<see cref="Health.Current"/> 本就是
+        /// float，旧 int 重载从 B2 起委托到这里——复活无敌帧、≤0 忽略、死亡判定、
+        /// 「玩家伤害唯一入口」的语义对两条重载完全一致，各伤害源不必关心精度。
+        /// </summary>
+        public void TakeDamage(float amount, object attacker)
         {
             // m7 A1：复活无敌帧——无敌期内伤害一律忽略，给玩家脱离出生点周边
             // 危险的窗口，打断「复活即被守尸连杀」的死亡循环。fix1 起怪物近战 /
