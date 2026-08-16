@@ -10,7 +10,7 @@ MyWordGame 是一个自研体素沙盒游戏（Unity 6 + 纯 C# Core 层），�
 全部在**仓库根目录**执行，**不需要安装 Unity**：
 
 ```bash
-dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 473 个）
+dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 489 个）
 dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTests"   # 单个测试类
 dotnet build tools/dotnet/MyWorld.Tools.sln              # 编译三个工程
 
@@ -241,6 +241,25 @@ Newtonsoft Json 包是必需的，缺了 Core 编译失败。
   保持 0，**依赖 timeScale 的系统别用 `unscaledDeltaTime`**（退出停留窗用 `unscaledTime` 是例外）
 - 三滑条设置面板是公共组件 `UI/SettingsPanelUi`，帮助菜单（H）与暂停菜单共用同一实例——
   调灵敏度/音量/FOV 别再建第二套
+
+**战斗约定（milestone-9 起）**：
+
+- 左键攻击与挖掘**同键分流**：准星 4m 内命中 mob 优先攻击（空手基础伤 1，武器取 items 表
+  `attackDamage`），否则挖掘；mob 命中后再经 `VoxelRaycaster` 体素视线复核（墙后不命中、
+  也不抑制挖掘），冷却 0.5s，模态 UI 开着不打（与挖矿同款指针门）
+- 玩家伤害**唯一入口** `MobAI.TakeHit`——别直扣 `Health` / 直置 `Dying`：致死一击同步走
+  `TransitionToDying`（LastDrops + 击杀经验与 Core-only 死亡共用一条序列），尸体再击 no-op
+- 被动动物**受击才逃**（替换旧的「靠近惊跑」）：`TakeHit` 开 3s 逃跑窗、`FleeSpeed`=4.0
+  （< 玩家走速 4.3，追得上但不轻松），可再打再逃；血量 猪 10 / 牛 15 / 鸡 4
+- 击杀经验常量表 `MobManager.KillExperience`：猪 3 / 牛 5 / 鸡 2 / 僵尸 10，与掉肉同处观察
+  死亡、独立结算（经验显示走底部经验条，spec 的「+N 飘字」未做）
+- 战斗手感宿主 `Unity/Combat/MobHitFeedback`（`SpawnMob` 自动挂）：闪红 0.15s（Core
+  `MobAI.HitFlashDuration` 同值、两条渲染通道不漂移）、击退 1.5m 冲量**写 Core
+  `Mob.Position`**（`MobView.LateUpdate` 每帧覆写 transform，写 transform 无效）、
+  死亡 0.3s 缩小（< Dying 0.5s 移除，不腰斩）、命中音 `PlayHit`（无 `hit.ogg` 时程序生成）
+- `PlayerAudioSystem` 必须挂在 `WorldBootstrap` **步骤 7.5**——先于步骤 8
+  `PlayerController.Awake` / 步骤 9 `BlockInteraction.Bind` 的一次性 `_audio` 缓存点，
+  挪后则 footstep/place/break 三音全哑
 
 编辑器菜单 `MyWorld/` 下有五个批处理入口，都能用 `-executeMethod` 无头跑：
 
