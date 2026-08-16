@@ -6,5 +6,6 @@
   "texture": "iron_pickaxe",
   "attackDamage": 4,
   "isTool": true,
-  "miningLevel": 3
+  "miningLevel": 3,
+  "toolTier": 3
 }

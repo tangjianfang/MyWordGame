@@ -185,6 +185,12 @@ namespace MyWorld.Unity.Player
         /// <c>Update</c> 与外部测试都走同一条路径。
         /// </para>
         /// <para>
+        /// m10 A3 工具门槛：选中物品的镐等级（<see cref="BlockGating.ResolveToolTier"/>）
+        /// &lt; 方块 <see cref="BlockDefinition.MinToolTier"/> 时，方块<b>照样挖掉</b>（含标脏/音效），
+        /// 但<b>不走 BlockDrops</b>（无掉落），并触发一次「需要更好的镐」提示——
+        /// 孩子的「木镐挖铁 40 小时」按 MC 制修正为门槛而非时长（spec §需求评估存档 §130）。
+        /// </para>
+        /// <para>
         /// 顺序与既有 <c>Update</c> 行为对齐：先清方块 → 标脏（让玩家视觉立刻看到破坏）→ 播音效 →
         /// spawn 掉落。无 PlayerContext / 无 BlockDrops 表 / 挖空气 / drops 表里没条目均 no-op。
         /// </para>
@@ -200,9 +206,18 @@ namespace MyWorld.Unity.Player
             ushort before = _world.GetBlock(x, y, z);
             if (before == BlockIds.Air) return; // 挖空气是 no-op（与 review-final B7 不冲突）
 
+            // m10 A3：先判门槛再动方块。注册表缺失/方块未注册视同门槛 0（保持旧行为）
+            bool tierOk = !IsTierGated(before);
+
             _world.SetBlock(x, y, z, BlockIds.Air);
             _views?.MarkBlockChanged(x, y, z);
             _audio?.PlayBreak();
+
+            if (!tierOk)
+            {
+                ShowToolTierHint();
+                return; // 门槛不够：挖得掉但白挖，不走 BlockDrops
+            }
 
             // X2 fix-up：spawn ItemDropEntity。BlockDrops 可能未注入（旧场景 / EditMode
             // 单元测），缺了就 silently no-op，不破坏既有"挖 = 立即空一块"的视觉反馈。
@@ -239,20 +254,147 @@ namespace MyWorld.Unity.Player
         /// 等上下文完全解耦。当前 <c>Update</c> 里仍是瞬时挖矿——以后接真实 MiningTimed
         /// 逻辑时这个返回值就是「按住 LMB 的目标持续时间」。
         /// </para>
+        /// <para>
+        /// m10 A3 起它委托给三参重载并<b>视为持达标镐</b>（<see cref="QualifiedToolTier"/>）：
+        /// 旧签名没有工具维度，语义即「假设拿得动这方块」，既有 m3 C7 契约（石头平原 1s /
+        /// 山地 2s、沙漠沙 0.5s、默认 1s）逐值不变。
+        /// </para>
         /// </summary>
         public static float BreakTime(int blockId, Biome biome)
+            => BreakTime(blockId, biome, QualifiedToolTier);
+
+        /// <summary>
+        /// m10 A3：加选中物品 toolTier 维度的挖掘耗时（秒）。规则分两层：
+        /// <list type="bullet">
+        /// <item><b>(block, toolTier) 查表</b>（<see cref="BlockGating.BreakSeconds"/>）：
+        ///   达标 = 该方块基准秒（spec §1「挖掘时间（对应镐）」列），不达标 ×4
+        ///   （镐帮不上忙按徒手档——徒手挖石 4s 即出自这里）</item>
+        /// <item><b>群系倍率</b>（m3 C7 原样）：山地石头 ×2，沙漠沙 ×0.5，其它 ×1</item>
+        /// </list>
+        /// 基准秒/门槛与 <c>blocks/*.json</c> 的 hardness + minToolTier 一一对应
+        /// （EditMode 一致性测试守着两边不同步就红），这里硬编码是因为静态函数拿不到注册表。
+        /// </summary>
+        public static float BreakTime(int blockId, Biome biome, int toolTier)
         {
-            float base_ = 1f;
-            if (blockId == BlockIds.Stone)
+            float baseSeconds = 1f;
+            int minToolTier = 0;
+            switch (blockId)
             {
-                base_ = (biome == Biome.Mountains) ? 2f : 1f;
-            }
-            else if (blockId == BlockIds.Sand)
-            {
-                base_ = (biome == Biome.Desert) ? 0.5f : 1f;
+                case BlockIds.Stone:
+                    baseSeconds = 1f; minToolTier = 1; break;    // 木镐 1s / 徒手 4s
+                case BlockIds.RawIronOre:
+                    baseSeconds = 2f; minToolTier = 2; break;    // 石镐 2s / 木镐 8s（不掉）
+                case BlockIds.GoldOre:
+                    baseSeconds = 3f; minToolTier = 3; break;    // 铁镐 3s
+                case BlockIds.SummerAlloyOre:
+                    baseSeconds = 4f; minToolTier = 3; break;    // 铁镐 4s
+                case BlockIds.MachineEssenceOre:
+                    baseSeconds = 6f; minToolTier = 4; break;    // 钻镐 6s / 铁镐 24s（不掉）
+                case TreeFeature.LogId:
+                case 1000: // planks（无 BlockIds 常量，与 planks.json 的 numericId 手动一致）
+                    baseSeconds = 2f; break;                     // 徒手 2s
+                default:
+                    baseSeconds = 1f; break;                     // 泥/草/沙/空气等：m3 默认 1s
             }
 
-            return base_;
+            return BlockGating.BreakSeconds(baseSeconds, minToolTier, toolTier)
+                   * BiomeMultiplier(blockId, biome);
+        }
+
+        /// <summary>m3 C7 的群系倍率：山地石头 ×2，沙漠沙 ×0.5，其它 ×1。</summary>
+        private static float BiomeMultiplier(int blockId, Biome biome)
+        {
+            if (blockId == BlockIds.Stone)
+            {
+                return biome == Biome.Mountains ? 2f : 1f;
+            }
+
+            if (blockId == BlockIds.Sand)
+            {
+                return biome == Biome.Desert ? 0.5f : 1f;
+            }
+
+            return 1f;
+        }
+
+        /// <summary>
+        /// 「需要更好的镐」提示的显示时长（秒）。m10 A3：不叠不刷——显示期间再挖
+        /// 不达标方块不重新计时，窗口过了才允许下一次提示。
+        /// </summary>
+        private const float ToolTierHintDuration = 2f;
+
+        /// <summary>
+        /// 门槛提示显示的位置：hotbar 顶到屏幕底 16px，提示再抬高 30px（hotbar 上方）。
+        /// </summary>
+        private const float ToolTierHintBottomOffset = 64f + 16f + 30f;
+
+        /// <summary>
+        /// 视为「持达标镐」的 toolTier（m10 A3）：高于全部门槛（最高钻石镐=4），
+        /// 旧两参 <see cref="BreakTime"/> 用它委托给三参重载，永远走达标耗时分支。
+        /// </summary>
+        private const int QualifiedToolTier = 99;
+
+        /// <summary>m10 A3：门槛提示累计触发次数。public 是给 EditMode 测试断言
+        /// 「首次触发、显示窗口内不重复」用的（OnGUI 本身 EditMode 不跑）。</summary>
+        public int ToolTierHintCount { get; private set; }
+
+        private float _toolTierHintUntil = float.NegativeInfinity;
+        private GUIStyle _toolTierHintStyle;
+
+        /// <summary>
+        /// m10 A3：门槛判定——挖 <paramref name="blockId"/> 前查选中镐等级是否达标。
+        /// 无注册表 / 方块未注册 / 无 PlayerContext（EditMode 单元场景）一律视同门槛 0，
+        /// 保持「没声明门槛的方块挖矿行为不变」。
+        /// </summary>
+        private bool IsTierGated(ushort blockId)
+        {
+            if (_registry == null || !_registry.TryGetByNumericId(blockId, out BlockDefinition def))
+            {
+                return false;
+            }
+
+            // 与 TryEatSelectedFood 同款防御：PlayerContext / Inventory 任一未就绪视同空手
+            var ctx = PlayerContext.Instance;
+            int toolTier = ctx == null || ctx.Inventory == null
+                ? 0
+                : BlockGating.ResolveToolTier(ctx.GetSelectedDefinition());
+            return !BlockGating.CanDrop(def.MinToolTier, toolTier);
+        }
+
+        /// <summary>
+        /// m10 A3：记录一次「需要更好的镐」提示。显示窗口（2s）内重复不达标不叠加不重置；
+        /// 窗口过后再次不达标才重新提示——孩子连续乱挖不会满屏刷字。
+        /// </summary>
+        private void ShowToolTierHint()
+        {
+            if (Time.time < _toolTierHintUntil) return;
+            ToolTierHintCount++;
+            _toolTierHintUntil = Time.time + ToolTierHintDuration;
+        }
+
+        /// <summary>
+        /// m10 A3：hotbar 上方的一次性文字提示。简单 GUI.Label，不做 toast 系统；
+        /// 提示不活跃时本方法第一行就 return，平时零开销。
+        /// </summary>
+        private void OnGUI()
+        {
+            if (ToolTierHintCount == 0 || Time.time >= _toolTierHintUntil) return;
+
+            if (_toolTierHintStyle == null)
+            {
+                // GUI.skin 只能在 OnGUI 里访问，样式首帧构造一次缓存复用（HotbarUI 同款）
+                _toolTierHintStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleCenter,
+                    fontSize = 18,
+                    normal = { textColor = new Color(1f, 0.92f, 0.55f) },
+                };
+            }
+
+            const float width = 220f;
+            var rect = new Rect(
+                (Screen.width - width) / 2f, Screen.height - ToolTierHintBottomOffset, width, 26f);
+            GUI.Label(rect, "需要更好的镐", _toolTierHintStyle);
         }
     }
 }

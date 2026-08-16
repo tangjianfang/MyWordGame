@@ -6,5 +6,6 @@
   "texture": "bedrock_pickaxe",
   "attackDamage": 99,
   "isTool": true,
-  "miningLevel": 99
+  "miningLevel": 99,
+  "toolTier": 99
 }

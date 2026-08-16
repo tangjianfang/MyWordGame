@@ -6,5 +6,6 @@
   "texture": "wooden_pickaxe",
   "attackDamage": 2,
   "isTool": true,
-  "miningLevel": 1
+  "miningLevel": 1,
+  "toolTier": 1
 }

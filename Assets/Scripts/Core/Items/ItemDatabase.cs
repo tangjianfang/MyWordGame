@@ -123,6 +123,15 @@ namespace MyWorld.Core.Items
 
             JToken numericIdToken = root["numericId"];
 
+            // m10 A3 镐门槛：负数没有意义（0 已是「视同徒手」），写错立刻报而不是静默当 0——
+            // 与 BlockRegistry 对 minToolTier 的校验态度一致
+            var toolTier = (int?)root["toolTier"] ?? 0;
+            if (toolTier < 0)
+            {
+                throw new InvalidDataException(
+                    $"物品 {id} 的 toolTier 为 {toolTier}，必须 ≥ 0（0=徒手 / 1=木镐 / 2=石镐 / 3=铁镐 / 4=钻石镐，且只有镐类物品该写字段）。");
+            }
+
             var def = new ItemDefinition
             {
                 Id = id,
@@ -134,6 +143,7 @@ namespace MyWorld.Core.Items
                 HealAmount = root["healAmount"] != null ? (float?)(float)root["healAmount"] : null,
                 IsTool = (bool?)root["isTool"] ?? false,
                 MiningLevel = (int?)root["miningLevel"] ?? 0,
+                ToolTier = toolTier,
             };
 
             return (def, numericIdToken != null);

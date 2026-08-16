@@ -6,5 +6,6 @@
   "texture": "netherite_pickaxe",
   "attackDamage": 6,
   "isTool": true,
-  "miningLevel": 5
+  "miningLevel": 5,
+  "toolTier": 4
 }
