@@ -177,6 +177,36 @@ namespace MyWorld.Core.Tests.Blocks
         }
 
         /// <summary>
+        /// fix1 I2 守卫：所有 <c>*_pickaxe</c> 类物品必须**显式声明** <c>toolTier</c>（漏写即红）。
+        /// toolTier 缺省 0 = 视同徒手——一把「挖不动任何矿」的镐在实机上没有任何线索可查，
+        /// 只能让数据契约在加载层就拦住。断言 <c>ToolTier ≥ 1</c>：漏写（缺省 0）和显式写 0
+        /// 都是「不如徒手的镐」，一并拦下。将来 C 阶段加金镐时按 MC 惯例写 2（金镐等同石镐），
+        /// 合金镐/机元镐按 spec §3 各自定档——不管写几，必须写。
+        /// </summary>
+        [Test]
+        public void RealItems_EveryPickaxe_ExplicitlyDeclaresToolTier()
+        {
+            var items = ItemDatabase.FromJson(
+                Directory.GetFiles(LocateItemsDirectory(), "*.json").Select(File.ReadAllText));
+
+            string[] pickaxeIds = items.ById.Keys
+                .Where(id => id.EndsWith("_pickaxe", StringComparison.Ordinal))
+                .OrderBy(id => id, StringComparer.Ordinal)
+                .ToArray();
+
+            Assert.That(pickaxeIds.Length, Is.EqualTo(6),
+                "当前仓库应有 6 个 *_pickaxe 物品（木/石/铁/钻/下界合金/基岩）。数目变了请同步本断言、" +
+                "RealItems_PickaxeToolTiers_MatchTheGatingMatrix 与门槛矩阵——特别地，加新镐必须显式写 toolTier");
+
+            foreach (string id in pickaxeIds)
+            {
+                Assert.That(items.GetById(id).ToolTier, Is.GreaterThanOrEqualTo(1),
+                    $"{id} 是镐类物品，必须显式声明 toolTier 且 ≥ 1（漏写或缺省 0 会让它挖不动任何有门槛的矿，" +
+                    "实机上无线索可查）");
+            }
+        }
+
+        /// <summary>
         /// 真实 blocks/*.json 的 hardness + minToolTier 组合出 spec §1 的整张
         /// (block, toolTier) → 秒 矩阵。JSON 数据改坏（比如石头 hardness 偏离 1）
         /// 在这里立刻失败——它是 Unity 侧 BlockInteraction.BreakTime 查表的数据源。

@@ -32,6 +32,10 @@ namespace MyWorld.Core.Blocks
 
         public int Count => _byId.Count;
 
+        /// <summary>全部方块定义（按字典序无意义顺序）。m10 A3 fix1：一致性守卫测试要
+        /// 遍历「注册表里每一个方块」对表，不能只挑清单里的——加这个只读视图。</summary>
+        public IReadOnlyCollection<BlockDefinition> Definitions => _byId.Values;
+
         /// <summary>全部被引用到的贴图名，去重并按序数排序。下标即贴图索引。</summary>
         public IReadOnlyList<string> TextureNames => _textureNames;
 

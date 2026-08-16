@@ -271,8 +271,9 @@ namespace MyWorld.Unity.Player
         ///   （镐帮不上忙按徒手档——徒手挖石 4s 即出自这里）</item>
         /// <item><b>群系倍率</b>（m3 C7 原样）：山地石头 ×2，沙漠沙 ×0.5，其它 ×1</item>
         /// </list>
-        /// 基准秒/门槛与 <c>blocks/*.json</c> 的 hardness + minToolTier 一一对应
-        /// （EditMode 一致性测试守着两边不同步就红），这里硬编码是因为静态函数拿不到注册表。
+        /// 基准秒/门槛与 <c>blocks/*.json</c> 的 hardness + minToolTier <b>全量逐块一致</b>
+        /// （fix1：EditMode 一致性测试遍历注册表全部方块对表，单边改动立刻红），
+        /// 这里硬编码是因为静态函数拿不到注册表。JSON hardness = 1 的方块走 default 分支不用进 switch。
         /// </summary>
         public static float BreakTime(int blockId, Biome biome, int toolTier)
         {
@@ -291,8 +292,16 @@ namespace MyWorld.Unity.Player
                 case BlockIds.MachineEssenceOre:
                     baseSeconds = 6f; minToolTier = 4; break;    // 钻镐 6s / 铁镐 24s（不掉）
                 case TreeFeature.LogId:
+                case TreeFeature.LeavesId:
+                case TreeFeature.SaplingId:
                 case 1000: // planks（无 BlockIds 常量，与 planks.json 的 numericId 手动一致）
-                    baseSeconds = 2f; break;                     // 徒手 2s
+                case 1004: // crafting_table（同上）
+                case 1005: // iron_door
+                case 1006: // lever
+                case 1007: // redstone_dust
+                    baseSeconds = 2f; break;                     // 木质家族：徒手 2s
+                case BlockIds.Snow:
+                    baseSeconds = 0.4f; break;                   // 雪最软（fix1：以 JSON 为真源进表）
                 default:
                     baseSeconds = 1f; break;                     // 泥/草/沙/空气等：m3 默认 1s
             }

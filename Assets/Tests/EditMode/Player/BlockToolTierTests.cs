@@ -33,9 +33,6 @@ namespace MyWorld.Core.Tests.Player
         private const int WoodenPickaxeItemId = 1400;
         private const int StonePickaxeItemId = 1401;
 
-        /// <summary>planks 没进 BlockIds（m3 方块，非生成器必需），与 planks.json 的 1000 手动一致。</summary>
-        private const ushort Planks = 1000;
-
         /// <summary>EditMode 下 AddComponent 不会跑 Awake，用反射补一脚（BlockBreakDropTests 同款）。</summary>
         private static void InvokeAwake(MonoBehaviour mb)
         {
@@ -270,32 +267,40 @@ namespace MyWorld.Core.Tests.Player
         }
 
         /// <summary>
-        /// 一致性守卫：代码里的 (block, toolTier) 查表与真实 blocks/*.json 的 hardness
-        /// 必须逐块一致（spec §1 矩阵的数据源是 JSON，代码表只是运行时无注册表时的镜像）。
-        /// 谁单独改了一边，这里立刻红。
+        /// 一致性守卫（fix1 全量化）：代码里的 (block, toolTier) 查表与真实 blocks/*.json 的
+        /// hardness 必须<b>逐块全量</b>一致——遍历注册表全部方块，JSON hardness ≥ 0 的每一个
+        /// 都对表（达标耗时 = hardness）。谁单独改了一边（新方块忘了进 switch、或改了 JSON
+        /// 没同步代码），这里立刻红。负 hardness（空气/水/基岩）表示挖不动，没有「挖掘耗时」
+        /// 可言，BreakTime 对它们返回 m3 默认 1f 只是为了契约稳定（空气那条有旧测试钉着），
+        /// 不参与对表。
         /// </summary>
         [Test]
-        public void BreakTime_Table_AgreesWithRealBlockJsonHardness()
+        public void BreakTime_Table_AgreesWithRealBlockJsonHardness_EveryRegisteredBlock()
         {
             string blocksDir = Path.Combine(Application.streamingAssetsPath, "blocks");
             var registry = BlockRegistry.FromJson(
                 Directory.GetFiles(blocksDir, "*.json").Select(File.ReadAllText));
 
-            ushort[] pinned =
+            int compared = 0;
+            foreach (BlockDefinition def in registry.Definitions)
             {
-                BlockIds.Stone, BlockIds.Dirt, BlockIds.Grass, BlockIds.Sand,
-                TreeFeature.LogId, Planks,
-                BlockIds.GoldOre, BlockIds.RawIronOre, BlockIds.SummerAlloyOre, BlockIds.MachineEssenceOre,
-            };
+                if (def.Hardness < 0f)
+                {
+                    continue; // 不可破坏方块：无耗时语义，见方法注释
+                }
 
-            foreach (ushort blockId in pinned)
-            {
-                BlockDefinition def = registry.GetByNumericId(blockId);
                 Assert.That(
-                    BlockInteraction.BreakTime(blockId, Biome.Plains, 99),
+                    BlockInteraction.BreakTime(def.NumericId, Biome.Plains, 99),
                     Is.EqualTo(def.Hardness).Within(1e-5f),
-                    $"{def.Id}：代码查表的达标耗时应等于 JSON hardness={def.Hardness}，两边改不同步了");
+                    $"{def.Id}（numericId={def.NumericId}）：代码查表的达标耗时应等于 JSON hardness={def.Hardness}，"
+                    + "两边改不同步了——新方块要么 JSON hardness 写 1（走 default 分支），要么同步进 BreakTime 的 switch");
+                compared++;
             }
+
+            // 20 个已注册方块 - 3 个负 hardness（air/water/bedrock）= 17 个参与对表。
+            // 这个数本身也是守卫：注册表新增方块而本测试没跑到全量，说明遍历路径坏了。
+            Assert.That(compared, Is.EqualTo(registry.Count - 3),
+                "对表方块数应为「注册总数 - 不可破坏方块数」，全量遍历不能悄悄漏块");
         }
     }
 }
