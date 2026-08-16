@@ -172,8 +172,8 @@ namespace MyWorld.Core.Tests.Entities
                 Assert.That(setup, Is.Not.Null, "MobView 没有公共 Setup 方法");
                 setup.Invoke(view, new object[] { MobKind.Villager });
 
-                Assert.That(host.transform.Find("Body"), Is.Not.Null, "Villager 应创建 Body 子物体");
-                Assert.That(host.transform.Find("Head"), Is.Not.Null, "Villager 应创建 Head 子物体");
+                Assert.That(host.transform.Find("body"), Is.Not.Null, "Villager 应创建 Body 子物体");
+                Assert.That(host.transform.Find("head"), Is.Not.Null, "Villager 应创建 Head 子物体");
             }
             finally
             {
@@ -194,7 +194,7 @@ namespace MyWorld.Core.Tests.Entities
                     BindingFlags.Instance | BindingFlags.Public);
                 setup.Invoke(view, new object[] { MobKind.Villager });
 
-                var body = host.transform.Find("Body").GetComponent<Renderer>();
+                var body = host.transform.Find("body").GetComponent<Renderer>();
                 var block = new MaterialPropertyBlock();
                 body.GetPropertyBlock(block);
                 var color = block.GetColor("_BaseColor");

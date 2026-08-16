@@ -1,9 +1,10 @@
 #if UNITY_EDITOR
 // Phase D 第三批测试：MobView 按 MobKind 切换视觉。
 // 旧 Passive/Hostile 路径保留单 cube 行为（既有 MobManager.Attach 不变），
-// 新 Pig/Cow/Chicken/Zombie 路径创建 Body + Head 双段 mesh（body+head 缩放/位置见 brief）。
+// m8 A2 起 Pig/Cow/Chicken/Zombie/Villager 按 MobModels 部位表拼装（部位名小写：
+// body/head/snout/legFL...，逐部位名建子物体，不再是 Body+Head 双段）。
 // 测试策略：直接构造 MobView host，AddComponent + 调 Setup(kind)，枚举 transform 子节点，
-// 确认 Body/Head 命名、Renderer 染色正确。UNITY_EDITOR 包裹确保 dotnet 链不参与。
+// 确认 body/head 命名、Renderer 染色正确。UNITY_EDITOR 包裹确保 dotnet 链不参与。
 using System.Reflection;
 using MyWorld.Core.Entities;
 using MyWorld.Unity.Combat;
@@ -24,8 +25,8 @@ namespace MyWorld.Core.Tests.Visual
                 host.AddComponent<MobView>();
                 var view = host.GetComponent<MobView>();
                 InvokeSetup(view, MobKind.Pig);
-                Assert.That(host.transform.Find("Body"), Is.Not.Null, "Pig 应创建 Body 子物体");
-                Assert.That(host.transform.Find("Head"), Is.Not.Null, "Pig 应创建 Head 子物体");
+                Assert.That(host.transform.Find("body"), Is.Not.Null, "Pig 应创建 Body 子物体");
+                Assert.That(host.transform.Find("head"), Is.Not.Null, "Pig 应创建 Head 子物体");
             }
             finally
             {
@@ -42,8 +43,8 @@ namespace MyWorld.Core.Tests.Visual
                 host.AddComponent<MobView>();
                 var view = host.GetComponent<MobView>();
                 InvokeSetup(view, MobKind.Cow);
-                Assert.That(host.transform.Find("Body"), Is.Not.Null, "Cow 应创建 Body 子物体");
-                Assert.That(host.transform.Find("Head"), Is.Not.Null, "Cow 应创建 Head 子物体");
+                Assert.That(host.transform.Find("body"), Is.Not.Null, "Cow 应创建 Body 子物体");
+                Assert.That(host.transform.Find("head"), Is.Not.Null, "Cow 应创建 Head 子物体");
             }
             finally
             {
@@ -60,8 +61,8 @@ namespace MyWorld.Core.Tests.Visual
                 host.AddComponent<MobView>();
                 var view = host.GetComponent<MobView>();
                 InvokeSetup(view, MobKind.Chicken);
-                Assert.That(host.transform.Find("Body"), Is.Not.Null, "Chicken 应创建 Body 子物体");
-                Assert.That(host.transform.Find("Head"), Is.Not.Null, "Chicken 应创建 Head 子物体");
+                Assert.That(host.transform.Find("body"), Is.Not.Null, "Chicken 应创建 Body 子物体");
+                Assert.That(host.transform.Find("head"), Is.Not.Null, "Chicken 应创建 Head 子物体");
             }
             finally
             {
@@ -78,8 +79,8 @@ namespace MyWorld.Core.Tests.Visual
                 host.AddComponent<MobView>();
                 var view = host.GetComponent<MobView>();
                 InvokeSetup(view, MobKind.Zombie);
-                Assert.That(host.transform.Find("Body"), Is.Not.Null, "Zombie 应创建 Body 子物体");
-                Assert.That(host.transform.Find("Head"), Is.Not.Null, "Zombie 应创建 Head 子物体");
+                Assert.That(host.transform.Find("body"), Is.Not.Null, "Zombie 应创建 Body 子物体");
+                Assert.That(host.transform.Find("head"), Is.Not.Null, "Zombie 应创建 Head 子物体");
             }
             finally
             {
@@ -100,8 +101,8 @@ namespace MyWorld.Core.Tests.Visual
                 host.AddComponent<MobView>();
                 var view = host.GetComponent<MobView>();
                 InvokeSetup(view, MobKind.Chicken);
-                var body = host.transform.Find("Body").GetComponent<Renderer>();
-                var head = host.transform.Find("Head").GetComponent<Renderer>();
+                var body = host.transform.Find("body").GetComponent<Renderer>();
+                var head = host.transform.Find("head").GetComponent<Renderer>();
                 var bodyColor = ReadColor(body);
                 var headColor = ReadColor(head);
                 Assert.That(bodyColor, Is.Not.EqualTo(headColor),
@@ -130,8 +131,8 @@ namespace MyWorld.Core.Tests.Visual
                 int bodyCount = 0, headCount = 0;
                 foreach (Transform child in host.transform)
                 {
-                    if (child.name == "Body") bodyCount++;
-                    else if (child.name == "Head") headCount++;
+                    if (child.name == "body") bodyCount++;
+                    else if (child.name == "head") headCount++;
                 }
                 Assert.That(bodyCount, Is.EqualTo(1), "重设 kind 后 Body 应只剩 1 个（旧 Body 已清）");
                 Assert.That(headCount, Is.EqualTo(1), "重设 kind 后 Head 应只剩 1 个（旧 Head 已清）");

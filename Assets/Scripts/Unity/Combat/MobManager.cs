@@ -42,6 +42,22 @@ namespace MyWorld.Unity.Combat
 
         private readonly List<Mob> _mobs = new List<Mob>();
         private readonly Dictionary<int, GameObject> _views = new Dictionary<int, GameObject>();
+
+        // m8 A2：walk phase 驱动状态（键 = EntityId，RemoveMobAt 一并清理）。
+        // 相位按帧间水平位移累计：phase += 位移 × WalkPhasePerMeter，
+        // 站定位移为 0 相位不增，腿随 sin 过零自然回正（选简方案，不做停步缓动）。
+        private readonly Dictionary<int, MobView> _viewComponents = new Dictionary<int, MobView>();
+        private readonly Dictionary<int, WalkDrive> _walkDrives = new Dictionary<int, WalkDrive>();
+
+        /// <summary>腿摆相位随移动距离的累计速率（rad/格）：1.5 m/s 的猪 ≈ 每秒 12 rad ≈ 2 步/秒。</summary>
+        private const float WalkPhasePerMeter = 8f;
+
+        private struct WalkDrive
+        {
+            public Vector3 LastPos; // 上一帧 mob.Position（算帧间位移用）
+            public float Phase;     // 累计腿摆相位
+        }
+
         private int _nextEntityId = 1;
         private float _spawnAccum;
         private World _world;
@@ -160,10 +176,12 @@ namespace MyWorld.Unity.Combat
             TickDespawn();
 
             // 2) tick AI（m7 A2：传 isNight——僵尸白天走 wander 不追）
+            //    m8 A2：tick 后按帧间位移驱动腿摆
             for (int i = 0; i < _mobs.Count; i++)
             {
                 var m = _mobs[i];
                 MobAI.Tick(m, Float3_From(_player.position), _world, _time, dt, isNight);
+                DriveWalkPhase(m);
             }
 
             // 推进玩家死亡状态
@@ -220,7 +238,32 @@ namespace MyWorld.Unity.Combat
                 else DestroyImmediate(go);
                 _views.Remove(m.EntityId);
             }
+            // m8 A2：walk phase 驱动状态一并清理，字典不随 despawn 泄漏
+            _viewComponents.Remove(m.EntityId);
+            _walkDrives.Remove(m.EntityId);
             _mobs.RemoveAt(index);
+        }
+
+        /// <summary>
+        /// m8 A2：腿摆驱动——按 <paramref name="m"/> 的帧间水平位移累计相位
+        /// （phase += 位移 × <see cref="WalkPhasePerMeter"/>），推给 MobView.SetWalkPhase。
+        /// 第一帧只记录位置不摆腿（没有帧间位移可比）。
+        /// </summary>
+        private void DriveWalkPhase(Mob m)
+        {
+            if (!_viewComponents.TryGetValue(m.EntityId, out var view) || view == null) return;
+            var pos = new Vector3(m.Position.X, m.Position.Y, m.Position.Z);
+            if (_walkDrives.TryGetValue(m.EntityId, out var drive))
+            {
+                float moved = new Vector2(pos.x - drive.LastPos.x, pos.z - drive.LastPos.z).magnitude;
+                drive.Phase += moved * WalkPhasePerMeter;
+                _walkDrives[m.EntityId] = drive;
+                view.SetWalkPhase(drive.Phase);
+            }
+            else
+            {
+                _walkDrives[m.EntityId] = new WalkDrive { LastPos = pos };
+            }
         }
 
         /// <summary>
@@ -302,7 +345,8 @@ namespace MyWorld.Unity.Combat
 
         /// <summary>
         /// 实例化 <see cref="Mob"/> 与对应 GameObject + <see cref="MobView"/>。
-        /// Phase D kind 走 Body+Head 双段（旧 mobTypeId 1-5 走单 cube 由 MobView 默认分支处理）。
+        /// m8 A2：五生物走 MobModels 部位表拼装（旧 mobTypeId 1-5 走单 cube 由
+        /// MobView 默认分支处理）。
         /// </summary>
         private void SpawnMob(int type, MobKind kind, Float3 position)
         {
@@ -313,44 +357,71 @@ namespace MyWorld.Unity.Combat
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = $"Mob_{kind}_{mob.EntityId}";
 
-            // 体型按 kind 调；MobView.Setup 也会按 kind 切视觉，缩放与之对齐
+            if (UsesPartTable(kind))
+            {
+                // m8 A2：部位表全权负责视觉——host cube 只剩挂载点 + 攻击碰撞体两个职责：
+                //   1) Renderer 禁用：拼装部位已覆盖 host 体积，双份渲染只会重合（消灭重合渲染）
+                //   2) 缩放归一：部位表坐标以格为单位，host 保留旧体型缩放会把部件一起拉伸变形；
+                //      碰撞体改按部位表站高立起（贴模型纵向范围，不再半埋地下）
+                float height = PartTableHeight(kind);
+                go.transform.localScale = Vector3.one;
+                var box = go.GetComponent<BoxCollider>();
+                if (box != null)
+                {
+                    box.size = new Vector3(0.9f, height, 0.9f);
+                    box.center = new Vector3(0f, height * 0.5f, 0f);
+                }
+                go.GetComponent<Renderer>().enabled = false;
+            }
+            else
+            {
+                // 旧 mobTypeId 路径（Passive/Hostile/Neutral）：host 就是本体，
+                // 体型/材质/染色沿用既有行为。敌对用细高体型，友好用胖短
+                go.transform.localScale = (type == 3 || type == 4 || type == 5)
+                    ? new Vector3(0.6f, 1.8f, 0.6f)
+                    : new Vector3(0.8f, 1.0f, 1.2f);
+                var col = go.GetComponent<BoxCollider>();
+                if (col != null) col.size = Vector3.one;
+
+                // m5 A3：host cube 换 URP/Lit 材质——裸 CreatePrimitive 的 Default-Material
+                // 是 Standard shader，URP 下渲染洋红。旧 kind 的 host 就是本体（MobView 默认
+                // 分支的 MPB mobTypeId 染色叠在这层材质上生效）。
+                go.GetComponent<Renderer>().sharedMaterial =
+                    UrpMaterialFactory.CreateLit(UrpMaterialFactory.MobBodyColor(kind));
+            }
+
+            var view = MobView.Attach(go, mob);
+            _views[mob.EntityId] = go;
+            _viewComponents[mob.EntityId] = view; // m8 A2：walk phase 驱动直接取视图组件
+        }
+
+        /// <summary>五生物（m8）走 MobModels 部位表拼装；旧三类保持单 cube 既有路径。</summary>
+        private static bool UsesPartTable(MobKind kind)
+        {
             switch (kind)
             {
                 case MobKind.Pig:
-                    go.transform.localScale = new Vector3(0.9f, 0.6f, 1.2f);
-                    break;
                 case MobKind.Cow:
-                    go.transform.localScale = new Vector3(1.0f, 0.8f, 1.4f);
-                    break;
                 case MobKind.Chicken:
-                    go.transform.localScale = new Vector3(0.4f, 0.4f, 0.5f);
-                    break;
                 case MobKind.Zombie:
-                    go.transform.localScale = new Vector3(0.6f, 1.8f, 0.4f);
-                    break;
                 case MobKind.Villager:
-                    // Task D6：人形（与 Zombie 同体型），稍宽一点显示袍的剪影。
-                    go.transform.localScale = new Vector3(0.6f, 1.8f, 0.4f);
-                    break;
+                    return true;
                 default:
-                    // 旧 mobTypeId 路径（Passive/Hostile）：敌对用细高体型，友好用胖短
-                    go.transform.localScale = (type == 3 || type == 4 || type == 5)
-                        ? new Vector3(0.6f, 1.8f, 0.6f)
-                        : new Vector3(0.8f, 1.0f, 1.2f);
-                    break;
+                    return false;
             }
+        }
 
-            var col = go.GetComponent<BoxCollider>();
-            if (col != null) col.size = Vector3.one;
-
-            // m5 A3：host cube 换 URP/Lit 材质——裸 CreatePrimitive 的 Default-Material
-            // 是 Standard shader，URP 下渲染洋红。旧 kind 的 host 就是本体（MobView 默认
-            // 分支的 MPB mobTypeId 染色叠在这层材质上生效）。
-            go.GetComponent<Renderer>().sharedMaterial =
-                UrpMaterialFactory.CreateLit(UrpMaterialFactory.MobBodyColor(kind));
-
-            MobView.Attach(go, mob);
-            _views[mob.EntityId] = go;
+        /// <summary>
+        /// 部位表站高（最高部位顶面）：host 碰撞体按它立起，判定范围与拼装模型一致。
+        /// </summary>
+        private static float PartTableHeight(MobKind kind)
+        {
+            float height = 0f;
+            foreach (var part in MobModels.Build(kind))
+            {
+                height = Mathf.Max(height, part.LocalPosition.y + part.Size.y * 0.5f);
+            }
+            return height;
         }
 
         /// <summary>

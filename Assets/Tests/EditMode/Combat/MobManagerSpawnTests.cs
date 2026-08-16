@@ -11,6 +11,7 @@ using MyWorld.Core.Entities;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Bootstrap;
 using MyWorld.Unity.Combat;
+using MyWorld.Unity.Rendering;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -144,6 +145,37 @@ namespace MyWorld.Core.Tests.Combat
             }
             Assert.That(_mgr.ActiveMobs.Count, Is.LessThanOrEqualTo(2),
                 $"MaxMobs=2 时 ActiveMobs 不应超过 2（实际 {_mgr.ActiveMobs.Count}）");
+        }
+
+        /// <summary>
+        /// m8 A2：部位表全权负责视觉——刷出的 host cube Renderer 应禁用（拼装部位已覆盖
+        /// host 体积，双份渲染只会重合）、缩放归一（部位表以格为单位，host 缩放会拉伸部件）、
+        /// 子物体数等于部位表部位数。
+        /// </summary>
+        [Test]
+        public void SpawnMob_AssembledKind_DisablesHostRenderer_AndBuildsPartChildren()
+        {
+            GameObject spawnedGo = null;
+            Mob spawned = null;
+            for (int seed = 1; seed <= 100; seed++)
+            {
+                int before = _mgr.ActiveMobs.Count;
+                _mgr.TickSpawn(seed, dayNightPhase: 0.25f);
+                if (_mgr.ActiveMobs.Count > before)
+                {
+                    spawned = _mgr.ActiveMobs[_mgr.ActiveMobs.Count - 1];
+                    spawnedGo = GameObject.Find($"Mob_{spawned.Kind}_{spawned.EntityId}");
+                    break;
+                }
+            }
+            Assert.That(spawnedGo, Is.Not.Null, "白天 + Plains 100 次内应至少刷出一只友好生物");
+            Assert.That(spawnedGo.GetComponent<Renderer>().enabled, Is.False,
+                "host cube Renderer 应禁用（部位表全权负责视觉，消灭重合渲染）");
+            Assert.That(spawnedGo.transform.localScale, Is.EqualTo(Vector3.one),
+                "host 缩放应归一（部位表坐标以格为单位，host 体型缩放会把部件拉伸变形）");
+            Assert.That(spawnedGo.transform.childCount,
+                Is.EqualTo(MobModels.Build(spawned.Kind).Length),
+                "拼装后子物体数应等于部位表部位数（实际 kind=" + spawned.Kind + "）");
         }
 
         private static string SpawnRulesPath()
