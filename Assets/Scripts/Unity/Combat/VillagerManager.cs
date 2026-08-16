@@ -6,13 +6,15 @@ using MyWorld.Core.Voxel;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Bootstrap;
 using MyWorld.Unity.Gameplay;
+using MyWorld.Unity.Rendering;
 using UnityEngine;
 
 namespace MyWorld.Unity.Combat
 {
     /// <summary>
-    /// 村民总管理：白天生成 3-5 只一群 + 每帧 tick + 渲染 cube。
-    /// 复用 MobView 的视觉风格（cube + PropertyBlock），但走 <see cref="VillagerView"/> 标记身份。
+    /// 村民总管理：白天生成 3-5 只一群 + 每帧 tick + 渲染。
+    /// m8 终审修（I-1）：交易村民统一走 <see cref="MobAssembly"/> 部位表拼装的长袍村民
+    /// （与 MobView 刷的村民同一副面孔），走 <see cref="VillagerView"/> 标记身份并染职业袍色。
     /// <para>
     /// X3 fix-up：刷怪决策改走 <see cref="MobSpawnRules.PickKind"/>（biome + 光照 + seed 数据驱动），
     /// 而不是写死的 <c>UnityEngine.Random.Range</c>。与 <see cref="MobManager.TickSpawn"/> 共享同一份
@@ -136,9 +138,20 @@ namespace MyWorld.Unity.Combat
 
             _villagers.Add(v);
 
+            // m8 终审修（I-1）：host cube 只剩挂载点 + 碰撞体两个职责（对齐 MobManager.SpawnMob）：
+            // 缩放归一（部位表坐标以格为单位，旧 0.6×1.8×0.6 体型缩放会把部件一起拉伸变形）、
+            // 碰撞体按部位表站高立起（不再半埋地下）、Renderer 由 MobAssembly.Assemble 禁用
+            // （部位表全权负责视觉）。长袍村民造型 + 职业袍色都在 VillagerView.Attach 里完成。
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = $"Villager_{profession}_{v.EntityId}";
-            go.transform.localScale = new Vector3(0.6f, 1.8f, 0.6f);
+            float height = MobAssembly.PartTableHeight(MobKind.Villager);
+            go.transform.localScale = Vector3.one;
+            var box = go.GetComponent<BoxCollider>();
+            if (box != null)
+            {
+                box.size = new Vector3(0.9f, height, 0.9f);
+                box.center = new Vector3(0f, height * 0.5f, 0f);
+            }
             VillagerView.Attach(go, v);
             _views[v.EntityId] = go;
         }

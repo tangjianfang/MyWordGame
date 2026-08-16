@@ -11,6 +11,7 @@ using MyWorld.Core.Entities;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Bootstrap;
 using MyWorld.Unity.Combat;
+using MyWorld.Unity.Rendering;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -322,6 +323,93 @@ namespace MyWorld.Core.Tests.Combat
             }
             Assert.That(spawned, Is.GreaterThan(0),
                 "generator==null 应回退到 Biome.Plains，50 颗种子内应至少刷出一个 Villager");
+        }
+
+        // ---------- m8 终审修（I-1）：交易村民统一走部位表拼装，消灭单 cube 双形态 ----------
+
+        /// <summary>
+        /// m8 终审修（I-1）：VillagerManager 刷的交易村民应按 MobModels.Build(Villager) 部位表
+        /// 拼装（长袍村民，与 MobView 路径同一副面孔）：子物体数 == 部位数、host Renderer 禁用、
+        /// 缩放归一（部位表坐标以格为单位；旧 0.6×1.8×0.6 单 cube 路径已删除）。
+        /// </summary>
+        [Test]
+        public void TrySpawnOne_SpawnedVillagerView_AssembledFromPartTable()
+        {
+            int seed = FindFirstSpawningSeed();
+            _mgr.TrySpawnOne(seed: seed);
+            Assume.That(_mgr.ActiveVillagers.Count, Is.GreaterThan(0),
+                "首个可用 seed 应能刷出 Villager");
+            var v = _mgr.ActiveVillagers[_mgr.ActiveVillagers.Count - 1];
+            var go = GameObject.Find($"Villager_{v.Profession}_{v.EntityId}");
+            Assert.That(go, Is.Not.Null,
+                "应能按命名约定找到刷出的村民视图（Villager_{profession}_{entityId}）");
+
+            var parts = MobModels.Build(MobKind.Villager);
+            Assert.That(go.transform.childCount, Is.EqualTo(parts.Length),
+                "交易村民子物体数应等于部位表部位数 " + parts.Length + "（长袍村民拼装，不再是单 cube 双形态）");
+            foreach (var part in parts)
+            {
+                Assert.That(go.transform.Find(part.Name), Is.Not.Null,
+                    "部位 " + part.Name + " 应有同名直接子物体");
+            }
+            Assert.That(go.GetComponent<Renderer>().enabled, Is.False,
+                "host cube Renderer 应禁用（部位表全权负责视觉，消灭重合渲染）");
+            Assert.That(go.transform.localScale, Is.EqualTo(Vector3.one),
+                "host 缩放应归一（部位表坐标以格为单位，体型缩放会把部件一起拉伸变形）");
+        }
+
+        /// <summary>
+        /// 职业辨识约定（manager 全链路）：袍部位（body + 双臂）染职业色，
+        /// 期望值与 VillagerVisualTests 的 TestCase 数据一致；head 保持部位表肤色。
+        /// </summary>
+        [Test]
+        public void TrySpawnOne_SpawnedVillagerView_RobeMatchesProfession_HeadKeepsSkin()
+        {
+            int seed = FindFirstSpawningSeed();
+            _mgr.TrySpawnOne(seed: seed);
+            Assume.That(_mgr.ActiveVillagers.Count, Is.GreaterThan(0),
+                "首个可用 seed 应能刷出 Villager");
+            var v = _mgr.ActiveVillagers[_mgr.ActiveVillagers.Count - 1];
+            var go = GameObject.Find($"Villager_{v.Profession}_{v.EntityId}");
+            Assume.That(go, Is.Not.Null, "应能按命名约定找到刷出的村民视图");
+
+            Color expectedRobe = v.Profession switch
+            {
+                VillagerProfession.Farmer => new Color(0.55f, 0.4f, 0.2f),
+                VillagerProfession.Librarian => new Color(0.45f, 0.35f, 0.5f),
+                VillagerProfession.Blacksmith => new Color(0.3f, 0.3f, 0.35f),
+                _ => new Color(0.6f, 0.5f, 0.4f),
+            };
+            foreach (var partName in new[] { "body", "armLower", "armUpper" })
+            {
+                AssertColorNear(ReadPartColor(go, partName), expectedRobe,
+                    v.Profession + " 的袍部位 " + partName + " 应染职业色");
+            }
+            ColorUtility.TryParseHtmlString("#E8B88A", out var headSkin);
+            AssertColorNear(ReadPartColor(go, "head"), headSkin,
+                "head 应保持部位表肤色（职业只染袍，不染脸）");
+        }
+
+        private static Color ReadPartColor(GameObject host, string partName)
+        {
+            var part = host.transform.Find(partName);
+            Assert.That(part, Is.Not.Null, "应找到部位 " + partName);
+            var renderer = part.GetComponent<Renderer>();
+            Assert.That(renderer, Is.Not.Null, "部位 " + partName + " 应有 Renderer");
+            var block = new MaterialPropertyBlock();
+            renderer.GetPropertyBlock(block);
+            return block.GetColor("_BaseColor");
+        }
+
+        /// <summary>NUnit 的 Within 不对 Color 逐通道生效，按通道断（容差 0.001）。</summary>
+        private static void AssertColorNear(Color actual, Color expected, string context)
+        {
+            Assert.That(Mathf.Abs(actual.r - expected.r), Is.LessThan(0.001f),
+                context + "（红色分量，期望 " + expected.r.ToString("F3") + " 实际 " + actual.r.ToString("F3") + "）");
+            Assert.That(Mathf.Abs(actual.g - expected.g), Is.LessThan(0.001f),
+                context + "（绿色分量，期望 " + expected.g.ToString("F3") + " 实际 " + actual.g.ToString("F3") + "）");
+            Assert.That(Mathf.Abs(actual.b - expected.b), Is.LessThan(0.001f),
+                context + "（蓝色分量，期望 " + expected.b.ToString("F3") + " 实际 " + actual.b.ToString("F3") + "）");
         }
     }
 }

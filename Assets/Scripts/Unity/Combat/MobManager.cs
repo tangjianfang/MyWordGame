@@ -382,7 +382,7 @@ namespace MyWorld.Unity.Combat
                 //   1) Renderer 禁用：拼装部位已覆盖 host 体积，双份渲染只会重合（消灭重合渲染）
                 //   2) 缩放归一：部位表坐标以格为单位，host 保留旧体型缩放会把部件一起拉伸变形；
                 //      碰撞体改按部位表站高立起（贴模型纵向范围，不再半埋地下）
-                float height = PartTableHeight(kind);
+                float height = MobAssembly.PartTableHeight(kind);
                 go.transform.localScale = Vector3.one;
                 var box = go.GetComponent<BoxCollider>();
                 if (box != null)
@@ -428,19 +428,6 @@ namespace MyWorld.Unity.Combat
                 default:
                     return false;
             }
-        }
-
-        /// <summary>
-        /// 部位表站高（最高部位顶面）：host 碰撞体按它立起，判定范围与拼装模型一致。
-        /// </summary>
-        private static float PartTableHeight(MobKind kind)
-        {
-            float height = 0f;
-            foreach (var part in MobModels.Build(kind))
-            {
-                height = Mathf.Max(height, part.LocalPosition.y + part.Size.y * 0.5f);
-            }
-            return height;
         }
 
         /// <summary>
