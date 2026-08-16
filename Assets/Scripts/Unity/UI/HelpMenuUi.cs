@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using MyWorld.Core.Quests;
 using MyWorld.Unity.Gameplay;
+using MyWorld.Unity.Persistence;
 using MyWorld.Unity.Player;
 using UnityEngine;
 
@@ -18,6 +20,12 @@ namespace MyWorld.Unity.UI
     /// + 全链 8 格进度条（完成亮金 / 未完成暗灰 / 当前亮白描边）。数据每帧经
     /// <see cref="GetProgressSummary"/> 从 <see cref="QuestEventBus"/> 挂的
     /// <see cref="QuestSystem"/> 现读（单一真源），本组件不记账。
+    /// </para>
+    /// <para>
+    /// m7 A4：设置页底部加红色系「保存并退出游戏」按钮——点击即
+    /// <see cref="SaveLoadService.SaveNow(bool)"/>(async:false) 同步落盘，
+    /// 半秒停留窗显示「已保存，正在退出…」后退出。退出动作 / 时钟 / 存档服务
+    /// 均可注入（EditMode 测试不真退、不真写用户目录）。
     /// </para>
     /// </summary>
     public sealed class HelpMenuUi : MonoBehaviour
@@ -120,6 +128,7 @@ namespace MyWorld.Unity.UI
         {
             if (Input.GetKeyDown(KeyCode.H)) HandleKey(KeyCode.H);
             else if (Input.GetKeyDown(KeyCode.Escape)) HandleKey(KeyCode.Escape);
+            TickQuit(); // m7 A4：半秒停留窗到点退出
         }
 
         /// <summary>把三设置应用到实际系统：音量乘 AudioListener.volume（0–1 归一）、
@@ -132,6 +141,64 @@ namespace MyWorld.Unity.UI
             if (cam != null) cam.fieldOfView = CurrentFov;
             if (_player == null) _player = FindObjectOfType<PlayerController>();
             if (_player != null) _player.LookSensitivityMultiplier = CurrentSensitivity;
+        }
+
+        // ─── 保存并退出（m7 A4：全游戏唯一的玩家退出入口） ─────────────────────
+
+        /// <summary>点击「保存并退出」到真正退出之间的停留时长（秒）：同步落盘完成后
+        /// 留半秒把「已保存，正在退出…」亮出来再退——确认要能被看见，不能点了没反应。</summary>
+        public const float QuitDelaySeconds = 0.5f;
+
+        /// <summary>退出动作。默认 <see cref="Application.Quit"/>；EditMode 测试替换成
+        /// 计数器断言「满半秒才触发、且只触发一次」，不真退测试进程。</summary>
+        internal Action QuitRequested = () => Application.Quit();
+
+        /// <summary>可注入时钟（默认 <see cref="Time.time"/>），测半秒停留窗用。
+        /// 与 <see cref="QuitRequested"/> 同为测试缝，生产代码不改。</summary>
+        internal Func<float> QuitClock = DefaultQuitClock;
+
+        /// <summary>存档服务。生产留空——首次点退出时懒查找（WorldBootstrap 把
+        /// <see cref="SaveLoadService"/> 与本组件挂同一物体，查一次后缓存）；
+        /// EditMode 测试直接注入绑好临时目录的实例，不碰用户真实存档。</summary>
+        internal SaveLoadService SaveService;
+
+        private static float DefaultQuitClock() => Time.time;
+
+        private bool _quitPending;  // 已点「保存并退出」：按钮换成确认文本，防手抖双击
+        private bool _quitSaved;    // 本次退出流程是否真的落过盘（无存档服务时不谎报「已保存」）
+        private bool _quitFired;    // QuitRequested 已触发：只退一次，不每帧重复调
+        private float _quitAt;      // 同步保存完成的时刻（QuitClock 基准）
+
+        /// <summary>保存到退出之间的确认文本；未在退出流程中为 null（按钮照常显示）。</summary>
+        public string QuitStatusText => !_quitPending
+            ? null
+            : (_quitSaved ? "已保存，正在退出…" : "正在退出…");
+
+        /// <summary>点「保存并退出游戏」按钮（OnGUI 回调，测试也可直调）：
+        /// 同步落盘——<see cref="SaveLoadService.SaveNow(bool)"/>(async:false) 返回即写完，
+        /// 之后进入半秒停留窗再退出。重复调用（手抖双击）整轮忽略：退出流程只进一次。
+        /// 场景里没有存档服务（早期场景）时只退不存，不抛异常。</summary>
+        public void RequestSaveAndQuit()
+        {
+            if (_quitPending) return;
+            _quitPending = true;
+            if (SaveService == null) SaveService = FindObjectOfType<SaveLoadService>();
+            _quitSaved = SaveService != null;
+            SaveService?.SaveNow(async: false); // 退出路径必须同步：半秒后进程就没了
+            _quitAt = QuitClock();
+        }
+
+        /// <summary>步进半秒停留窗（<see cref="Update"/> 每帧调）。独立成 internal 方法：
+        /// EditMode 不跑 Update，测试直调它 + 注入 <see cref="QuitClock"/>，
+        /// 把「保存后半秒才退」断言成确定行为。</summary>
+        internal void TickQuit()
+        {
+            if (!_quitPending || _quitFired) return;
+            if (QuitClock() - _quitAt >= QuitDelaySeconds)
+            {
+                _quitFired = true;
+                QuitRequested();
+            }
         }
 
         // ─── 任务进度（m6 C5：进度页取数单一入口） ─────────────────────────────
@@ -182,6 +249,9 @@ namespace MyWorld.Unity.UI
         // 任务 desc 自己就在指引「按 B 打开口袋合成」「按 P 开工作台」，表里查不到不行）。
         // 16 行单栏 × 24px = 384px，加上四步玩法与任务进度区会顶破 660px 高的菜单——
         // 改左右双栏各 8 行：左栏基础操作、右栏菜单开关。
+        // m7 A4：右栏补第 9 行「Alt+F4 直接退出（自动存档）」——全游戏有退出按钮了，
+        // 按键表也得交代 Alt+F4 关窗口不会丢档（走 OnApplicationQuit 同步落盘）。
+        // 两栏自此不等长：绘制按 KeyTableRowCount（较长者）遍历，短的一侧末尾留空。
 
         private static readonly string[] KeyTableLeft =
         {
@@ -205,7 +275,27 @@ namespace MyWorld.Unity.UI
             "F11", "全屏开关",
             "H", "打开 / 关闭帮助",
             "Esc", "关闭菜单 / 解锁鼠标",
+            "Alt+F4", "直接退出（自动存档）",
         };
+
+        /// <summary>按键表总行数 = 两栏中较长者的条目对数（左右栏允许不等长）。</summary>
+        internal static int KeyTableRowCount =>
+            Math.Max(KeyTableLeft.Length, KeyTableRight.Length) / 2;
+
+        /// <summary>按键表第 rowIndex 行（0 起）右栏的（键名, 说明）。写严格：越界抛
+        /// <see cref="ArgumentOutOfRangeException"/>（绘制循环按 <see cref="KeyTableRowCount"/> 走，
+        /// 越界只可能是调用方 bug）。抽出来给 EditMode 断言「Alt+F4 行在渲染范围内」——
+        /// 两栏不等长后循环若仍只按左栏行数走，右栏末行会被静默截掉。</summary>
+        internal static (string Key, string Desc) GetRightColumnRow(int rowIndex)
+        {
+            int i = rowIndex * 2;
+            if (rowIndex < 0 || i >= KeyTableRight.Length)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(rowIndex), "按键表右栏行下标越界：" + rowIndex + "（共 " + KeyTableRight.Length / 2 + " 行）");
+            }
+            return (KeyTableRight[i], KeyTableRight[i + 1]);
+        }
 
         private static readonly string[] Steps =
         {
@@ -238,18 +328,27 @@ namespace MyWorld.Unity.UI
         {
             float y = bg.y + 78;
 
-            // 按键表双栏（m6 终审修 I2）：左栏基础操作 8 行、右栏菜单开关 8 行。
+            // 按键表双栏（m6 终审修 I2）：左栏基础操作 8 行、右栏菜单开关 9 行（m7 A4 补 Alt+F4）。
             // 列宽：键名 140 / 说明 190（默认字体 13px，最长说明 10 个汉字 ≈ 130px，不溢出）
             var white = ItemSlotDrawer.WhiteStyle();
             GUI.Label(new Rect(bg.x + 24, y, 200, 22), "基础操作", white);
             GUI.Label(new Rect(bg.x + 372, y, 200, 22), "菜单开关", white);
             y += 26;
-            for (int i = 0; i < KeyTableLeft.Length; i += 2)
+            // 按 KeyTableRowCount（两栏较长者）遍历：条目恒成对（键名+说明），判 i 即可；
+            // 只按左栏行数走的话右栏第 9 行（Alt+F4）会被静默截掉
+            for (int row = 0; row < KeyTableRowCount; row++)
             {
-                GUI.Label(new Rect(bg.x + 24, y, 140, 22), KeyTableLeft[i], white);
-                GUI.Label(new Rect(bg.x + 168, y, 190, 22), KeyTableLeft[i + 1], white);
-                GUI.Label(new Rect(bg.x + 372, y, 140, 22), KeyTableRight[i], white);
-                GUI.Label(new Rect(bg.x + 516, y, 180, 22), KeyTableRight[i + 1], white);
+                int i = row * 2;
+                if (i < KeyTableLeft.Length)
+                {
+                    GUI.Label(new Rect(bg.x + 24, y, 140, 22), KeyTableLeft[i], white);
+                    GUI.Label(new Rect(bg.x + 168, y, 190, 22), KeyTableLeft[i + 1], white);
+                }
+                if (i < KeyTableRight.Length)
+                {
+                    GUI.Label(new Rect(bg.x + 372, y, 140, 22), KeyTableRight[i], white);
+                    GUI.Label(new Rect(bg.x + 516, y, 180, 22), KeyTableRight[i + 1], white);
+                }
                 y += 24;
             }
 
@@ -415,7 +514,28 @@ namespace MyWorld.Unity.UI
             y += 60;
             GUI.Label(new Rect(bg.x + 24, y, 660, 20),
                 "设置改动立即生效并自动保存。", ItemSlotDrawer.WhiteStyle());
+
+            // ── 保存并退出（m7 A4）：全游戏唯一的玩家退出入口，放设置页最底部 ──
+            y += 44;
+            if (_quitPending)
+            {
+                // 点击后按钮被确认文本顶替：既给「存好了」的反馈，也物理上防手抖双击
+                GUI.Label(new Rect(bg.x + 24, y, 660, 26), QuitStatusText, ItemSlotDrawer.WhiteStyle());
+            }
+            else
+            {
+                var prevColor = GUI.backgroundColor;
+                GUI.backgroundColor = QuitButtonColor;
+                if (GUI.Button(new Rect(bg.x + 24, y, bg.width - 48, 34), "保存并退出游戏"))
+                    RequestSaveAndQuit();
+                GUI.backgroundColor = prevColor;
+            }
         }
+
+        /// <summary>「保存并退出」按钮的红色系底色（spec §4：退出是不可逆操作，
+        /// 用红色系与普通按钮区分；GUI.backgroundColor 染默认按钮皮肤即可，不引新贴图）。</summary>
+        private static readonly Color QuitButtonColor =
+            new Color(0.82f, 0.28f, 0.24f, 1f);
     }
 
     /// <summary>帮助菜单全链进度条中一格的显示状态（m6 C5）。</summary>

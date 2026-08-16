@@ -4,8 +4,14 @@ using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using MyWorld.Core.Entities;
+using MyWorld.Core.Persistence;
+using MyWorld.Core.Player;
 using MyWorld.Core.Quests;
+using MyWorld.Core.Time;
+using MyWorld.Core.Voxel;
 using MyWorld.Unity.Gameplay;
+using MyWorld.Unity.Persistence;
 using MyWorld.Unity.Player;
 using MyWorld.Unity.UI;
 
@@ -20,6 +26,11 @@ namespace MyWorld.Core.Tests.UI
     /// 「怎么玩」页的当前目标全文 + 全链 8 格进度条全部从这一个快照取数，
     /// 不自己记账（单一真源是总线挂的 <see cref="QuestSystem"/>）。
     /// </para>
+    /// <para>
+    /// m7 A4 追加：「保存并退出」按钮契约——点击即 <c>SaveNow(async:false)</c> 同步落盘
+    /// （注入真实 SaveLoadService 断言 level.dat 立即存在）、半秒停留窗后才触发退出
+    /// （<see cref="HelpMenuUi.QuitRequested"/> 注入计数器、时钟注入步进，不真退测试进程）。
+    /// </para>
     /// </summary>
     [TestFixture]
     public class HelpMenuUiTests
@@ -29,6 +40,9 @@ namespace MyWorld.Core.Tests.UI
         /// <summary>挂任务总线用的宿主（C5 测试按需创建，无总线用例不建）。</summary>
         private GameObject _questHost;
         private QuestEventBus _bus;
+
+        /// <summary>m7 A4 保存并退出用例的存档根目录（SetUp 建、TearDown 删，互不串档）。</summary>
+        private string _saveRoot;
 
         /// <summary>
         /// 默认测试链（8 个任务，与真实首章等长）：q1–q3、q5–q8 是 SurviveNight
@@ -99,6 +113,9 @@ namespace MyWorld.Core.Tests.UI
             BlockInteraction.InputLocked = false;
             // m6 终审修 C1：Toggle/HandleKey 现在也登记 UiCursorGate，静态门跨夹具清一次
             UiCursorGate.Reset();
+            _saveRoot = Path.Combine(Application.temporaryCachePath,
+                $"helpmenu-quit-{System.Guid.NewGuid():N}");
+            Directory.CreateDirectory(_saveRoot);
         }
 
         [TearDown]
@@ -109,6 +126,7 @@ namespace MyWorld.Core.Tests.UI
             PlayerPrefs.DeleteKey(HelpMenuUi.FovKey);
             BlockInteraction.InputLocked = false;
             UiCursorGate.Reset();
+            if (Directory.Exists(_saveRoot)) Directory.Delete(_saveRoot, true);
             // EditMode 下 DestroyImmediate 不回调 OnDestroy（无 [ExecuteAlways]），
             // Instance 会残留指向已销毁组件的引用——GetProgressSummary 的 Unity 判空兜底，但别污染别的夹具
             if (_questHost != null) Object.DestroyImmediate(_questHost);
@@ -367,6 +385,160 @@ namespace MyWorld.Core.Tests.UI
                 Throws.TypeOf<System.ArgumentOutOfRangeException>(), "负下标写严格");
             Assert.That(() => s.GetSlotState(8),
                 Throws.TypeOf<System.ArgumentOutOfRangeException>(), "8 格链的下标 8 越界");
+        }
+
+        // ─── m7 A4：保存并退出（同步落盘 → 半秒停留 → 退出） ───────────────
+
+        /// <summary>建一棵最小可保存的树（PlayerContext + PlayerController + SaveLoadService，
+        /// 档落 _saveRoot）。「保存并退出」按钮注入的存档服务就挂这棵树上，
+        /// 用真实 SaveNow(async:false) 路径断言，不造假存档。</summary>
+        private SaveLoadService BuildSaveHost(out PlayerContext ctx)
+        {
+            var host = new GameObject("HelpMenuQuitSaveHost");
+            ctx = host.AddComponent<PlayerContext>();
+            // EditMode 下 AddComponent 不回调 Awake：PlayerContext 各系统显式赋值
+            //（同 SaveLoadServiceSaveTests 的注释，防单例残留形态）
+            ctx.Inventory = new PlayerInventory();
+            ctx.Health = new Health(20f);
+            ctx.Time = new TimeOfDay();
+            var player = host.AddComponent<PlayerController>();
+            var service = host.AddComponent<SaveLoadService>();
+            service.Bind(new World(), ctx, player, seed: 42, saveRoot: _saveRoot);
+            return service;
+        }
+
+        [Test]
+        public void 保存并退出_同步落盘_半秒后触发一次退出()
+        {
+            SaveLoadService service = BuildSaveHost(out PlayerContext ctx);
+            try
+            {
+                // 同步路径不得走后台执行器：一旦被调即失败（退出保存必须内联落盘）
+                service.WriteExecutor = a => Assert.Fail("退出保存必须同步落盘，不得调度后台执行器");
+
+                var ui = NewMenu();
+                try
+                {
+                    ui.SaveService = service; // 注入存档服务，懒查找留给生产路径
+                    float now = 0f;
+                    ui.QuitClock = () => now; // 注入时钟：EditMode 不跑 Update，步进 0.5s 停留窗
+                    int quitCount = 0;
+                    ui.QuitRequested = () => quitCount++; // 退出动作注入：不真退出测试进程
+
+                    Assert.That(ui.QuitStatusText, Is.Null, "未点击时应显示按钮而不是确认文本");
+
+                    ui.RequestSaveAndQuit();
+
+                    Assert.That(File.Exists(service.LevelDataPath), Is.True,
+                        "点击即同步保存：SaveNow(async:false) 返回时 level.dat 已落盘");
+                    Assert.That(ui.QuitStatusText, Is.EqualTo("已保存，正在退出…"),
+                        "保存到退出之间要显示确认文本（半秒停留窗就是为让它被看见）");
+                    Assert.That(quitCount, Is.EqualTo(0), "刚保存完不得立刻退出——停留窗还没走完");
+
+                    now = 0.25f;
+                    ui.TickQuit();
+                    Assert.That(quitCount, Is.EqualTo(0), "0.25s < 0.5s：停留窗内不退");
+
+                    now = 0.5f;
+                    ui.TickQuit();
+                    Assert.That(quitCount, Is.EqualTo(1), "满 0.5s 应触发一次退出");
+
+                    ui.TickQuit();
+                    Assert.That(quitCount, Is.EqualTo(1), "退出动作只触发一次，不得每帧重复调");
+                }
+                finally
+                {
+                    Object.DestroyImmediate(ui.gameObject);
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(service.gameObject);
+            }
+        }
+
+        [Test]
+        public void 保存并退出_手抖双击_只保存一次()
+        {
+            SaveLoadService service = BuildSaveHost(out PlayerContext ctx);
+            try
+            {
+                ctx.Time.CurrentTick = 1234f;
+
+                var ui = NewMenu();
+                try
+                {
+                    ui.SaveService = service;
+                    ui.QuitClock = () => 0f;
+                    ui.QuitRequested = () => { };
+
+                    ui.RequestSaveAndQuit();
+                    ctx.Time.CurrentTick = 9999f; // 两次点击之间世界时间变了
+                    ui.RequestSaveAndQuit();      // 第二次点击应整轮忽略
+
+                    var loaded = LevelDataCodec.Load(service.LevelDataPath);
+                    Assert.That(loaded.TimeTick, Is.EqualTo(1234f),
+                        "第二次点击不得重复保存——档里应是首次点击时刻的世界时间");
+                }
+                finally
+                {
+                    Object.DestroyImmediate(ui.gameObject);
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(service.gameObject);
+            }
+        }
+
+        [Test]
+        public void 保存并退出_无存档服务_不抛异常照常退出()
+        {
+            // 早期场景（没挂 WorldBootstrap / SaveLoadService）形态：点退出只退不存，不得炸
+            var ui = NewMenu();
+            try
+            {
+                float now = 0f;
+                ui.QuitClock = () => now;
+                int quitCount = 0;
+                ui.QuitRequested = () => quitCount++;
+
+                Assert.DoesNotThrow(() => ui.RequestSaveAndQuit(),
+                    "场景里找不到 SaveLoadService 不得抛异常");
+                Assert.That(ui.QuitStatusText, Is.EqualTo("正在退出…"),
+                    "没存过档不得谎报「已保存」");
+                now = 0.5f;
+                ui.TickQuit();
+                Assert.That(quitCount, Is.EqualTo(1), "无存档服务也应正常退出");
+            }
+            finally
+            {
+                Object.DestroyImmediate(ui.gameObject);
+            }
+        }
+
+        [Test]
+        public void 按键表_AltF4行_直接退出自动存档()
+        {
+            // m7 A4：右栏补第 9 行 Alt+F4（两栏自此不等长，绘制按较长者遍历）。
+            // 顺着渲染行数扫一遍，确认 Alt+F4 行真的落在会被画出来的范围内——
+            // 循环若仍只按左栏 8 行走，右栏末行会被静默截掉。
+            string desc = null;
+            int altRow = -1;
+            for (int row = 0; row < HelpMenuUi.KeyTableRowCount; row++)
+            {
+                var (key, d) = HelpMenuUi.GetRightColumnRow(row);
+                if (key == "Alt+F4")
+                {
+                    altRow = row;
+                    desc = d;
+                    break;
+                }
+            }
+            Assert.That(altRow, Is.GreaterThanOrEqualTo(0),
+                "按键表应有 Alt+F4 行，且落在渲染行数范围内（左栏 8 行截不住右栏第 9 行）");
+            Assert.That(desc, Is.EqualTo("直接退出（自动存档）"),
+                "说明要写明自动存档——Alt+F4 走 OnApplicationQuit 同步落盘，是既有行为");
         }
     }
 }
