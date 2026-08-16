@@ -218,17 +218,21 @@ dirt/log 复用方块贴图降采样，其余 12 张按物品语义程序绘制�
 | --- | --- | --- | --- | --- | --- | --- |
 | M6-I | [14 张物品贴图批量](requests/items/m6-placeholder-batch.md) | 14 | 16×16 | 否 | 12 张**有** | 已入库（程序占位，待正式美术替换） |
 
-### m10 批 · 2 张新矿石贴图（程序占位）
+### m10 批 · 矿物贴图（程序占位）
 
-milestone-10 新增夏季合金/机元两矿（金/粗铁直接复用 B-14 已入库的
-gold-ore / iron-ore）。**当前是程序占位**
-（`art/scripts/gen_m10_ore_placeholders.py`：stone.png 逐像素打底 +
-确定性哈希布斑块，面积/外圈/间隔约束对齐 B-14 验收标准）。
+milestone-10 矿物进阶的 6 张新贴图全部先程序占位：
+
+- 2 张矿石方块：夏季合金/机元（金/粗铁直接复用 B-14 已入库的
+  gold-ore / iron-ore）。`art/scripts/gen_m10_ore_placeholders.py`：
+  stone.png 逐像素打底 + 确定性哈希布斑块，面积/外圈/间隔约束对齐 B-14 验收标准
+- 4 张材料物品图标：粗金/粗铁/夏季合金/机元（挖矿掉落物，进背包要立刻有图）。
+  `art/scripts/gen_m10_item_placeholders.py`：ASCII 形状 + 确定性哈希铺色（m6 批同模式）
 
 | 编号 | 资源 | 文件数 | 尺寸 | 平铺 | Alpha | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
 | M10-A | [夏季合金矿石](requests/blocks/summer-alloy-ore.md) | 1 | 32×32 | 继承石头 | 无 | 已入库（程序占位，待正式美术替换） |
 | M10-B | [机元矿石](requests/blocks/machine-essence-ore.md) | 1 | 32×32 | 继承石头 | 无 | 已入库（程序占位，待正式美术替换） |
+| M10-C | [4 张材料物品图标](requests/items/m10-material-placeholders.md) | 4 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
 
 ### 第 3 批 · 待玩法定案后再写提示词
 

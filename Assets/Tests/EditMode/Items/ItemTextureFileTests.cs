@@ -46,6 +46,8 @@ namespace MyWorld.Core.Tests.Items
             // 杂项（string_ 是 id，因为 string 是 C# 关键字；texture 名仍是 string）
             "wool", "book", "enchanted_book", "string_", "gunpowder", "bone",
             "skull", "crafting_table",
+            // m10 A1 四材料（矿石掉落物，进背包立刻要显示图标）
+            "raw_gold", "raw_iron", "summer_alloy", "machine_essence",
         };
 
         [Test]
