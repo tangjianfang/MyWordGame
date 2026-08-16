@@ -179,9 +179,9 @@ namespace MyWorld.Unity.Combat
         /// m8 A2：按累计相位摆腿——每条腿绕髋部枢轴的 X 角 =
         /// sin(phase + LegPhase) × <see cref="LegSwingDegrees"/>。
         /// 对角步态由部位表的 LegPhase（0/π）天然给出（FL=BR 同相、FR=BL 反相）。
-        /// phase 由 MobManager 按帧间位移累计（phase += 位移×8f）：站定不增，
-        /// 停步后随 sin 过零自然回正（选简方案，不做停步缓动）。
-        /// 无腿生物（村民长袍到脚）是 no-op。
+        /// phase 由 MobManager 按帧间位移累计（phase += 位移×8f）；站定时由 MobManager
+        /// 把相位缓动到最近的 π 整数倍（fix1：sin(nπ + LegPhase)=0，腿摆回正直立，
+        /// 不冻结在半摆位）。无腿生物（村民长袍到脚）是 no-op。
         /// </summary>
         public void SetWalkPhase(float phase)
         {

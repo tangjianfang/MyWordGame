@@ -44,13 +44,20 @@ namespace MyWorld.Unity.Combat
         private readonly Dictionary<int, GameObject> _views = new Dictionary<int, GameObject>();
 
         // m8 A2：walk phase 驱动状态（键 = EntityId，RemoveMobAt 一并清理）。
-        // 相位按帧间水平位移累计：phase += 位移 × WalkPhasePerMeter，
-        // 站定位移为 0 相位不增，腿随 sin 过零自然回正（选简方案，不做停步缓动）。
+        // 相位按帧间水平位移累计：phase += 位移 × WalkPhasePerMeter；
+        // 站定（帧间位移 < StandStillDisplacement）时相位向最近的 π 整数倍缓动
+        // （m8 A2 fix1：sin(nπ)=0，腿摆回正直立——不再是停在半摆位冻结）。
         private readonly Dictionary<int, MobView> _viewComponents = new Dictionary<int, MobView>();
         private readonly Dictionary<int, WalkDrive> _walkDrives = new Dictionary<int, WalkDrive>();
 
         /// <summary>腿摆相位随移动距离的累计速率（rad/格）：1.5 m/s 的猪 ≈ 每秒 12 rad ≈ 2 步/秒。</summary>
         private const float WalkPhasePerMeter = 8f;
+
+        /// <summary>站定判定阈值（格/帧）：帧间位移小于它视为没在走，进入缓动归零。</summary>
+        private const float StandStillDisplacement = 0.001f;
+
+        /// <summary>站定时相位向最近 π 整数倍的缓动速率（1/秒）：约 0.3s 内腿摆回正直立。</summary>
+        private const float WalkPhaseEasePerSecond = 10f;
 
         private struct WalkDrive
         {
@@ -181,7 +188,7 @@ namespace MyWorld.Unity.Combat
             {
                 var m = _mobs[i];
                 MobAI.Tick(m, Float3_From(_player.position), _world, _time, dt, isNight);
-                DriveWalkPhase(m);
+                DriveWalkPhase(m, dt);
             }
 
             // 推进玩家死亡状态
@@ -247,16 +254,28 @@ namespace MyWorld.Unity.Combat
         /// <summary>
         /// m8 A2：腿摆驱动——按 <paramref name="m"/> 的帧间水平位移累计相位
         /// （phase += 位移 × <see cref="WalkPhasePerMeter"/>），推给 MobView.SetWalkPhase。
-        /// 第一帧只记录位置不摆腿（没有帧间位移可比）。
+        /// 站定（帧间位移 &lt; <see cref="StandStillDisplacement"/>）时相位向最近的
+        /// π 整数倍缓动归零（fix1）：sin(nπ + LegPhase)=0，四条腿摆回正直立，
+        /// 不会冻结在半摆位。第一帧只记录位置不摆腿（没有帧间位移可比）。
         /// </summary>
-        private void DriveWalkPhase(Mob m)
+        private void DriveWalkPhase(Mob m, float dt)
         {
             if (!_viewComponents.TryGetValue(m.EntityId, out var view) || view == null) return;
             var pos = new Vector3(m.Position.X, m.Position.Y, m.Position.Z);
             if (_walkDrives.TryGetValue(m.EntityId, out var drive))
             {
                 float moved = new Vector2(pos.x - drive.LastPos.x, pos.z - drive.LastPos.z).magnitude;
-                drive.Phase += moved * WalkPhasePerMeter;
+                if (moved < StandStillDisplacement)
+                {
+                    // 站定缓动归零：向最近 π 整数倍指数逼近（fix1，体验优于冻结在半摆位）
+                    float target = Mathf.Round(drive.Phase / Mathf.PI) * Mathf.PI;
+                    drive.Phase += (target - drive.Phase) * Mathf.Min(1f, dt * WalkPhaseEasePerSecond);
+                }
+                else
+                {
+                    drive.Phase += moved * WalkPhasePerMeter;
+                }
+                drive.LastPos = pos; // 基准推进到本帧（fix1：漏更会让 moved 变成「距出生点的累计距离」，相位二次加速且永不站定）
                 _walkDrives[m.EntityId] = drive;
                 view.SetWalkPhase(drive.Phase);
             }

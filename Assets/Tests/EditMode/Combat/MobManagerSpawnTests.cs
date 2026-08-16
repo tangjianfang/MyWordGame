@@ -178,6 +178,85 @@ namespace MyWorld.Core.Tests.Combat
                 "拼装后子物体数应等于部位表部位数（实际 kind=" + spawned.Kind + "）");
         }
 
+        /// <summary>
+        /// m8 A2 fix1：站定缓动归零——mob 停下（帧间位移 &lt; 0.001）后，walk phase 向最近的
+        /// π 整数倍缓动，腿摆角应收敛到 0°（±2° 容差），不再冻结在半摆位。
+        /// EditMode 下 Update 不自动跑，反射直调 DriveWalkPhase(mob, dt) 逐帧驱动。
+        /// </summary>
+        [Test]
+        public void DriveWalkPhase_StandingStill_EasesLegsBackToZero()
+        {
+            Mob spawned = null;
+            GameObject spawnedGo = null;
+            for (int seed = 1; seed <= 200; seed++)
+            {
+                int before = _mgr.ActiveMobs.Count;
+                _mgr.TickSpawn(seed, dayNightPhase: 0.25f);
+                if (_mgr.ActiveMobs.Count > before)
+                {
+                    var cand = _mgr.ActiveMobs[_mgr.ActiveMobs.Count - 1];
+                    if (!HasLegs(cand.Kind)) continue; // 村民无腿（no-op），等下一只有腿的
+                    spawned = cand;
+                    spawnedGo = GameObject.Find($"Mob_{cand.Kind}_{cand.EntityId}");
+                    break;
+                }
+            }
+            Assert.That(spawnedGo, Is.Not.Null, "白天 + Plains 应能刷出有腿的友好生物（猪/牛/鸡）");
+
+            const float dt = 1f / 60f;
+            // 走 10 帧（1.5 格/秒）：phase = 位移×8 = 1.5×8×10/60 = 2 rad，
+            // sin(2)≈0.91 → 腿摆 ~18°，处在明显的半摆位
+            for (int i = 0; i < 10; i++)
+            {
+                spawned.Position = new MyWorld.Core.Math.Float3(
+                    spawned.Position.X + 1.5f * dt, spawned.Position.Y, spawned.Position.Z);
+                InvokeDriveWalkPhase(spawned, dt);
+            }
+            float maxBefore = MaxLegAngle(spawnedGo, spawned.Kind);
+            Assert.That(maxBefore, Is.GreaterThan(2f),
+                "停步前应处于明显摆腿状态（最大摆角 > 2°，实际 " + maxBefore.ToString("F2") + "°）");
+
+            // 站定 120 帧（2s；缓动速率 10/s → 残差 ~e^-20）：相位收敛到最近 π 整数倍
+            for (int i = 0; i < 120; i++)
+            {
+                InvokeDriveWalkPhase(spawned, dt);
+            }
+            float maxAfter = MaxLegAngle(spawnedGo, spawned.Kind);
+            Assert.That(maxAfter, Is.LessThanOrEqualTo(2f),
+                "站定 2s 后腿摆应缓动归零（±2° 容差，实际最大 " + maxAfter.ToString("F2") + "°）");
+        }
+
+        private static bool HasLegs(MobKind kind)
+        {
+            foreach (var part in MobModels.Build(kind))
+            {
+                if (part.IsLeg) return true;
+            }
+            return false;
+        }
+
+        private static float MaxLegAngle(GameObject go, MobKind kind)
+        {
+            float max = 0f;
+            foreach (var part in MobModels.Build(kind))
+            {
+                if (!part.IsLeg) continue;
+                var pivot = go.transform.Find(part.Name);
+                Assert.That(pivot, Is.Not.Null, "应找到腿枢轴 " + part.Name);
+                max = Mathf.Max(max, Mathf.Abs(Mathf.DeltaAngle(0f, pivot.localRotation.eulerAngles.x)));
+            }
+            return max;
+        }
+
+        private void InvokeDriveWalkPhase(Mob mob, float dt)
+        {
+            // EditMode 下 MobManager.Update 不自动跑，反射直调私有 DriveWalkPhase(mob, dt)
+            var method = typeof(MobManager).GetMethod("DriveWalkPhase",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, "MobManager 应有私有 DriveWalkPhase 方法");
+            method.Invoke(_mgr, new object[] { mob, dt });
+        }
+
         private static string SpawnRulesPath()
         {
             return Path.Combine(Application.streamingAssetsPath, "mobs", "spawn_rules.json");
