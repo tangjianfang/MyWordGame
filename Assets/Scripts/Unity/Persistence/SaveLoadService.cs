@@ -20,7 +20,9 @@ namespace MyWorld.Unity.Persistence
     /// 读：<see cref="TryRestore"/>（B3），由 Bootstrap 在世界就绪后调用。
     /// <para>m5 C3 起写盘移后台线程：主线程只做快照收集（纯数据冻结），JSON 序列化 +
     /// Deflate + 文件 IO 全部在 <see cref="WriteExecutor"/>（默认 Task.Run）执行，
-    /// 30s 自动保存不再顿挫。退出走 <see cref="SaveNow(bool)"/>(async:false) 同步落盘。</para>
+    /// 30s 自动保存不再顿挫。退出走 <see cref="SaveNow(bool)"/>(async:false) 同步落盘，
+    /// m7 A4 fix1 起返回成败（失败原因经 <see cref="LastSaveError"/>）——
+    /// 帮助菜单「保存并退出」据它决定退出还是留下重试，IO 失败不静默吞掉后照退。</para>
     /// </summary>
     public sealed class SaveLoadService : MonoBehaviour
     {
@@ -78,18 +80,25 @@ namespace MyWorld.Unity.Persistence
 
         private void OnApplicationQuit() => SaveNow(async: false);
 
-        /// <summary>异步保存（自动保存 / 手动保存）：主线程冻结快照，写盘交 <see cref="WriteExecutor"/>。</summary>
-        public void SaveNow() => SaveNow(async: true);
+        /// <summary>异步保存（自动保存 / 手动保存）：主线程冻结快照，写盘交 <see cref="WriteExecutor"/>。
+        /// 返回本轮是否成功调度（撞重叠保护 / 调度失败为 false；写盘本身的成败稍后经
+        /// <see cref="LastSaveError"/> 与错误日志发布）。既有调用方（30s 自动保存等）忽略返回值，语义不变。</summary>
+        public bool SaveNow() => SaveNow(async: true);
 
         /// <summary>收集状态并落盘。level.dat 与 region 两层各自容错：一层失败不影响另一层，
         /// region 失败的脏区块保留下轮重试（见 RegionSaveCoordinator）。
         /// <para><paramref name="async"/> = true：重叠保护——上一轮后台写盘未完成时整轮跳过；
-        /// false：同步落盘（退出路径），先等在途后台写完成再内联执行（保证单写者，File.Replace 不被并发破坏）。</para></summary>
-        public void SaveNow(bool async)
+        /// false：同步落盘（退出路径），先等在途后台写完成再内联执行（保证单写者，File.Replace 不被并发破坏）。</para>
+        /// <para>m7 A4 fix1 起返回本轮保存是否成功（void → bool，源兼容，既有调用方照旧）：
+        /// async=false 返回「同步写完且两层都无错误」——帮助菜单「保存并退出」靠它决定
+        /// 退出还是留下重试，IO 失败不再被静默吞掉后照退（丢档）。async=true 只承诺
+        /// 「本轮成功调度」（写盘在后台，成败看稍后的错误日志 / <see cref="LastSaveError"/>）。
+        /// 未 Bind 直接返回 true：无事发生，不算失败。</para></summary>
+        public bool SaveNow(bool async)
         {
-            if (_world == null || _context == null) return; // 未 Bind，静默跳过
+            if (_world == null || _context == null) return true; // 未 Bind，静默跳过
             ApplyPendingClears();
-            if (async && _writeInProgress) return; // 重叠保护：上一轮还在写，本轮跳过（30s 后再来）
+            if (async && _writeInProgress) return false; // 重叠保护：上一轮还在写，本轮跳过（30s 后再来）
             if (!async)
             {
                 // 同步路径（退出前落盘）必须等在途后台写完成：两个写者并发 File.Replace/File.Move
@@ -104,6 +113,8 @@ namespace MyWorld.Unity.Persistence
             string levelPath = LevelDataPath;
             string regionsDir = RegionsDir;
 
+            bool failed = false; // Write() 闭包写入；async 路径调度完即返回不读它，无跨线程读
+
             void Write()
             {
                 var written = new List<ChunkPos>();
@@ -117,6 +128,7 @@ namespace MyWorld.Unity.Persistence
                     }
                     catch (Exception ex)
                     {
+                        failed = true;
                         errors.Add($"level.dat 保存失败：{ex.Message}");
                     }
 
@@ -126,6 +138,7 @@ namespace MyWorld.Unity.Persistence
                     }
                     catch (Exception ex)
                     {
+                        failed = true;
                         errors.Add($"region 保存失败（脏区块保留下轮重试）：{ex.Message}");
                     }
 
@@ -134,6 +147,7 @@ namespace MyWorld.Unity.Persistence
                     foreach (ChunkPos pos in written) pending.Add((pos, versions[pos]));
                     _pendingClear = pending;
                     _pendingErrors = errors.Count > 0 ? errors : null;
+                    _lastSaveErrors = errors.Count > 0 ? errors : null;
                 }
                 finally
                 {
@@ -155,14 +169,27 @@ namespace MyWorld.Unity.Persistence
                     // 退出路径的等待在途写也会死等。脏区块语义不变：本轮没写成，保留下轮重试。
                     _writeInProgress = false;
                     Debug.LogError($"[SaveLoadService] 写盘调度失败（本轮跳过，脏区块保留下轮重试）：{ex.Message}");
+                    return false;
                 }
+                return true; // 调度成功即返回（写盘成败稍后发布）
             }
-            else
-            {
-                Write(); // 同步路径不经执行器，内联落盘
-                ApplyPendingClears(); // 内联写已完成，清脏立即生效
-            }
+
+            Write(); // 同步路径不经执行器，内联落盘
+            ApplyPendingClears(); // 内联写已完成，清脏立即生效
+            return !failed; // 写盘已内联完成，成败立即可知
         }
+
+        /// <summary>最近一轮<b>完成写盘</b>的保存错误清单（空 = 无错误）。与
+        /// <see cref="_pendingClear"/> 同一处发布（后台线程写、主线程读，volatile 标志保证可见性），
+        /// 撞重叠保护被跳过的轮次不会更新它。m7 A4 fix1：帮助菜单「保存并退出」
+        /// 在 SaveNow 返回 false 时经 <see cref="LastSaveError"/> 把原因亮给玩家。</summary>
+        private List<string> _lastSaveErrors;
+
+        /// <summary>最近一轮完成写盘的保存错误全文（两层错误「；」连接）；无错误为 null。</summary>
+        public string LastSaveError =>
+            _lastSaveErrors != null && _lastSaveErrors.Count > 0
+                ? string.Join("；", _lastSaveErrors)
+                : null;
 
         /// <summary>消化上一轮后台写盘的结果（只在主线程跑）：先补发错误日志
         /// （Debug.Log 虽号称线程安全，但本项目红线是后台零 UnityEngine API），

@@ -24,8 +24,10 @@ namespace MyWorld.Unity.UI
     /// <para>
     /// m7 A4：设置页底部加红色系「保存并退出游戏」按钮——点击即
     /// <see cref="SaveLoadService.SaveNow(bool)"/>(async:false) 同步落盘，
-    /// 半秒停留窗显示「已保存，正在退出…」后退出。退出动作 / 时钟 / 存档服务
-    /// 均可注入（EditMode 测试不真退、不真写用户目录）。
+    /// <b>存成后</b>半秒停留窗显示「已保存，正在退出…」再退出；保存失败（fix1）
+    /// 绝不退出——按钮留原地可重试，红字提示带原因与 Alt+F4 退路。
+    /// 退出动作 / 时钟 / 存档服务 / 同步保存调用均可注入
+    /// （EditMode 测试不真退、不真写用户目录）。
     /// </para>
     /// </summary>
     public sealed class HelpMenuUi : MonoBehaviour
@@ -162,29 +164,69 @@ namespace MyWorld.Unity.UI
         /// EditMode 测试直接注入绑好临时目录的实例，不碰用户真实存档。</summary>
         internal SaveLoadService SaveService;
 
+        /// <summary>同步保存调用（可注入，fix1）。默认
+        /// <see cref="SaveLoadService.SaveNow(bool)"/>(async:false)，返回本轮是否存成。
+        /// EditMode 测试注入抛异常的假保存——真实 SaveNow 对 IO 错误是捕获后记录
+        /// （log-and-continue）返回 false 不抛，异常分支是快照收集段没有兜底的形态。</summary>
+        internal Func<SaveLoadService, bool> SaveNowSync = service => service.SaveNow(async: false);
+
         private static float DefaultQuitClock() => Time.time;
 
-        private bool _quitPending;  // 已点「保存并退出」：按钮换成确认文本，防手抖双击
+        private bool _quitPending;  // 已点「保存并退出」且存成：按钮换成确认文本，防手抖双击
         private bool _quitSaved;    // 本次退出流程是否真的落过盘（无存档服务时不谎报「已保存」）
         private bool _quitFired;    // QuitRequested 已触发：只退一次，不每帧重复调
         private float _quitAt;      // 同步保存完成的时刻（QuitClock 基准）
+        private string _quitError;  // 最近一次保存失败的提示（null = 无失败 / 已被新一轮尝试清除）
 
-        /// <summary>保存到退出之间的确认文本；未在退出流程中为 null（按钮照常显示）。</summary>
+        /// <summary>保存到退出之间的确认文本；未在退出流程中为 null（按钮照常显示）。
+        /// fix1：保存失败<b>不</b>进退出流程，此文本保持 null、按钮留在原处可重试。</summary>
         public string QuitStatusText => !_quitPending
             ? null
             : (_quitSaved ? "已保存，正在退出…" : "正在退出…");
 
+        /// <summary>保存失败的提示文本（带原因与 Alt+F4 退路）；无失败为 null。
+        /// 失败期间按钮保持可点——重试成功即清提示、照常进入退出流程。</summary>
+        public string QuitErrorText => _quitError;
+
         /// <summary>点「保存并退出游戏」按钮（OnGUI 回调，测试也可直调）：
         /// 同步落盘——<see cref="SaveLoadService.SaveNow(bool)"/>(async:false) 返回即写完，
-        /// 之后进入半秒停留窗再退出。重复调用（手抖双击）整轮忽略：退出流程只进一次。
-        /// 场景里没有存档服务（早期场景）时只退不存，不抛异常。</summary>
+        /// <b>存成后</b>才进入半秒停留窗再退出。重复调用（手抖双击）整轮忽略：退出流程只进一次。
+        /// <para>fix1：保存失败（SaveNow 返回 false / 抛异常）绝不退出——档可能没写全，
+        /// 退了就是丢档。留在原地：按钮恢复可点可重试，红字提示带原因与 Alt+F4 退路
+        /// （Alt+F4 走 OnApplicationQuit 同样同步落盘）。场景里没有存档服务（早期场景）
+        /// 时只退不存不抛异常。</para></summary>
         public void RequestSaveAndQuit()
         {
             if (_quitPending) return;
-            _quitPending = true;
             if (SaveService == null) SaveService = FindObjectOfType<SaveLoadService>();
+            _quitError = null; // 新一轮尝试，先清上轮失败提示
+
+            if (SaveService != null)
+            {
+                bool saved;
+                try
+                {
+                    saved = SaveNowSync(SaveService); // 退出路径必须同步：半秒后进程就没了
+                }
+                catch (Exception ex)
+                {
+                    // SaveNow 对 IO 错误是捕获后记录（返回 false），正常不抛；这里的异常
+                    // 来自快照收集段没兜住的部分——同样不得退出，留给玩家重试
+                    _quitError = "保存失败：" + ex.Message + "，重试或 Alt+F4";
+                    return;
+                }
+                if (!saved)
+                {
+                    string reason = SaveService.LastSaveError;
+                    _quitError = "保存失败：" + (string.IsNullOrEmpty(reason) ? "未知错误" : reason)
+                        + "，重试或 Alt+F4";
+                    return;
+                }
+            }
+
+            // 存成（或无存档系统）才进入退出流程
             _quitSaved = SaveService != null;
-            SaveService?.SaveNow(async: false); // 退出路径必须同步：半秒后进程就没了
+            _quitPending = true;
             _quitAt = QuitClock();
         }
 
@@ -524,12 +566,39 @@ namespace MyWorld.Unity.UI
             }
             else
             {
+                // 保存失败时按钮留在这里可重试（fix1），红字在按钮下方给原因与 Alt+F4 退路
                 var prevColor = GUI.backgroundColor;
                 GUI.backgroundColor = QuitButtonColor;
                 if (GUI.Button(new Rect(bg.x + 24, y, bg.width - 48, 34), "保存并退出游戏"))
                     RequestSaveAndQuit();
                 GUI.backgroundColor = prevColor;
+                if (_quitError != null)
+                {
+                    GUI.Label(new Rect(bg.x + 24, y + 40, bg.width - 48, 40), _quitError, QuitErrorStyle());
+                }
             }
+        }
+
+        /// <summary>保存失败提示的文字色（fix1）：比按钮底色亮一档的红，错误状态一眼可辨。</summary>
+        private static readonly Color QuitErrorColor =
+            new Color(0.98f, 0.38f, 0.32f, 1f);
+
+        private static GUIStyle _quitErrorStyle;
+
+        /// <summary>红字提示样式（必须在 OnGUI 内首用构造，同 CountStyle 模式）。</summary>
+        private static GUIStyle QuitErrorStyle()
+        {
+            if (_quitErrorStyle == null)
+            {
+                _quitErrorStyle = new GUIStyle(ItemSlotDrawer.WhiteStyle())
+                {
+                    wordWrap = true,
+                    normal = { textColor = QuitErrorColor },
+                    hover = { textColor = QuitErrorColor },
+                    active = { textColor = QuitErrorColor },
+                };
+            }
+            return _quitErrorStyle;
         }
 
         /// <summary>「保存并退出」按钮的红色系底色（spec §4：退出是不可逆操作，

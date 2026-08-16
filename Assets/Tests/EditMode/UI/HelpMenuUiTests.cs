@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Persistence;
 using MyWorld.Core.Player;
@@ -30,6 +32,11 @@ namespace MyWorld.Core.Tests.UI
     /// m7 A4 追加：「保存并退出」按钮契约——点击即 <c>SaveNow(async:false)</c> 同步落盘
     /// （注入真实 SaveLoadService 断言 level.dat 立即存在）、半秒停留窗后才触发退出
     /// （<see cref="HelpMenuUi.QuitRequested"/> 注入计数器、时钟注入步进，不真退测试进程）。
+    /// </para>
+    /// <para>
+    /// m7 A4 fix1 追加：保存失败（假保存抛异常 / 真实 IO 失败使 SaveNow 返回 false）
+    /// 绝不进入退出流程——按钮保持可点可重试，红字提示带原因与 Alt+F4 退路；
+    /// 重试成功后清失败提示、照常半秒退出。
     /// </para>
     /// </summary>
     [TestFixture]
@@ -445,6 +452,109 @@ namespace MyWorld.Core.Tests.UI
 
                     ui.TickQuit();
                     Assert.That(quitCount, Is.EqualTo(1), "退出动作只触发一次，不得每帧重复调");
+                }
+                finally
+                {
+                    Object.DestroyImmediate(ui.gameObject);
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(service.gameObject);
+            }
+        }
+
+        [Test]
+        public void 保存失败_假保存抛异常_不退出可重试()
+        {
+            // m7 A4 fix1：保存抛异常（快照收集段没有兜底的形态）绝不进入退出流程——
+            // 档可能还没写全就退，等于丢档。注入抛异常的假保存隔离验证 UI 侧契约
+            SaveLoadService service = BuildSaveHost(out PlayerContext ctx);
+            try
+            {
+                var ui = NewMenu();
+                try
+                {
+                    ui.SaveService = service;
+                    ui.SaveNowSync = s => throw new IOException("磁盘空间不足"); // 假保存：抛异常
+                    float now = 0f;
+                    ui.QuitClock = () => now;
+                    int quitCount = 0;
+                    ui.QuitRequested = () => quitCount++;
+
+                    ui.RequestSaveAndQuit();
+
+                    Assert.That(ui.QuitStatusText, Is.Null,
+                        "保存失败不得进入退出流程——按钮必须还在，玩家才能重试");
+                    Assert.That(ui.QuitErrorText, Does.Contain("磁盘空间不足"), "失败提示要带原因");
+                    Assert.That(ui.QuitErrorText, Does.Contain("Alt+F4"), "要给 Alt+F4 退路指引");
+                    now = 10f; // 时钟推到远超 0.5s
+                    ui.TickQuit();
+                    Assert.That(quitCount, Is.EqualTo(0), "保存失败绝不退出——先救人家的档");
+
+                    // 重试：换回真实保存，应清掉失败提示、照常进入退出流程
+                    ui.SaveNowSync = s => s.SaveNow(async: false);
+                    ui.RequestSaveAndQuit();
+                    Assert.That(File.Exists(service.LevelDataPath), Is.True, "重试应真的落盘");
+                    Assert.That(ui.QuitErrorText, Is.Null, "新一轮尝试要先清上轮失败提示");
+                    Assert.That(ui.QuitStatusText, Is.EqualTo("已保存，正在退出…"), "成功后照常进退出流程");
+                    now = 10.5f;
+                    ui.TickQuit();
+                    Assert.That(quitCount, Is.EqualTo(1), "重试成功后半秒照常退出");
+                }
+                finally
+                {
+                    Object.DestroyImmediate(ui.gameObject);
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(service.gameObject);
+            }
+        }
+
+        [Test]
+        public void 保存失败_SaveNow返回false_不退出可重试()
+        {
+            // m7 A4 fix1 的另一半：SaveNow 对 IO 错误是捕获后记录（log-and-continue）不抛，
+            // 靠返回 false 反馈。真实失败注入——把 <saveRoot>/<seed> 占成文件，
+            // 建目录即炸，走的就是玩家磁盘满 / 路径不可写时的真链路
+            SaveLoadService service = BuildSaveHost(out PlayerContext ctx);
+            try
+            {
+                string worldDir = Path.Combine(_saveRoot, "42");
+                File.WriteAllText(worldDir, "not a directory");
+
+                var ui = NewMenu();
+                try
+                {
+                    ui.SaveService = service;
+                    float now = 0f;
+                    ui.QuitClock = () => now;
+                    int quitCount = 0;
+                    ui.QuitRequested = () => quitCount++;
+
+                    // 真实 SaveNow 会把两层错误打进错误日志（ApplyPendingClears 补发），按序声明
+                    LogAssert.Expect(LogType.Error, new Regex("level\\.dat 保存失败"));
+                    LogAssert.Expect(LogType.Error, new Regex("region 保存失败"));
+
+                    ui.RequestSaveAndQuit();
+
+                    Assert.That(ui.QuitStatusText, Is.Null,
+                        "SaveNow 返回 false 不得进入退出流程");
+                    Assert.That(ui.QuitErrorText, Does.Contain("level.dat"),
+                        "失败提示要带真实原因（来自 SaveLoadService.LastSaveError）");
+                    now = 10f;
+                    ui.TickQuit();
+                    Assert.That(quitCount, Is.EqualTo(0), "保存失败绝不退出");
+
+                    // 重试：障碍清除后同一按钮应能存成并退出（可重试不是嘴上说说）
+                    File.Delete(worldDir);
+                    ui.RequestSaveAndQuit();
+                    Assert.That(File.Exists(service.LevelDataPath), Is.True, "障碍清除后重试应落盘");
+                    now = 10.5f;
+                    ui.TickQuit();
+                    Assert.That(quitCount, Is.EqualTo(1), "重试成功后半秒照常退出");
                 }
                 finally
                 {
