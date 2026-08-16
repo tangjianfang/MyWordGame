@@ -20,9 +20,14 @@ using MyWorld.Unity.UI;
 namespace MyWorld.Core.Tests.UI
 {
     /// <summary>
-    /// m6 B3：H 键帮助菜单的开关 / 按键路由 / PlayerPrefs 三键 round-trip 契约。
+    /// m6 B3：H 键帮助菜单的开关 / 按键路由 / 保存退出契约。
     /// InputLocked 静态门由 <see cref="HelpMenuUi"/> 的开关维护，
     /// <see cref="BlockInteraction.Update"/> 开头早退——这里测门的翻转，不拉起完整交互链路。
+    /// <para>
+    /// m8 B1：PlayerPrefs 三键 round-trip / 默认值 / Awake 读回的用例已随三滑条
+    /// 平移进 <see cref="SettingsPanelUiTests"/>（面板抽成公共组件，断言原样照跑），
+    /// 这里换上一条「设置页嵌入公共面板」的接线守卫。
+    /// </para>
     /// <para>
     /// m6 C5 追加：<see cref="HelpMenuUi.GetProgressSummary"/> 纯函数各状态——
     /// 「怎么玩」页的当前目标全文 + 全链 8 格进度条全部从这一个快照取数，
@@ -113,10 +118,8 @@ namespace MyWorld.Core.Tests.UI
         [SetUp]
         public void SetUp()
         {
-            // 每个测试前清掉三键，避免上个测试写入的值影响「默认值」断言
-            PlayerPrefs.DeleteKey(HelpMenuUi.SensitivityKey);
-            PlayerPrefs.DeleteKey(HelpMenuUi.VolumeKey);
-            PlayerPrefs.DeleteKey(HelpMenuUi.FovKey);
+            // 三滑条 / PlayerPrefs 三键的用例 m8 B1 平移进 SettingsPanelUiTests（键也归它清），
+            // 本夹具只测菜单开关 / 任务进度 / 保存退出
             BlockInteraction.InputLocked = false;
             // m6 终审修 C1：Toggle/HandleKey 现在也登记 UiCursorGate，静态门跨夹具清一次
             UiCursorGate.Reset();
@@ -128,9 +131,6 @@ namespace MyWorld.Core.Tests.UI
         [TearDown]
         public void TearDown()
         {
-            PlayerPrefs.DeleteKey(HelpMenuUi.SensitivityKey);
-            PlayerPrefs.DeleteKey(HelpMenuUi.VolumeKey);
-            PlayerPrefs.DeleteKey(HelpMenuUi.FovKey);
             BlockInteraction.InputLocked = false;
             UiCursorGate.Reset();
             if (Directory.Exists(_saveRoot)) Directory.Delete(_saveRoot, true);
@@ -194,43 +194,17 @@ namespace MyWorld.Core.Tests.UI
         }
 
         [Test]
-        public void Settings_ThreeKeys_RoundTripThroughPlayerPrefs()
+        public void 设置页_嵌入公共面板_Awake后同物体挂SettingsPanelUi()
         {
-            // Save → Load 相等（三键同构：灵敏度 / 音量 / FOV）
-            HelpMenuUi.SaveSensitivity(1.5f);
-            HelpMenuUi.SaveVolume(42f);
-            HelpMenuUi.SaveFov(85f);
-
-            Assert.That(HelpMenuUi.LoadSensitivity(), Is.EqualTo(1.5f), "灵敏度应原样回读");
-            Assert.That(HelpMenuUi.LoadVolume(), Is.EqualTo(42f), "音量应原样回读");
-            Assert.That(HelpMenuUi.LoadFov(), Is.EqualTo(85f), "FOV 应原样回读");
-        }
-
-        [Test]
-        public void Settings_Defaults_WhenKeysMissing()
-        {
-            // 没存过时必须返回默认值，而不是 0（0 灵敏度会让视角完全转不动）
-            Assert.That(HelpMenuUi.LoadSensitivity(), Is.EqualTo(HelpMenuUi.SensitivityDefault),
-                "灵敏度默认 1.0");
-            Assert.That(HelpMenuUi.LoadVolume(), Is.EqualTo(HelpMenuUi.VolumeDefault),
-                "音量默认 80");
-            Assert.That(HelpMenuUi.LoadFov(), Is.EqualTo(HelpMenuUi.FovDefault),
-                "FOV 默认 70");
-        }
-
-        [Test]
-        public void Awake_RestoresCurrentSettings_FromPlayerPrefs()
-        {
-            HelpMenuUi.SaveSensitivity(1.75f);
-            HelpMenuUi.SaveVolume(10f);
-            HelpMenuUi.SaveFov(88f);
-
+            // m8 B1：三滑条抽到公共 SettingsPanelUi，HelpMenuUi 改嵌入不再内联——
+            // Awake 必须保证面板就位（同物体懒挂），否则设置页 OnGUI 会空引用
             var ui = NewMenu();
             try
             {
-                Assert.That(ui.CurrentSensitivity, Is.EqualTo(1.75f), "Awake 应从 PlayerPrefs 读回灵敏度");
-                Assert.That(ui.CurrentVolume, Is.EqualTo(10f), "Awake 应从 PlayerPrefs 读回音量");
-                Assert.That(ui.CurrentFov, Is.EqualTo(88f), "Awake 应从 PlayerPrefs 读回 FOV");
+                Assert.That(ui.SettingsPanel, Is.Not.Null,
+                    "HelpMenuUi 应在 Awake 嵌入公共设置面板（m8 B1）");
+                Assert.That(ui.SettingsPanel.transform, Is.EqualTo(ui.transform),
+                    "面板挂同一物体——旧场景里已存的 HelpMenuUi 无需重存");
             }
             finally
             {
