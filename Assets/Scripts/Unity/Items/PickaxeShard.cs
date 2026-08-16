@@ -13,6 +13,12 @@ namespace MyWorld.Unity.Items
     /// 扣 0.5 血（<see cref="PlayerController.TakeDamage(float, object)"/>——复活无敌帧
     /// 自动生效，不抛 CombatEvents 所以无反击/无经验），2 秒后自毁。
     /// <para>
+    /// <b>fix1：伤害按「碎裂组」计</b>——同一次碎裂的所有碎块共享一次 0.5 伤害
+    /// （<see cref="Group"/>）。首版每块独立结算，碎块落点环带骑在接触半径上，
+    /// 站定典型吃 1.0-1.5、最坏同帧 3.0——孩子的设定是「碰到受伤」不是爆炸；
+    /// 收敛为一次碎裂无论怎么碰最多 0.5，两次碎裂才可能累计 1.0。
+    /// </para>
+    /// <para>
     /// <b>独立轻实体，不走 <see cref="ItemDropEntity"/> / PlayerContext.ItemDrops</b>：
     /// 掉落物那套语义（Content 物品栈 / 吸附拾取状态机 / 存档持久化）碎块一个都用不上，
     /// 硬加 IsShard 标记会让拾取 / 视图 / 存档三处消费方各自过滤；2 秒寿命的碎片也不该
@@ -27,6 +33,20 @@ namespace MyWorld.Unity.Items
     /// </summary>
     public sealed class PickaxeShard : MonoBehaviour
     {
+        /// <summary>
+        /// 同一次碎裂事件的碎块组（m10 B2 fix1）。一次碎裂的 4-6 块共享同一实例：
+        /// 组内任何一块扎过玩家即整组完成伤害。新的碎裂事件由
+        /// <see cref="SpawnScatter"/> 建新组，互不共享（两次碎裂各伤一次）。
+        /// <para>
+        /// 用共享引用而非 ShardGroupId 注册表：引用即组身份，组随最后一个碎块销毁被
+        /// GC 回收，没有全局可变状态要清理；EditMode 测试也因此无需注入组号。
+        /// </para>
+        /// </summary>
+        public sealed class ShardGroup
+        {
+            /// <summary>组内是否已有碎块扎过玩家——一次碎裂共享一次 0.5 伤害。</summary>
+            public bool HasStung;
+        }
         /// <summary>碎块边长（格）。掉落物 0.25，碎块更小（spec §2：0.15 格小方块）。</summary>
         public const float VisualSize = 0.15f;
 
@@ -62,14 +82,21 @@ namespace MyWorld.Unity.Items
 
         /// <summary>碎块出生高度：玩家脚底 +1.1（镐握在手上的高度）。刻意高于
         /// <see cref="ContactRadius"/>：出生瞬间扎不到脚，碎块落地（约 0.3-0.5s 后）才开始
-        /// 判定接触——给玩家一个「碎裂了快躲开」的反应窗口，这是「伤害很低不挫败」的手感来源。</summary>
+        /// 判定接触——留一个「碎裂了快躲开」的反应窗口，躲开连这 0.5 也免了
+        /// （fix1 后站定也只有 0.5，窗口是手感加分项而非数值阀门）。</summary>
         public const float SpawnChestHeight = 1.1f;
 
         /// <summary>当前速度（米/秒）。落地后整向量清零（碎块不弹跳不滚动）。</summary>
         public Float3 Velocity { get; private set; }
 
-        /// <summary>是否已扎过玩家。每个碎块最多扎一次——站着不动不会被同一块反复扎。</summary>
+        /// <summary>本块是否亲自扎过玩家。伤害判定看组（<see cref="Group"/>），
+        /// 这里只是单块的可观测标记（测试 / 调试用）。</summary>
         public bool HasStung { get; private set; }
+
+        /// <summary>所属碎裂组（m10 B2 fix1）。SpawnScatter 每次碎裂新建一组；
+        /// Create 直接调用时传 null 视作独占组（单块自己一组）。伤害共享见
+        /// <see cref="ShardGroup.HasStung"/>。</summary>
+        public ShardGroup Group { get; private set; }
 
         /// <summary>逻辑位置（世界坐标，米）。transform 只是它的逐帧映射。</summary>
         public Float3 Position { get; private set; }
@@ -99,6 +126,8 @@ namespace MyWorld.Unity.Items
             float restY = feet.y + VisualSize * 0.5f;
 
             var shards = new PickaxeShard[count];
+            // fix1：一次碎裂共享一个组——组内任何一块扎过即整组完成 0.5 伤害
+            var group = new ShardGroup();
             for (int i = 0; i < count; i++)
             {
                 // 每块独立掷角度与初速（seed + i*质数 区分，MobDropTable.RollAll 同款手法）
@@ -108,7 +137,7 @@ namespace MyWorld.Unity.Items
                 float radians = angleDegrees * Mathf.Deg2Rad;
                 shards[i] = Create(null, origin, restY,
                     new Float3(Mathf.Cos(radians) * horizontal, up, Mathf.Sin(radians) * horizontal),
-                    color, player, Time.time);
+                    color, player, Time.time, group);
             }
             return shards;
         }
@@ -117,9 +146,12 @@ namespace MyWorld.Unity.Items
         /// 建单个碎块。生产路径只经 <see cref="SpawnScatter"/>；EditMode 测试直接调用以注入
         /// 位置 / 速度 / 出生时刻。<paramref name="parent"/> 为 null 时挂场景根——
         /// 碎块是世界空间物体，不跟任何会移动的父节点走（挂玩家身上会被拖着满场飞）。
+        /// <paramref name="group"/> 传 null 视作独占组；一次碎裂的多块要共享伤害时
+        /// 由 SpawnScatter 传同一实例。
         /// </summary>
         public static PickaxeShard Create(Transform parent, Float3 position, float restY,
-            Float3 velocity, Color color, PlayerController player, float spawnTime)
+            Float3 velocity, Color color, PlayerController player, float spawnTime,
+            ShardGroup group = null)
         {
             var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
             cube.name = "镐碎块";
@@ -136,6 +168,7 @@ namespace MyWorld.Unity.Items
             shard._spawnTime = spawnTime;
             shard._restY = restY;
             shard._player = player;
+            shard.Group = group ?? new ShardGroup();
             cube.GetComponent<Renderer>().sharedMaterial = UrpMaterialFactory.CreateLit(color);
             shard.SyncPose();
             return shard;
@@ -170,10 +203,13 @@ namespace MyWorld.Unity.Items
                 Velocity = velocity;
             }
 
-            // 接触判定：距玩家脚底 < ContactRadius 且本块还没扎过 → 0.5 伤害。
+            // 接触判定：距玩家脚底 < ContactRadius 且本组还没扎过 → 0.5 伤害。
+            // fix1：伤害按碎裂组计——同一次碎裂的所有碎块共享一次（Group.HasStung），
+            // 站定被溅一身也只掉 0.5 血；新一次碎裂是新组，正常再伤一次。
             // TakeDamage 是玩家伤害唯一入口（复活无敌帧在此自动生效）；不抛 CombatEvents，
-            // 所以碎块伤害不触发攻击系统的反击 / 经验。每块只扎一次（HasStung）。
-            if (!HasStung && _player != null)
+            // 所以碎块伤害不触发攻击系统的反击 / 经验。接触即消耗本组的一次伤害
+            // （无敌帧吸收的那次也算消耗——碎块寿命 2s 短于复活无敌 3s，不存在可玩的漏洞）。
+            if (!Group.HasStung && _player != null)
             {
                 float dx = Position.X - playerFeet.x;
                 float dy = Position.Y - playerFeet.y;
@@ -181,6 +217,7 @@ namespace MyWorld.Unity.Items
                 if (dx * dx + dy * dy + dz * dz < ContactRadius * ContactRadius)
                 {
                     _player.TakeDamage(ContactDamage, this);
+                    Group.HasStung = true;
                     HasStung = true;
                 }
             }

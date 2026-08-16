@@ -2,8 +2,10 @@
 // m10 B2：镐碎裂——碎块散落 + 碰到玩家 0.5 伤害 + 2 秒消失 + 不可拾取
 // （孩子的原创机制：「碎掉的镐子碰到会受伤」）。碎块是独立轻实体 PickaxeShard，
 // **不进 PlayerContext.ItemDrops**——本文件锁死它与掉落物的结构性区分、
-// 接触伤害语义（0.5/块、每块一次、无敌帧生效）、以及时间注入的 2s 寿命边界。
+// 接触伤害语义（fix1 起同一次碎裂的所有碎块共享一次 0.5 伤害）、
+// 以及时间注入的 2s 寿命边界。
 // 依赖 Unity MonoBehaviour，#if UNITY_EDITOR 包裹只跑 EditMode 链（dotnet 链不编译）。
+using System.Collections.Generic;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Items;
 using MyWorld.Core.Math;
@@ -91,15 +93,25 @@ namespace MyWorld.Core.Tests.Items
             if (_host != null) Object.DestroyImmediate(_host);
         }
 
-        /// <summary>脆镐（maxDurability=1）挖一块石头 → 一挖即碎。返回场上全部碎块。</summary>
-        private PickaxeShard[] BreakBrittlePickaxe()
+        /// <summary>脆镐（maxDurability=1）在指定格挖一块石头 → 一挖即碎。
+        /// 返回**本次新碎出**的碎块（场上可能还留着上次碎裂未过期的旧块，diff 掉）。</summary>
+        private PickaxeShard[] BreakBrittlePickaxeAt(int x, int z)
         {
+            var existing = new HashSet<PickaxeShard>(Object.FindObjectsOfType<PickaxeShard>());
             _ctx.Inventory.SetSlot(0, new ItemStack(BrittlePickaxeItemId, 1));
             _ctx.Inventory.SelectedHotbarIndex = 0;
-            _world.SetBlock(8, 70, 8, BlockIds.Stone);
-            _block.BreakAt(8, 70, 8);
-            return Object.FindObjectsOfType<PickaxeShard>();
+            _world.SetBlock(x, 70, z, BlockIds.Stone);
+            _block.BreakAt(x, 70, z);
+            var fresh = new List<PickaxeShard>();
+            foreach (var shard in Object.FindObjectsOfType<PickaxeShard>())
+            {
+                if (!existing.Contains(shard)) fresh.Add(shard);
+            }
+            return fresh.ToArray();
         }
+
+        /// <summary>在 (8,70,8) 碎裂（多数测试的默认坐标）。</summary>
+        private PickaxeShard[] BreakBrittlePickaxe() => BreakBrittlePickaxeAt(8, 8);
 
         private static void ClearShards()
         {
@@ -248,16 +260,89 @@ namespace MyWorld.Core.Tests.Items
             }
 
             // 玩家踩到某块落定碎块的正上方（距离=0）再步一小帧 → 必扎；
-            // 踩进堆里的其它块也可能顺带扎到，上界 6 块 × 0.5
+            // fix1 起同组共享一次伤害——无论踩进几块，总共恰好 0.5
             _host.transform.position = shards[0].transform.position;
             foreach (var shard in shards)
             {
                 shard.Tick(_host.transform.position, 1.1f, 0.1f);
             }
-            Assert.That(_ctx.Health.Current, Is.LessThan(20f), "踩到碎块应被扎");
-            Assert.That(_ctx.Health.Current,
-                Is.GreaterThanOrEqualTo(20f - PickaxeShard.CountMax * PickaxeShard.ContactDamage),
-                "伤害上界 = 6 块 × 0.5 = 3.0（「伤害很低不挫败」）");
+            Assert.That(_ctx.Health.Current, Is.EqualTo(19.5f).Within(1e-4f),
+                "踩进碎块堆总共恰好 0.5（fix1：一次碎裂共享一次伤害）");
+        }
+
+        [Test]
+        public void 一次碎裂站定不动_整组共享只扣零点五血()
+        {
+            var shards = BreakBrittlePickaxe();
+
+            // 站定不动步进到全部落定（10 × 0.1s = 1.0s < 2s 寿命）——fix1 前这里会被
+            // 落进接触半径的多块连环扣血（典型 1.0-1.5，最坏 3.0）
+            for (int step = 1; step <= 10; step++)
+            {
+                foreach (var shard in shards)
+                {
+                    shard.Tick(_host.transform.position, step * 0.1f, 0.1f);
+                }
+            }
+            Assert.That(_ctx.Health.Current, Is.GreaterThanOrEqualTo(19.5f),
+                "站定最多掉 0.5 血（fix1：同一次碎裂的所有碎块共享一次伤害）");
+
+            // 人为踩上任一块落定碎块补一脚：已扎过则不再扣、没扎过则恰好补 0.5——
+            // 无论掷点落位如何，一次碎裂的伤害总量恰好 0.5
+            _host.transform.position = shards[0].transform.position;
+            foreach (var shard in shards)
+            {
+                shard.Tick(_host.transform.position, 1.1f, 0.1f);
+            }
+            Assert.That(_ctx.Health.Current, Is.EqualTo(19.5f).Within(1e-4f),
+                "一次碎裂无论站定还是踩上去，总共恰好 0.5 伤害（孩子的设定是「碰到受伤」不是爆炸）");
+        }
+
+        [Test]
+        public void 两次碎裂_各组各扎一次共一血()
+        {
+            // 第一组 @ (8,70,8)：落定 + 踩上 → 19.5
+            var first = BreakBrittlePickaxeAt(8, 8);
+            for (int step = 1; step <= 8; step++)
+            {
+                foreach (var shard in first)
+                {
+                    shard.Tick(_host.transform.position, step * 0.1f, 0.1f);
+                }
+            }
+            _host.transform.position = first[0].transform.position;
+            foreach (var shard in first)
+            {
+                shard.Tick(_host.transform.position, 0.9f, 0.1f);
+            }
+            Assert.That(_ctx.Health.Current, Is.EqualTo(19.5f).Within(1e-4f), "第一组：恰好 0.5");
+
+            // 第二次碎裂在相邻格（掷点 seed 不同）：新组，不与第一组共享
+            var second = BreakBrittlePickaxeAt(9, 8);
+            Assert.That(second.Length, Is.InRange(PickaxeShard.CountMin, PickaxeShard.CountMax),
+                "前置：第二组碎块已生成");
+
+            // 落定步进（t = 1.1..1.8，全程 < 2s 旧碎块不自毁）；第一组的旧块一并步进——
+            // 它们已扎过，玩家就站在上面也不得再扣血（回归守卫）
+            for (int step = 1; step <= 8; step++)
+            {
+                float t = 1.0f + step * 0.1f;
+                foreach (var shard in first)
+                {
+                    shard.Tick(_host.transform.position, t, 0.1f);
+                }
+                foreach (var shard in second)
+                {
+                    shard.Tick(_host.transform.position, t, 0.1f);
+                }
+            }
+            _host.transform.position = second[0].transform.position;
+            foreach (var shard in second)
+            {
+                shard.Tick(_host.transform.position, 1.9f, 0.1f);
+            }
+            Assert.That(_ctx.Health.Current, Is.EqualTo(19.0f).Within(1e-4f),
+                "两次碎裂各扎一次：19.5 - 0.5 = 19.0（组间不共享、组内共享）");
         }
 
         // ─── 5) TakeDamage 重构守卫：int 重载行为不变 ────────────────────────
