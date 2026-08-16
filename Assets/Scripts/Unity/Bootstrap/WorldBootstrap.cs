@@ -125,6 +125,13 @@ namespace MyWorld.Unity.Bootstrap
             // 10. 手部
             _hand = gameObject.AddComponent<HandController>();
 
+            // 10.5 玩家音效（m9 B1）：此前没有任何场景/脚本挂 PlayerAudioSystem，
+            // footstep/place/break 三条音效在 build 里全是哑的（Resources/Audio 下的
+            // ogg 一直在却没人播）。挂上后既有三音复活，m9 B1 的命中打击音
+            // （PlayHit，缺失时程序生成闷响）也才有落点——BlockInteraction /
+            // PlayerController / CombatController 都按「同宿主/父链查找」取它。
+            gameObject.AddComponent<MyWorld.Unity.Audio.PlayerAudioSystem>();
+
             // 11. 战斗
             _combat = gameObject.AddComponent<CombatController>();
             _combat.Player = _player;

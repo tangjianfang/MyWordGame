@@ -37,8 +37,10 @@ namespace MyWorld.Core.Entities
         /// <summary>m9 A2：受击逃跑持续时间（秒），过期回落 wander 流。</summary>
         public const float FleeDuration = 3f;
 
-        /// <summary>m9 A2：受击红闪时长（秒），Unity 侧 MobView 按 HitFlashTimer 闪红。</summary>
-        public const float HitFlashDuration = 0.2f;
+        /// <summary>m9 A2：受击红闪时长（秒），Unity 侧 MobView 按 HitFlashTimer 闪红。
+        /// m9 B1 对齐 spec §4 的 0.15s（此前承自 A1 的 0.2s，A2 评审 Minor 1 预告的一处对齐），
+        /// 与 Unity 侧 MobHitFeedback.FlashDuration 同值——同一个红闪的两条渲染通道不漂移。</summary>
+        public const float HitFlashDuration = 0.15f;
 
         public const float DefaultDeathTimer = 0.5f;
 

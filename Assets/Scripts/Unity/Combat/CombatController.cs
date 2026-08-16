@@ -61,6 +61,11 @@ namespace MyWorld.Unity.Combat
         /// <summary>fix1（I2）：视线复核用的方块表（判 Solid）。与 <see cref="World"/> 成对注入。</summary>
         public BlockRegistry Registry;
 
+        /// <summary>m9 B1：命中打击音。挂玩家宿主链上的 PlayerAudioSystem
+        /// （与 BlockInteraction.Bind 同款查找手法），首次命中懒解析一次缓存；
+        /// 缺失 null 安全跳过（nice-to-have，不阻断战斗）。</summary>
+        private MyWorld.Unity.Audio.PlayerAudioSystem _hitAudio;
+
         /// <summary>上次挥击时刻（<c>Time.time</c> 基准，含挥空的挥击）。public 是给 EditMode
         /// 测试的时间注入口（brief：时间注入或字段直改）——EditMode 下 <c>Time.time</c> 冻结，
         /// 测试直改本字段模拟冷却流逝；运行时代码只写不读外部值。</summary>
@@ -216,6 +221,22 @@ namespace MyWorld.Unity.Combat
             var attackerPos = new Float3(
                 Player.Eye.position.x, Player.Eye.position.y, Player.Eye.position.z);
             bool killed = MobAI.TakeHit(mob, attackerPos, damage);
+
+            // m9 B1：战斗手感四件套——闪红 / 击退 / 命中音效，致死一击加缩小动画。
+            // 反馈组件由 MobManager.SpawnMob 挂在 mob 宿主上（与 MobView 同 GameObject）；
+            // 旧测试宿主没挂它则跳过（null 安全，不破坏既有行为）。
+            // 击退方向 = 远离玩家的水平分量（归一与零向量兜底在 ApplyKnockback 内做）。
+            var feedback = mobComp.GetComponent<MobHitFeedback>();
+            if (feedback != null)
+            {
+                feedback.FlashRed();
+                feedback.ApplyKnockback(new Vector3(
+                    mob.Position.X - attackerPos.X, 0f, mob.Position.Z - attackerPos.Z));
+                if (killed) feedback.PlayDeathShrink();
+            }
+            if (_hitAudio == null) _hitAudio = GetComponentInParent<MyWorld.Unity.Audio.PlayerAudioSystem>();
+            _hitAudio?.PlayHit();
+
             CombatEvents.RaiseDealt(new DamageEvent(
                 DamageSource.Melee, damage, attacker: 0, victim: mob.EntityId,
                 hit: new Float3(hit.point.x, hit.point.y, hit.point.z)));

@@ -417,6 +417,9 @@ namespace MyWorld.Unity.Combat
             }
 
             var view = MobView.Attach(go, mob);
+            // m9 B1：战斗手感四件套（闪红/击退/死亡缩小）与 MobView 同宿主——
+            // CombatController 命中时 GetComponent 取用；旧测试宿主没挂则跳过
+            MobHitFeedback.Attach(go, mob);
             _views[mob.EntityId] = go;
             _viewComponents[mob.EntityId] = view; // m8 A2：walk phase 驱动直接取视图组件
         }
