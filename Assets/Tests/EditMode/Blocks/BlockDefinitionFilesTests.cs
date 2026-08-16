@@ -34,8 +34,8 @@ namespace MyWorld.Core.Tests.Blocks
         {
             // 7 个内置方块（air/stone/dirt/grass/sand/water/bedrock）+ 里程碑-3 新增 8 个
             // （planks/log/leaves/sapling/crafting_table/iron_door/lever/redstone_dust）
-            // + F2 雪原 snow = 16
-            Assert.That(_registry.Count, Is.EqualTo(16), "当前应有 7 个内置方块 + 8 个里程碑-3 新方块 + 1 个雪方块 = 16 个");
+            // + F2 雪原 snow + m10 四矿石（gold_ore/raw_iron_ore/summer_alloy_ore/machine_essence_ore）
+            Assert.That(_registry.Count, Is.EqualTo(20), "当前应有 7 个内置方块 + 8 个里程碑-3 新方块 + 1 个雪方块 + 4 个矿石 = 20 个");
         }
 
         [TestCase("air", BlockIds.Air)]
@@ -46,6 +46,10 @@ namespace MyWorld.Core.Tests.Blocks
         [TestCase("water", BlockIds.Water)]
         [TestCase("bedrock", BlockIds.Bedrock)]
         [TestCase("snow", BlockIds.Snow)]
+        [TestCase("gold_ore", BlockIds.GoldOre)]
+        [TestCase("raw_iron_ore", BlockIds.RawIronOre)]
+        [TestCase("summer_alloy_ore", BlockIds.SummerAlloyOre)]
+        [TestCase("machine_essence_ore", BlockIds.MachineEssenceOre)]
         public void NumericIds_MatchTheConstantsUsedByTheGenerator(string id, ushort expected)
         {
             Assert.That(_registry.GetById(id).NumericId, Is.EqualTo(expected),
@@ -93,6 +97,60 @@ namespace MyWorld.Core.Tests.Blocks
 
             Assert.That(grass.Textures[(int)BlockFace.Bottom], Is.EqualTo("dirt"),
                 "草方块底面应与泥土一致，否则挖开后底面会露馅");
+        }
+
+        /// <summary>
+        /// m10 A1：工具门槛矩阵（spec §1）落进 blocks/*.json 的 minToolTier 字段。
+        /// 0 手 / 1 木镐 / 2 石镐 / 3 铁镐 / 4 钻石镐。
+        /// </summary>
+        [TestCase("dirt", 0, "泥土徒手可挖")]
+        [TestCase("log", 0, "木头徒手可挖")]
+        [TestCase("stone", 1, "石头至少要木镐（徒手挖 4s 不掉落是既有规则）")]
+        [TestCase("raw_iron_ore", 2, "铁矿需石镐——木镐挖了不掉")]
+        [TestCase("gold_ore", 3, "金矿需铁镐")]
+        [TestCase("summer_alloy_ore", 3, "夏季合金矿需铁镐")]
+        [TestCase("machine_essence_ore", 4, "机元矿需钻石镐")]
+        public void MinToolTier_MatchesTheGatingMatrix(string id, int expected, string reason)
+        {
+            Assert.That(_registry.GetById(id).MinToolTier, Is.EqualTo(expected),
+                $"{id} 的 minToolTier 应为 {expected}：{reason}");
+        }
+
+        [Test]
+        public void MinToolTier_MissingField_DefaultsToZero()
+        {
+            // planks 是 m3 的老方块，JSON 里没写 minToolTier——默认 0（徒手），
+            // 加新方块不写这个字段不能把老存档世界变得挖不动。
+            Assert.That(_registry.GetById("planks").MinToolTier, Is.EqualTo(0),
+                "未声明 minToolTier 的方块应默认 0（徒手可挖）");
+        }
+
+        [Test]
+        public void OreBlocks_ReferencedTextureFiles_Exist()
+        {
+            // 四矿石的贴图名约定：金/粗铁复用 B-14 已入库的 gold-ore/iron-ore，
+            // 夏季合金/机元是 m10 新程序占位贴图
+            (string blockId, string expectedTexture)[] ores =
+            {
+                ("gold_ore", "gold-ore"),
+                ("raw_iron_ore", "iron-ore"),
+                ("summer_alloy_ore", "summer-alloy-ore"),
+                ("machine_essence_ore", "machine-essence-ore"),
+            };
+
+            string texturesDir = Path.Combine(LocateBlocksDirectory(), "textures");
+
+            foreach ((string blockId, string expectedTexture) in ores)
+            {
+                BlockDefinition ore = _registry.GetById(blockId);
+                foreach (string texture in ore.Textures)
+                {
+                    Assert.That(texture, Is.EqualTo(expectedTexture),
+                        $"{blockId} 六面都应引用 {expectedTexture}（矿石不分面）");
+                    Assert.That(File.Exists(Path.Combine(texturesDir, texture + ".png")), Is.True,
+                        $"{blockId} 引用的贴图 {texture}.png 不存在，实机会显示 missing 棕块");
+                }
+            }
         }
 
         private static string LocateBlocksDirectory()

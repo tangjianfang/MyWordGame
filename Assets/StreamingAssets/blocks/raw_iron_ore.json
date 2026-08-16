@@ -1,0 +1,11 @@
+{
+  "id": "raw_iron_ore",
+  "displayName": "粗铁矿石",
+  "numericId": 1010,
+  "textures": { "all": "iron-ore" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0,
+  "minToolTier": 2
+}

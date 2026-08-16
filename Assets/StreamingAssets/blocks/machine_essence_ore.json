@@ -1,0 +1,11 @@
+{
+  "id": "machine_essence_ore",
+  "displayName": "机元矿石",
+  "numericId": 1012,
+  "textures": { "all": "machine-essence-ore" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 6.0,
+  "minToolTier": 4
+}

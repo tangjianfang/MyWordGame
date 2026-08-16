@@ -52,5 +52,33 @@
     "drops": [
       { "itemId": "stick", "countMin": 0, "countMax": 2 }
     ]
+  },
+  {
+    "blockId": "gold_ore",
+    "blockNumericId": 1009,
+    "drops": [
+      { "itemId": "raw_gold", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "raw_iron_ore",
+    "blockNumericId": 1010,
+    "drops": [
+      { "itemId": "raw_iron", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "summer_alloy_ore",
+    "blockNumericId": 1011,
+    "drops": [
+      { "itemId": "summer_alloy", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "machine_essence_ore",
+    "blockNumericId": 1012,
+    "drops": [
+      { "itemId": "machine_essence", "countMin": 1, "countMax": 1 }
+    ]
   }
 ]

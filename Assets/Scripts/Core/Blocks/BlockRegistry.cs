@@ -184,6 +184,13 @@ namespace MyWorld.Core.Blocks
 
             JToken numericIdToken = root["numericId"];
 
+            // m10 工具门槛：负数没有意义（0 已是「徒手可挖」），写错立刻报而不是静默当 0
+            var minToolTier = (int?)root["minToolTier"] ?? 0;
+            if (minToolTier < 0)
+            {
+                throw new InvalidDataException($"方块 {id} 的 minToolTier 为 {minToolTier}，必须 ≥ 0（0=徒手 / 1=木镐 / 2=石镐 / 3=铁镐 / 4=钻石镐）。");
+            }
+
             var definition = new BlockDefinition
             {
                 Id = id,
@@ -193,6 +200,7 @@ namespace MyWorld.Core.Blocks
                 Opaque = (bool?)root["opaque"] ?? true,
                 LightEmission = (byte)lightEmission,
                 Hardness = (float?)root["hardness"] ?? 1f,
+                MinToolTier = minToolTier,
                 Liquid = (bool?)root["liquid"] ?? false,
                 Textures = ResolveTextures(id, root["textures"] as JObject)
             };

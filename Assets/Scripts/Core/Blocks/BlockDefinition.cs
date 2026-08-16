@@ -21,6 +21,13 @@ namespace MyWorld.Core.Blocks
         /// <summary>破坏耗时基准（秒）。负数表示不可破坏。</summary>
         public float Hardness { get; internal set; }
 
+        /// <summary>
+        /// 挖掉该方块所需的最低镐等级（m10 工具门槛矩阵）：0 徒手 / 1 木镐 / 2 石镐 /
+        /// 3 铁镐 / 4 钻石镐，与物品表既有 <c>miningLevel</c> 同尺度。等级不够时挖得掉方块但不掉落。
+        /// 默认 0（徒手可挖），数据驱动，加矿不改代码。
+        /// </summary>
+        public int MinToolTier { get; internal set; }
+
         public bool Liquid { get; internal set; }
 
         public bool IsUnbreakable => Hardness < 0f;

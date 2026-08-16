@@ -289,6 +289,46 @@ namespace MyWorld.Core.Tests.Blocks
                 "count 应在 [countMin, countMax ∩ def.MaxStack] 区间内");
         }
 
+        /// <summary>
+        /// m10 A1 跨表引用守卫：真实 items/*.json + 真实 block_drops.json 端到端，
+        /// 四矿石必须各自掉对应材料物品 ×1（spec §1 矿物表）。任何一环 JSON 打错字
+        /// （itemId 悬空、blockNumericId 与 BlockIds 常量不一致）在这里立刻失败。
+        /// </summary>
+        [Test]
+        public void BlockDrops_RealFile_FourOresDropTheirMaterial()
+        {
+            var itemDocs = Directory.GetFiles(LocateItemsDirectory(), "*.json").Select(File.ReadAllText);
+            var items = ItemDatabase.FromJson(itemDocs);
+
+            BlockDrops drops = BlockDrops.FromJson(
+                new[] { File.ReadAllText(LocateBlockDropsPath()) }, items);
+
+            (ushort blockNumericId, string itemId)[] expected =
+            {
+                (BlockIds.GoldOre, "raw_gold"),
+                (BlockIds.RawIronOre, "raw_iron"),
+                (BlockIds.SummerAlloyOre, "summer_alloy"),
+                (BlockIds.MachineEssenceOre, "machine_essence"),
+            };
+
+            foreach ((ushort blockNumericId, string itemId) in expected)
+            {
+                Assert.That(items.TryGetById(itemId, out var def), Is.True,
+                    $"矿石掉落引用的物品 {itemId} 必须先在 items/*.json 注册");
+                Assert.That(def.MaxStack, Is.GreaterThanOrEqualTo(1),
+                    $"{itemId} 的 maxStack 至少为 1，否则永远掉不出来");
+
+                ItemStack[] result = drops.DropsFor(blockNumericId);
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result.Length, Is.EqualTo(1),
+                    $"方块 numericId={blockNumericId} 应恰好掉 1 种物品（spec §7：矿石掉 1 个）");
+                Assert.That(result[0].ItemId, Is.EqualTo(def.NumericId),
+                    $"方块 numericId={blockNumericId} 应掉 {itemId}（ItemId 应等于其 numericId）");
+                Assert.That(result[0].Count, Is.EqualTo(1),
+                    "矿石掉落数量固定 ×1（countMin=countMax=1，确定性掷骰必得 1）");
+            }
+        }
+
         private static string LocateItemsDirectory()
         {
 #if UNITY_EDITOR

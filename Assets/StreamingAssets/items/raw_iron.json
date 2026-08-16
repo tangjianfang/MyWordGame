@@ -1,0 +1,7 @@
+{
+  "id": "raw_iron",
+  "displayName": "粗铁",
+  "numericId": 1024,
+  "maxStack": 64,
+  "texture": "raw_iron"
+}

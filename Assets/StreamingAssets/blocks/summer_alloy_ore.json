@@ -1,0 +1,11 @@
+{
+  "id": "summer_alloy_ore",
+  "displayName": "夏季合金矿石",
+  "numericId": 1011,
+  "textures": { "all": "summer-alloy-ore" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 4.0,
+  "minToolTier": 3
+}

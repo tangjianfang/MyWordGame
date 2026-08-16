@@ -1,0 +1,7 @@
+{
+  "id": "machine_essence",
+  "displayName": "机元",
+  "numericId": 1026,
+  "maxStack": 64,
+  "texture": "machine_essence"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "raw_gold",
+  "displayName": "粗金",
+  "numericId": 1023,
+  "maxStack": 64,
+  "texture": "raw_gold"
+}
