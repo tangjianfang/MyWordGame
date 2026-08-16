@@ -262,6 +262,13 @@ namespace MyWorld.Unity.Bootstrap
             //     挖到的掉落物看得见 + 吸附飞向玩家的动画可见。挂世界根节点下。
             var dropViews = gameObject.AddComponent<MyWorld.Unity.Items.ItemDropViewRegistry>();
             dropViews.Bind(_playerContext, worldRoot);
+
+            // 30. Esc 暂停菜单（m8 B2）：Esc 开 / 关真暂停菜单——打开即 Time.timeScale=0
+            //     冻结世界，关闭恢复 1；「设置」展开公共 SettingsPanelUi（与帮助菜单同一实例），
+            //     「保存并退出」整体委托 HelpMenuUi 的 m7 A4 状态机（同步落盘 → 半秒停留 →
+            //     退出，期间保持暂停）。死亡画面可见时 Esc 让位。挂在帮助菜单之后：
+            //     Awake 用 GetComponent 复用同物体的 HelpMenuUi / SettingsPanelUi。
+            gameObject.AddComponent<MyWorld.Unity.UI.PauseMenuUi>();
         }
 
         private void Update()

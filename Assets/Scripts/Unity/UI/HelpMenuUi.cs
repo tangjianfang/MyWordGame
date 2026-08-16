@@ -115,8 +115,11 @@ namespace MyWorld.Unity.UI
         /// 计数器断言「满半秒才触发、且只触发一次」，不真退测试进程。</summary>
         internal Action QuitRequested = () => Application.Quit();
 
-        /// <summary>可注入时钟（默认 <see cref="Time.time"/>），测半秒停留窗用。
-        /// 与 <see cref="QuitRequested"/> 同为测试缝，生产代码不改。</summary>
+        /// <summary>可注入时钟（默认 <see cref="Time.unscaledTime"/>），测半秒停留窗用。
+        /// 与 <see cref="QuitRequested"/> 同为测试缝，生产代码不改。
+        /// m8 B2 起默认从 <see cref="Time.time"/> 换成 unscaledTime：暂停菜单的保存退出
+        /// 全程保持 timeScale=0（Time.time 冻结，停留窗永远走不完、进程退不出去）；
+        /// timeScale=1 时两者数值相同，帮助菜单自己的退出路径行为不变。</summary>
         internal Func<float> QuitClock = DefaultQuitClock;
 
         /// <summary>存档服务。生产留空——首次点退出时懒查找（WorldBootstrap 把
@@ -130,7 +133,7 @@ namespace MyWorld.Unity.UI
         /// （log-and-continue）返回 false 不抛，异常分支是快照收集段没有兜底的形态。</summary>
         internal Func<SaveLoadService, bool> SaveNowSync = service => service.SaveNow(async: false);
 
-        private static float DefaultQuitClock() => Time.time;
+        private static float DefaultQuitClock() => Time.unscaledTime;
 
         private bool _quitPending;  // 已点「保存并退出」且存成：按钮换成确认文本，防手抖双击
         private bool _quitSaved;    // 本次退出流程是否真的落过盘（无存档服务时不谎报「已保存」）
@@ -501,14 +504,16 @@ namespace MyWorld.Unity.UI
             }
         }
 
-        /// <summary>保存失败提示的文字色（fix1）：比按钮底色亮一档的红，错误状态一眼可辨。</summary>
-        private static readonly Color QuitErrorColor =
+        /// <summary>保存失败提示的文字色（fix1）：比按钮底色亮一档的红，错误状态一眼可辨。
+        /// m8 B2 起 internal：暂停菜单的保存退出走本类状态机，失败提示样式共用这一份。</summary>
+        internal static readonly Color QuitErrorColor =
             new Color(0.98f, 0.38f, 0.32f, 1f);
 
         private static GUIStyle _quitErrorStyle;
 
-        /// <summary>红字提示样式（必须在 OnGUI 内首用构造，同 CountStyle 模式）。</summary>
-        private static GUIStyle QuitErrorStyle()
+        /// <summary>红字提示样式（必须在 OnGUI 内首用构造，同 CountStyle 模式）。
+        /// m8 B2 起 internal：暂停菜单复用，不复制样式代码。</summary>
+        internal static GUIStyle QuitErrorStyle()
         {
             if (_quitErrorStyle == null)
             {
@@ -524,8 +529,9 @@ namespace MyWorld.Unity.UI
         }
 
         /// <summary>「保存并退出」按钮的红色系底色（spec §4：退出是不可逆操作，
-        /// 用红色系与普通按钮区分；GUI.backgroundColor 染默认按钮皮肤即可，不引新贴图）。</summary>
-        private static readonly Color QuitButtonColor =
+        /// 用红色系与普通按钮区分；GUI.backgroundColor 染默认按钮皮肤即可，不引新贴图）。
+        /// m8 B2 起 internal：暂停菜单的退出按钮同款红色，共用这一份。</summary>
+        internal static readonly Color QuitButtonColor =
             new Color(0.82f, 0.28f, 0.24f, 1f);
     }
 
