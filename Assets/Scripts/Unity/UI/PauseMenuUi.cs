@@ -14,6 +14,14 @@ namespace MyWorld.Unity.UI
     /// 暂停打开时先把它关掉（互斥，同帧不双开）；暂停开着 → Esc 关闭。
     /// IMGUI 事件与 Update 输入不受 timeScale 影响是引擎既有行为——
     /// timeScale=0 下菜单照常响应正是暂停菜单需要的。
+    /// fix1 M1：按住 Esc 时 IMGUI 持续发自动重复的 KeyDown，<see cref="HandleGuiEvent"/>
+    /// 去抖——按住只响应第一次，KeyUp 后才能再触发，菜单不抖动。
+    /// </para>
+    /// <para>
+    /// fix1 I1：暂停期间玩家运动输入的残留由 <see cref="Player.PlayerController"/>
+    /// 按 timeScale 自行抑制（暂停帧跳过运动步进、恢复首帧喂
+    /// <see cref="MyWorld.Core.Player.PlayerInput.None"/>），本类不与其耦合——任何路径的
+    /// 暂停 / 恢复都被覆盖。
     /// </para>
     /// <para>
     /// <b>设置</b>：「设置」按钮展开 <see cref="SettingsPanelUi"/> 公共面板（m8 B1 抽出），
@@ -149,14 +157,37 @@ namespace MyWorld.Unity.UI
 
         // ─── 绘制（样式同帮助菜单：半透明深底 GUI.Box + 白字） ──────────────────
 
+        private bool _escHeld;
+
+        /// <summary>Esc 的 OnGUI 事件入口（fix1 M1）。IMGUI 对按住的键会持续发
+        /// 自动重复的 KeyDown——逐个响应会让菜单开了又关来回抖动。去抖门：按住期间
+        /// 只响应第一次 KeyDown，收到 KeyUp 才允许下一次触发（KeyUp 在菜单关闭时
+        /// 也照常处理，松手状态不残留）。internal：EditMode 泵不了真 IMGUI 事件，测试直调。</summary>
+        internal void HandleGuiEvent(EventType type, KeyCode keyCode)
+        {
+            if (keyCode != KeyCode.Escape) return;
+            if (type == EventType.KeyUp)
+            {
+                _escHeld = false; // 松手复位：下一次按下才是新的按压
+                return;
+            }
+            if (type != EventType.KeyDown) return;
+            bool firstPress = !_escHeld;
+            _escHeld = true;
+            if (firstPress) HandleKey(KeyCode.Escape); // 自动重复的后续 KeyDown 不再触发
+        }
+
         private void OnGUI()
         {
             // Esc 路由放在 OnGUI 事件层（brief 指定）：IMGUI 事件不受 timeScale 影响，
-            // timeScale=0 下照常响应正是暂停菜单要的；菜单关着也先查键——Esc 要能直接开门
-            if (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape)
+            // timeScale=0 下照常响应正是暂停菜单要的；菜单关着也先查键——Esc 要能直接开门。
+            // fix1 M1：KeyDown / KeyUp 都经过去抖门再 Use() 吃掉，不传给同帧后画的控件
+            var evt = Event.current;
+            if (evt.keyCode == KeyCode.Escape
+                && (evt.type == EventType.KeyDown || evt.type == EventType.KeyUp))
             {
-                Event.current.Use(); // 吃掉事件，不传给同帧后画的 IMGUI 控件
-                HandleKey(KeyCode.Escape);
+                HandleGuiEvent(evt.type, evt.keyCode);
+                evt.Use();
             }
             if (!IsOpen) return;
             DrawMenu();

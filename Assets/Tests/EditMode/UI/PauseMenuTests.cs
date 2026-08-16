@@ -370,6 +370,39 @@ namespace MyWorld.Core.Tests.UI
             Assert.That(UiCursorGate.OpenCount, Is.EqualTo(0), "禁用复位必须注销指针门");
             Assert.That(BlockInteraction.InputLocked, Is.False, "禁用复位必须解锁挖/放输入");
         }
+
+        [Test]
+        public void Esc按住_自动重复KeyDown_只触发一次_KeyUp后才能再触发()
+        {
+            // fix1 M1：IMGUI 对按住的键持续发自动重复的 KeyDown——逐个响应会让
+            // 菜单开了又关来回抖动。去抖门：按住期间只响应第一次 KeyDown，
+            // 收到 KeyUp 才允许下一次触发。EditMode 泵不了真 IMGUI 事件，直调事件入口
+            var pause = NewPauseMenu();
+            try
+            {
+                pause.HandleGuiEvent(EventType.KeyDown, KeyCode.Escape);
+                Assert.That(pause.IsOpen, Is.True, "第一次 KeyDown 打开菜单");
+
+                for (int i = 0; i < 6; i++)
+                {
+                    pause.HandleGuiEvent(EventType.KeyDown, KeyCode.Escape); // OS 键重复
+                }
+                Assert.That(pause.IsOpen, Is.True, "按住期间的自动重复 KeyDown 不得反复开关（抖动）");
+                Assert.That(UiCursorGate.OpenCount, Is.EqualTo(1), "指针门不被抖动反复登记/注销");
+
+                pause.HandleGuiEvent(EventType.KeyUp, KeyCode.Escape); // 松手复位
+                pause.HandleGuiEvent(EventType.KeyDown, KeyCode.Escape); // 新一次按压
+                Assert.That(pause.IsOpen, Is.False, "KeyUp 后的下一次按下才应再切换");
+
+                // 非 Esc 按键原样放行、不触发
+                pause.HandleGuiEvent(EventType.KeyDown, KeyCode.H);
+                Assert.That(pause.IsOpen, Is.False, "非 Esc 按键不触发暂停菜单");
+            }
+            finally
+            {
+                Object.DestroyImmediate(pause.gameObject);
+            }
+        }
     }
 }
 #endif

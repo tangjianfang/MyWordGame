@@ -391,10 +391,53 @@ namespace MyWorld.Unity.Player
             ApplyToTransform();
         }
 
+        // ─── m8 B2 fix1（I1）：暂停恢复的输入残留抑制 ──────────────────────────
+
+        /// <summary>一帧运动步进的输入决策（m8 B2 fix1）。见 <see cref="InputDecision"/>。</summary>
+        public enum StepInputKind
+        {
+            /// <summary>真暂停帧（timeScale=0）：整帧跳过运动步进——Core 状态一个字节不动。
+            /// 不是喂 None 走 dt=0：<see cref="PlayerMotor"/> 的跳跃初速不乘 dt（按住 Space
+            /// 照样把 Velocity.Y 顶成 JumpSpeed，位置 ×dt=0 没动、恢复后照样起飞），
+            /// 且 <c>VoxelCollision.Move</c> 零位移步进会把 IsGrounded 判成 false
+            /// （Delta.Y &lt; 0 才算着地）——零 dt 步进本身就在悄悄改状态。</summary>
+            Skip,
+            /// <summary>暂停恢复后的第一帧：喂一帧 <see cref="PlayerInput.None"/>——
+            /// 暂停中按住的键（空格）不该在解冻瞬间生效。</summary>
+            Blank,
+            /// <summary>正常帧：读真实输入。</summary>
+            Live,
+        }
+
+        /// <summary>本帧运动步进该喂什么输入（纯函数，EditMode 断言用，同
+        /// <see cref="ShouldSkipLook"/> 模式）。真暂停期间 <see cref="Update"/> 逐帧调用，
+        /// 暂停多帧 Skip、恢复首帧 Blank 仅一帧、之后 Live。</summary>
+        public static StepInputKind InputDecision(bool timeScaleZero, bool wasPausedLastFrame)
+        {
+            if (timeScaleZero) return StepInputKind.Skip;
+            return wasPausedLastFrame ? StepInputKind.Blank : StepInputKind.Live;
+        }
+
+        /// <summary>上一帧是否处于真暂停（<see cref="Time.timeScale"/> == 0）。
+        /// 恢复首帧靠它识别（Blank 清残留）。暂停由 PauseMenuUi 置 timeScale=0，
+        /// 这里只观察 timeScale、不与菜单组件耦合——任何路径的暂停 / 恢复都覆盖。</summary>
+        private bool _wasPausedLastFrame;
+
         private void Update()
         {
             UpdateLook();
-            Tick(ReadInput(), Time.deltaTime);
+            switch (InputDecision(Time.timeScale == 0f, _wasPausedLastFrame))
+            {
+                case StepInputKind.Skip:
+                    break; // 真暂停帧：不动 Core 状态（病灶分析见枚举注释）
+                case StepInputKind.Blank:
+                    Tick(PlayerInput.None, Time.deltaTime);
+                    break;
+                default:
+                    Tick(ReadInput(), Time.deltaTime);
+                    break;
+            }
+            _wasPausedLastFrame = Time.timeScale == 0f;
             TickFallDamage();
             TickHungerDamage(Time.deltaTime);
             PickupNearbyDrops();
