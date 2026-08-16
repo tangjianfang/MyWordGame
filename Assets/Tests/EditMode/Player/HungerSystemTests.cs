@@ -26,14 +26,8 @@ namespace MyWorld.Core.Tests.Player
             Assert.That(h2.Hunger, Is.LessThan(h1.Hunger), "Saturation=0 衰减更快");
         }
 
-        [Test]
-        public void Eat_RestoresHungerAndSaturation()
-        {
-            var h = new HungerSystem { Hunger = 5, Saturation = 0f };
-            h.Eat(hunger: 6, saturation: 7.2f);
-            Assert.That(h.Hunger, Is.EqualTo(11));
-            Assert.That(h.Saturation, Is.GreaterThan(0f));
-        }
+        // Eat 的恢复 / 钳制 / 非法值测试自 m7 A3 起迁至 EatFoodTests
+        //（右键吃食物那条链路的测试统一放一个文件里）
 
         [Test]
         public void IsStarving_WhenHungerZero()

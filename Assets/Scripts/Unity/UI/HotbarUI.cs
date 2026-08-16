@@ -29,6 +29,9 @@ namespace MyWorld.Unity.UI
         /// new GUIStyle，9 个槽连续分配是 IMGUI 侧稳定的 GC 来源。</summary>
         private GUIStyle _countStyle;
 
+        /// <summary>m7 A3：「右键食用」提示样式，同样只构造一次缓存复用。</summary>
+        private GUIStyle _eatHintStyle;
+
         private void EnsureTextures()
         {
             if (_slotBg != null) return;
@@ -169,6 +172,33 @@ namespace MyWorld.Unity.UI
                     }
                 }
             }
+
+            DrawEatHint(ctx);
+        }
+
+        /// <summary>
+        /// m7 A3：选中槽是食物（<see cref="ItemDefinition.IsEdible"/>）时，在准星
+        ///（屏幕中心）下方画一行小字「右键食用」——不然玩家无从得知选中食物时
+        /// 右键是吃而不是放方块。非食物不画任何东西。
+        /// </summary>
+        private void DrawEatHint(PlayerContext ctx)
+        {
+            var def = ctx.GetSelectedDefinition();
+            if (def == null || !def.IsEdible) return;
+
+            if (_eatHintStyle == null)
+            {
+                _eatHintStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 14,
+                    alignment = TextAnchor.UpperCenter,
+                };
+                _eatHintStyle.normal.textColor = new Color(1f, 1f, 1f, 0.85f);
+            }
+
+            // 准星在屏幕中心，提示画在其下方 26px；宽度给足让文字整体居中
+            var rect = new Rect((Screen.width - 160f) / 2f, Screen.height / 2f + 26f, 160f, 20f);
+            GUI.Label(rect, "右键食用", _eatHintStyle);
         }
 
         private void Update()

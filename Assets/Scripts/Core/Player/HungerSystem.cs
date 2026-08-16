@@ -35,10 +35,17 @@ namespace MyWorld.Core.Player
             }
         }
 
-        public void Eat(int hunger, float saturation)
+        /// <summary>
+        /// m7 A3：唯一进食入口。foodValue 取自 <see cref="MyWorld.Core.Items.ItemDefinition.HealAmount"/>：
+        /// Hunger +foodValue（钳 <see cref="MaxHunger"/>），Saturation +foodValue×0.5（钳
+        /// <see cref="MaxSaturation"/>）。foodValue ≤ 0 是 no-op——进食参数不该由调用方各拼各的，
+        /// 统一从物品定义推导（旧的双参重载已删，此前它零调用，饥饿因此永远无法恢复）。
+        /// </summary>
+        public void Eat(int foodValue)
         {
-            Hunger = System.Math.Min(MaxHunger, Hunger + hunger);
-            Saturation = System.Math.Min(MaxSaturation, Saturation + saturation * hunger);  // 简化：每个饥饿点贡献 saturation
+            if (foodValue <= 0) return;
+            Hunger = System.Math.Min(MaxHunger, Hunger + foodValue);
+            Saturation = System.Math.Min(MaxSaturation, Saturation + foodValue * 0.5f);
         }
 
         public bool IsStarving() => Hunger <= 0;

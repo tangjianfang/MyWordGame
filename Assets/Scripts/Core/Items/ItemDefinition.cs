@@ -17,8 +17,13 @@ namespace MyWorld.Core.Items
         /// <summary>主手挥击伤害。null = 不可作为武器；手握该物品时主手单击不起作用。</summary>
         public float? AttackDamage;
 
-        /// <summary>右键吃的回血量。null = 不可食用。</summary>
+        /// <summary>右键吃的食物值：吃下后经 <see cref="MyWorld.Core.Player.HungerSystem.Eat"/> 喂饥饿。
+        /// null 或 0 = 不可食用（bowl_of_water 之类"喝了没用"的物品不算食物，右键照常放方块）。</summary>
         public float? HealAmount;
+
+        /// <summary>是否可作为食物右键吃。m7 A3 起作为进食判定唯一谓词：
+        /// BlockInteraction 右键路由与 HotbarUI「右键食用」提示共用，避免两处各判各的漂移。</summary>
+        public bool IsEdible => HealAmount > 0f;
 
         /// <summary>是否归类为工具（剑/镐/斧/锹）。用于耐久条与方块采集加速判定。</summary>
         public bool IsTool;

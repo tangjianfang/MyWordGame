@@ -11,7 +11,11 @@ namespace MyWorld.Unity.Combat
     /// <summary>
     /// 玩家主手攻击。左键挥剑，0.5 秒冷却。
     /// 命中 mob 时 raise <see cref="CombatEvents.OnDamageDealt"/>。
-    /// 右键带汤 / 食物：吃。
+    /// <para>
+    /// m7 A3：右键吃食物已移交 <see cref="MyWorld.Unity.Player.BlockInteraction"/>（统一右键路由，
+    /// 经 HungerSystem.Eat 喂饥饿）。原先这里右键吃食物回的是 Health——既绕过了饥饿系统，
+    /// 又和放方块抢同一次右键，留着必然双重消耗物品，故整支删除。
+    /// </para>
     /// </summary>
     public sealed class CombatController : MonoBehaviour
     {
@@ -67,20 +71,6 @@ namespace MyWorld.Unity.Combat
                             // 工具坏掉了：手部空挥
                             Hand.TriggerSwing();
                         }
-                    }
-                }
-            }
-            else if (Input.GetMouseButtonDown(1))
-            {
-                var def = ctx.GetSelectedDefinition();
-                if (def != null && def.HealAmount != null)
-                {
-                    var stack = ctx.Inventory.GetSelected();
-                    if (!stack.IsEmpty)
-                    {
-                        ctx.Health.Heal(def.HealAmount.Value);
-                        ctx.Inventory.TryRemoveOne(ctx.Inventory.SelectedHotbarIndex);
-                        if (Hand != null) Hand.TriggerSwing();
                     }
                 }
             }

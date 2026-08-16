@@ -107,23 +107,64 @@ namespace MyWorld.Unity.Player
                     // 挖：把命中格设为空气，标脏，重建，并按 BlockDrops spawn ItemDropEntity
                     BreakAt(hit.X, hit.Y, hit.Z);
                 }
-                else if (Input.GetMouseButtonDown(1))
-                {
-                    // 放：尝试解算放置位置，合法就 SetBlock + 标脏 + 重建
-                    Aabb playerBox = Aabb.FromBottomCenter(_player.State.Position,
-                        _player.Settings.Width, _player.Settings.Height);
-                    if (BlockPlacement.TryResolve(hit, playerBox, out int x, out int y, out int z))
-                    {
-                        _world.SetBlock(x, y, z, placeBlockId);
-                        _views.MarkBlockChanged(x, y, z);
-                        _audio?.PlayPlace();
-                    }
-                }
             }
             else
             {
                 _selection.Hide();
             }
+
+            // m7 A3：右键路由挪出 hit.Hit 分支——选中食物时看天 / 看远处（射线落空）
+            // 也必须能吃，原逻辑只有命中才能右键，饿急了抬头就吃不上东西。
+            // 左键仍优先（同帧双按时不吃也不放），非食物保持"命中才放"不变。
+            if (Input.GetMouseButtonDown(1) && !Input.GetMouseButtonDown(0))
+            {
+                UseAt(hit);
+            }
+        }
+
+        /// <summary>
+        /// m7 A3：右键交互统一入口（<c>Update</c> 与 EditMode 测试共用——EditMode 驱动不了
+        /// <c>Input.GetMouseButtonDown</c>，直接调本方法，与 <see cref="BreakAt"/> 同款做法）。
+        /// 选中槽是食物（<see cref="ItemDefinition.IsEdible"/>）→ 吃 1 个：经
+        /// <see cref="HungerSystem.Eat"/>（唯一进食入口）恢复 Hunger/Saturation 并扣 1 个物品，
+        /// <b>本次右键到此为止，不再放方块</b>（食物优先）；否则射线命中时照常放
+        /// <see cref="placeBlockId"/>。
+        /// </summary>
+        public void UseAt(VoxelRayHit hit)
+        {
+            if (TryEatSelectedFood())
+            {
+                return; // 食物优先，不再放方块
+            }
+
+            if (!hit.Hit) return;
+            // 放：尝试解算放置位置，合法就 SetBlock + 标脏 + 重建
+            Aabb playerBox = Aabb.FromBottomCenter(_player.State.Position,
+                _player.Settings.Width, _player.Settings.Height);
+            if (BlockPlacement.TryResolve(hit, playerBox, out int x, out int y, out int z))
+            {
+                _world.SetBlock(x, y, z, placeBlockId);
+                _views?.MarkBlockChanged(x, y, z);
+                _audio?.PlayPlace();
+            }
+        }
+
+        /// <summary>
+        /// m7 A3：尝试吃掉选中槽的 1 个食物。判定链：PlayerContext / Inventory / HungerSystem
+        /// 就绪 → 选中物品 <see cref="ItemDefinition.IsEdible"/>。
+        /// 吃成功返回 true（右键被消费）；任一条件不满足返回 false，右键落到放方块分支。
+        /// </summary>
+        private bool TryEatSelectedFood()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Inventory == null || ctx.HungerSystem == null) return false;
+
+            var def = ctx.GetSelectedDefinition();
+            if (def == null || !def.IsEdible) return false;
+
+            ctx.HungerSystem.Eat((int)def.HealAmount.Value);
+            ctx.Inventory.TryRemoveOne(ctx.Inventory.SelectedHotbarIndex);
+            return true;
         }
 
         private static Float3 ToFloat3(Vector3 v) => new Float3(v.x, v.y, v.z);
