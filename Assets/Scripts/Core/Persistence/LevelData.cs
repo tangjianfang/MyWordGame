@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using MyWorld.Core.Math;
 
 namespace MyWorld.Core.Persistence
 {
@@ -16,6 +17,18 @@ namespace MyWorld.Core.Persistence
         /// <summary>引导任务链进度（m6 C4）。旧档缺此字段时 Newtonsoft 反序列化得 null，
         /// 恢复侧按 null 跳过 = 任务链全新开始，天然向后兼容。</summary>
         public MyWorld.Core.Quests.QuestState Quest;
+        /// <summary>箱子内容（m11 I3）。key = "x,y,z" 箱子坐标；条目复用掉落物快照结构
+        /// <see cref="DropSnapshot"/>（ItemId/Count/Metadata 有效，X/Y/Z 不用）。
+        /// 可空字段：旧档缺键时 <see cref="LevelDataCodec.Load"/> 统一归一为空字典。</summary>
+        public Dictionary<string, List<DropSnapshot>> ChestContents;
+        /// <summary>已激活床的重生点（m11 I3）。可空：旧档缺键归一为空列表。</summary>
+        public List<Float3> BedSpawnPoints;
+        /// <summary>玩家附魔（m11 I3）。key = 槽位/物品 uid，value = 附魔 id。可空：旧档缺键归一为空字典。</summary>
+        public Dictionary<string, string> PlayerEnchantments;
+        /// <summary>成就统计（m11 I3）：击杀数/挖掘数/时长秒等。可空：旧档缺键归一为空字典。</summary>
+        public Dictionary<string, int> Stats;
+        /// <summary>作物状态（m11 I3）。key = "x,y,z" 农田坐标，value = 作物状态串。可空：旧档缺键归一为空字典。</summary>
+        public Dictionary<string, string> FarmStates;
     }
 
     /// <summary>玩家快照：位置/速度/生命/饥饿/经验/背包全部 36 槽。</summary>

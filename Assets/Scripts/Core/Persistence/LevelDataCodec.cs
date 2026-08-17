@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using MyWorld.Core.Math;
 using Newtonsoft.Json;
 
 namespace MyWorld.Core.Persistence
@@ -37,12 +39,29 @@ namespace MyWorld.Core.Persistence
             string json = File.ReadAllText(path);
             try
             {
-                return JsonConvert.DeserializeObject<LevelData>(json);
+                LevelData data = JsonConvert.DeserializeObject<LevelData>(json);
+                NormalizeNewCollections(data);
+                return data;
             }
             catch (Exception ex)
             {
                 throw new InvalidDataException($"level.dat 解析失败：{path}", ex);
             }
+        }
+
+        /// <summary>m11 I3 追加的五组可空集合字段做「缺键 → 空集合」归一：
+        /// 旧档 JSON 没有对应键时 Newtonsoft 会留 null，这里统一补成空集合，
+        /// 后续波次直接拿来用不会 NPE（沿用 quests「旧档 = 全新开始」的兼容策略）。
+        /// 字段类型给错（如 Stats 给字符串）在反序列化阶段就抛错，本方法不做任何静默吞错。
+        /// level.dat 本身没有版本号字段（FormatVersion 是 regions 二进制格式的概念），无需 bump。</summary>
+        private static void NormalizeNewCollections(LevelData data)
+        {
+            if (data == null) return; // 文件内容为 "null" 的空档保持原语义（调用方按坏档降级处理）
+            data.ChestContents ??= new Dictionary<string, List<DropSnapshot>>();
+            data.BedSpawnPoints ??= new List<Float3>();
+            data.PlayerEnchantments ??= new Dictionary<string, string>();
+            data.Stats ??= new Dictionary<string, int>();
+            data.FarmStates ??= new Dictionary<string, string>();
         }
     }
 }
