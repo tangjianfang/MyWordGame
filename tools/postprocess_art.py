@@ -955,8 +955,8 @@ def _m11_a5_architecture() -> list[Asset]:
         C("blueprint-mine"), C("blueprint-shipwreck"), C("blueprint-temple"),
         T("sign-village", PLANK_WOOD + ["#F2EAD2", OUTLINE_DARK]),
         T("sign-shop", PLANK_WOOD + ["#F2EAD2", "#DCAE3A", OUTLINE_DARK]),
-        T("banner-plain", ["#C8C8C8", "#F2F2F2", "#8A8A8A", "#5C5C5C"]),
-        T("banner-crest", ["#8C1B1B", "#D42B2B"] + METAL_GOLD[:2] + [OUTLINE_DARK]),
+        T("banner-plain", ["#A05242", "#8B4433", "#B4635A"]),
+        T("banner-crest", ["#2C5893", "#3A6FB5", "#DCAE3A", "#F7DA7A", "#241A11"]),
     ]
 
 
@@ -975,48 +975,79 @@ def _m11_a5_scenes() -> list[Asset]:
 
 
 def _m11_a5_marketing() -> list[Asset]:
-    """任务 A5：宣传 8 张，全部 1024 大图直用（logo/商店横幅/宣传卡）。"""
+    """任务 A5：宣传 8 张。banner-store/teaser-card 1024 直用；logo 四张
+    256×256 洋红键控、screenshot-frame 1024×576 中央键控、qrcode-bg 512
+    不透明净区底板（规格以各需求文件为准，m11 集成点①对齐）。"""
 
     def C(n):
         return Asset(n, "marketing", (1024, 1024), [], "none", direct=True)
 
+    def L(n, pal):
+        return Asset(n, "marketing", (256, 256), [H(c) for c in pal], "none",
+                     transparent=True)
+
     return [
-        C("logo-official"), C("logo-spring-festival"), C("logo-christmas"),
-        C("logo-pixel"), C("banner-store"), C("screenshot-frame"),
-        C("teaser-card"), C("qrcode-bg"),
+        C("banner-store"), C("teaser-card"),
+        L("logo-official", ["#241A11", "#3A2E20", "#DCAE3A", "#F7DA7A"]),
+        L("logo-spring-festival", ["#A83232", "#C43C3C", "#E05252", "#DCAE3A",
+                                   "#F7DA7A", "#74B84E", "#5D9C3C", "#4A7E2F",
+                                   "#3B6626", "#7A5A3C", "#5F4630"]),
+        L("logo-christmas", ["#1E2A44", "#2C3A52", "#DCAE3A", "#F7DA7A",
+                             "#F6FAFC", "#E8F0F4", "#5D9C3C", "#4A7E2F",
+                             "#3B6626", "#7A5A3C", "#5F4630"]),
+        L("logo-pixel", ["#5D9C3C", "#74B84E", "#7A5A3C", "#5F4630", "#6B4F30"]),
+        Asset("screenshot-frame", "marketing", (1024, 576),
+              [H(c) for c in ["#443D34", "#6B6155", "#8B7F6F", "#DCAE3A",
+                              "#74B84E", "#5D9C3C", "#4A7E2F", "#7A5A3C",
+                              "#C43C3C"]],
+              "none", transparent=True),
+        Asset("qrcode-bg", "marketing", (512, 512),
+              [H(c) for c in ["#F2E6C8", "#443D34", "#6B6155", "#8B7F6F",
+                              "#4A7E2F", "#5D9C3C", "#C43C3C", "#F7DA7A",
+                              "#DCAE3A"]],
+              "none"),
     ]
 
 
 def _m11_a5_seasonal() -> list[Asset]:
-    """任务 A5：季节/节日 10 张。
-    其中 snow-grass 是方块贴图（归 block 类入库）、item-red-envelope /
+    """任务 A5：季节/节日 10 张（色板/键控/平铺以各需求文件为准，m11 集成点①对齐）。
+    snow-grass 是方块顶面贴图（归 block 类入库）、item-red-envelope /
     item-gift-box 是物品图标（归 item 类），其余 7 张按 seasonal 类入
-    Assets/Art/Seasonal；firework-burst / spring-blossom / summer-lotus
-    是键控 sprite，其余游戏内贴图不透明。"""
+    Assets/Art/Seasonal；autumn-leaves 镂空键控、firework-burst 单体键控，
+    春樱/夏荷是不透明顶面贴图（四面无缝）。"""
 
-    def T(n, pal, **kw):           # seasonal 类游戏内贴图
-        return Asset(n, "seasonal", (32, 32), [H(c) for c in pal], "none", **kw)
+    def T(n, pal):                 # seasonal 类不透明无缝贴图
+        return Asset(n, "seasonal", (32, 32), [H(c) for c in pal], "4-side")
 
-    def K(n, pal):                 # seasonal 类键控 sprite
+    def K(n, pal):                 # seasonal 类洋红键控 sprite
         return Asset(n, "seasonal", (32, 32), [H(c) for c in pal], "none",
                      transparent=True)
 
     return [
-        T("lantern-spring", ["#D42B2B", "#F45C5C"] + METAL_GOLD[:2] + [OUTLINE_DARK]),
-        T("tree-christmas", ["#1E3B2A", "#2A5038", "#D42B2B", "#F7DA7A", "#F79B22"]),
-        T("pumpkin-lantern", ["#8A2400", "#D64B0A", "#F79B22", "#FFD24A", OUTLINE_DARK]),
-        K("firework-burst", ["#D42B2B", "#F7DA7A", "#4E88CE", "#A88AD2", "#FFFFFF"]),
-        T("autumn-leaves", ["#A87322", "#DCAE3A", "#8B4433", "#6E3A26"]),
-        K("spring-blossom", ["#D898B0", "#E8B8C8", "#F2D0DC", "#F8E8EE"]),
-        K("summer-lotus", ["#3F7A2E", "#66B04A", "#F2D0DC", "#D898B0"]),
+        T("lantern-spring", ["#C43C3C", "#A83232", "#E05252", "#DCAE3A",
+                             "#F7DA7A", "#FFD84A"]),
+        T("tree-christmas", ["#1E3B2A", "#2A5038", "#356647", "#448059",
+                             "#C43C3C", "#F7DA7A", "#F6FAFC"]),
+        T("pumpkin-lantern", ["#D64B0A", "#F79B22", "#8A2400", "#FFD84A",
+                              "#FFF3C4", "#4A7E2F", "#4A2000"]),
+        K("firework-burst", ["#FFF3C4", "#F7DA7A", "#F79B22", "#D64B0A"]),
+        K("autumn-leaves", ["#5A2E1C", "#8A4A28", "#C97B3A", "#E0A84C",
+                            "#F2C878"]),
+        T("spring-blossom", ["#4A7E2F", "#5D9C3C", "#74B84E", "#F2C4D0",
+                             "#E8A8BC", "#F6E8EC", "#F7DA7A"]),
+        T("summer-lotus", ["#2C5893", "#3A6FB5", "#4E88CE", "#3F7A2E",
+                           "#52963B", "#2F5D24", "#F2C4D0", "#E8A8BC"]),
         # 跨类入库的三张（贴图加载方不同，见 docstring）
         Asset("snow-grass", "block", (32, 32),
-              [H(c) for c in ["#F2F2F2", "#FFFFFF", "#E7F4F8", "#74B84E"]], "4-side"),
+              [H(c) for c in ["#F6FAFC", "#E8F0F4", "#D0DEE8", "#B8C8D8",
+                              "#4A7E2F", "#5D9C3C"]], "4-side"),
         Asset("item-red-envelope", "item", (32, 32),
-              [H(c) for c in ["#D42B2B", "#F45C5C", "#F7DA7A", OUTLINE_DARK]],
+              [H(c) for c in ["#C43C3C", "#A83232", "#E05252", "#DCAE3A",
+                              "#F7DA7A", "#241A11"]],
               "none", transparent=True),
         Asset("item-gift-box", "item", (32, 32),
-              [H(c) for c in ["#D42B2B", "#F45C5C", "#F7DA7A", OUTLINE_DARK]],
+              [H(c) for c in ["#C43C3C", "#A83232", "#E05252", "#DCAE3A",
+                              "#F7DA7A", "#241A11"]],
               "none", transparent=True),
     ]
 
