@@ -3,5 +3,6 @@
   "displayName": "椅子",
   "numericId": 1201,
   "maxStack": 64,
-  "texture": "chair"
+  "texture": "chair",
+  "blockId": "chair_block"
 }

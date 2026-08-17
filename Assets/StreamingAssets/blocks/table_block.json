@@ -1,0 +1,13 @@
+{
+  "id": "table_block",
+  "displayName": "桌子",
+  "numericId": 1021,
+  "textures": {
+    "all": "table"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 1.0,
+  "minToolTier": 0
+}

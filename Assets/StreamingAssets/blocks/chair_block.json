@@ -1,0 +1,13 @@
+{
+  "id": "chair_block",
+  "displayName": "椅子",
+  "numericId": 1013,
+  "textures": {
+    "all": "chair"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 1.0,
+  "minToolTier": 0
+}

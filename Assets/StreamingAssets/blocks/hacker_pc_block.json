@@ -1,0 +1,13 @@
+{
+  "id": "hacker_pc_block",
+  "displayName": "黑客电脑",
+  "numericId": 1015,
+  "textures": {
+    "all": "hacker-pc"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 1.0,
+  "minToolTier": 0
+}

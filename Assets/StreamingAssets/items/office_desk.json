@@ -3,5 +3,6 @@
   "displayName": "办公桌",
   "numericId": 1202,
   "maxStack": 64,
-  "texture": "office_desk"
+  "texture": "office_desk",
+  "blockId": "office_desk_block"
 }

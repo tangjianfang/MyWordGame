@@ -3,5 +3,6 @@
   "displayName": "黑客电脑",
   "numericId": 1208,
   "maxStack": 1,
-  "texture": "hacker_pc"
+  "texture": "hacker_pc",
+  "blockId": "hacker_pc_block"
 }

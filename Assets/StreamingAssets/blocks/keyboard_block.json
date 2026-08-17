@@ -1,0 +1,13 @@
+{
+  "id": "keyboard_block",
+  "displayName": "键盘",
+  "numericId": 1016,
+  "textures": {
+    "all": "keyboard"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 1.0,
+  "minToolTier": 0
+}

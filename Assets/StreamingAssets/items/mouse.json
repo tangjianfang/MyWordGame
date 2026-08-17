@@ -3,5 +3,6 @@
   "displayName": "鼠标",
   "numericId": 1206,
   "maxStack": 64,
-  "texture": "mouse"
+  "texture": "mouse",
+  "blockId": "mouse_block"
 }

@@ -1,0 +1,13 @@
+{
+  "id": "notebook_block",
+  "displayName": "笔记本",
+  "numericId": 1019,
+  "textures": {
+    "all": "notebook"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 1.0,
+  "minToolTier": 0
+}

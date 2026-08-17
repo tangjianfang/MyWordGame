@@ -3,5 +3,6 @@
   "displayName": "地球仪",
   "numericId": 1207,
   "maxStack": 64,
-  "texture": "globe"
+  "texture": "globe",
+  "blockId": "globe_block"
 }

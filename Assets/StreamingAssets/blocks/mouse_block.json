@@ -1,0 +1,13 @@
+{
+  "id": "mouse_block",
+  "displayName": "鼠标",
+  "numericId": 1018,
+  "textures": {
+    "all": "mouse"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 1.0,
+  "minToolTier": 0
+}

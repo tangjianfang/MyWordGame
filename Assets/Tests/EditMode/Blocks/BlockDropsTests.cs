@@ -329,6 +329,81 @@ namespace MyWorld.Core.Tests.Blocks
             }
         }
 
+        /// <summary>
+        /// m11 W1-5 九件家具的 block↔item 配对表（numericId 经真实注册表解析，不在此重复写死——
+        /// 与 BlockDefinitionFilesTests.M11FurnitureBlocks 的 numericId 守卫各管一半，改号那边先红）。
+        /// </summary>
+        private static readonly (string BlockId, string ItemId)[] M11FurniturePairs =
+        {
+            ("chair_block", "chair"),
+            ("globe_block", "globe"),
+            ("hacker_pc_block", "hacker_pc"),
+            ("keyboard_block", "keyboard"),
+            ("laptop_block", "laptop"),
+            ("mouse_block", "mouse"),
+            ("notebook_block", "notebook"),
+            ("office_desk_block", "office_desk"),
+            ("table_block", "table"),
+        };
+
+        /// <summary>
+        /// m11 W1-5 家具掉落闭环（照 FourOres 真实加载器模式）：真实 items + 真实 blocks +
+        /// 真实 block_drops.json 端到端——九个家具方块破坏后必须各掉回对应物品 ×1。
+        /// 任何一环打错字（itemId 悬空、blockNumericId 与注册表不一致）在这里立刻失败。
+        /// </summary>
+        [Test]
+        public void BlockDrops_RealFile_FurnitureBlocks_DropBackTheirItems()
+        {
+            var items = ItemDatabase.FromJson(
+                Directory.GetFiles(LocateItemsDirectory(), "*.json").Select(File.ReadAllText));
+            var blocks = BlockRegistry.FromJson(
+                Directory.GetFiles(LocateBlocksDirectory(), "*.json").Select(File.ReadAllText));
+            BlockDrops drops = BlockDrops.FromJson(
+                new[] { File.ReadAllText(LocateBlockDropsPath()) }, items);
+
+            foreach ((string blockId, string itemId) in M11FurniturePairs)
+            {
+                BlockDefinition block = blocks.GetById(blockId);
+                Assert.That(items.TryGetById(itemId, out var def), Is.True,
+                    $"家具掉落引用的物品 {itemId} 必须先在 items/*.json 注册");
+
+                ItemStack[] result = drops.DropsFor(block.NumericId);
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result.Length, Is.EqualTo(1),
+                    $"{blockId} 破坏应恰好掉 1 种物品（对应 {itemId}），破坏回收是家具摆放链路的另一半");
+                Assert.That(result[0].ItemId, Is.EqualTo(def.NumericId),
+                    $"{blockId} 应掉回 {itemId}（ItemId 应等于其 numericId）");
+                Assert.That(result[0].Count, Is.EqualTo(1),
+                    "家具破坏掉回原物品固定 ×1（countMin=countMax=1，确定性掷骰必得 1）");
+            }
+        }
+
+        /// <summary>
+        /// m11 W1-5 物品↔方块关联守卫：九件家具物品的 <c>blockId</c> 字段必须指向真实注册的
+        /// 家具方块。物品侧加载器（ItemDatabase）暂不解析该字段（Unity 摆放路由在集成点②接线），
+        /// 所以这里直接读原始 JSON——字段写错（悬空 blockId）在此拦下，而不是等接线后才发现摆不出来。
+        /// </summary>
+        [Test]
+        public void FurnitureItems_DeclaredBlockId_PointsAtRegisteredFurnitureBlocks()
+        {
+            var blocks = BlockRegistry.FromJson(
+                Directory.GetFiles(LocateBlocksDirectory(), "*.json").Select(File.ReadAllText));
+
+            foreach ((string blockId, string itemId) in M11FurniturePairs)
+            {
+                string itemPath = Path.Combine(LocateItemsDirectory(), itemId + ".json");
+                Assert.That(File.Exists(itemPath), Is.True,
+                    $"家具物品 {itemId} 应有定义文件 {itemPath}");
+
+                var root = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(itemPath));
+                string declared = (string)root["blockId"];
+                Assert.That(declared, Is.EqualTo(blockId),
+                    $"items/{itemId}.json 的 blockId 字段应指向 {blockId}——摆放路由将按它把物品解算成方块");
+                Assert.That(blocks.GetById(declared).Id, Is.EqualTo(blockId),
+                    $"blockId 指向的方块必须真实注册（{declared}）");
+            }
+        }
+
         private static string LocateItemsDirectory()
         {
 #if UNITY_EDITOR
@@ -364,6 +439,26 @@ namespace MyWorld.Core.Tests.Blocks
                 directory = directory.Parent;
             }
             throw new FileNotFoundException("未能从测试输出目录向上找到 block_drops.json。");
+#endif
+        }
+
+        /// <summary>m11 W1-5：家具掉落测试要按真实注册表解析 block numericId。</summary>
+        private static string LocateBlocksDirectory()
+        {
+#if UNITY_EDITOR
+            return Path.Combine(UnityEngine.Application.streamingAssetsPath, "blocks");
+#else
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null)
+            {
+                string candidate = Path.Combine(directory.FullName, "Assets", "StreamingAssets", "blocks");
+                if (Directory.Exists(candidate))
+                {
+                    return candidate;
+                }
+                directory = directory.Parent;
+            }
+            throw new DirectoryNotFoundException("未能从测试输出目录向上找到 Assets/StreamingAssets/blocks。");
 #endif
         }
     }

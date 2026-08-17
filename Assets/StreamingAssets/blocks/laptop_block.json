@@ -1,0 +1,13 @@
+{
+  "id": "laptop_block",
+  "displayName": "笔记本电脑",
+  "numericId": 1017,
+  "textures": {
+    "all": "laptop"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 1.0,
+  "minToolTier": 0
+}

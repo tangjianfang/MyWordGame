@@ -1,3 +1,4 @@
+using System.Linq;
 using MyWorld.Core.Blocks;
 using MyWorld.Core.Meshing;
 using MyWorld.Core.Physics;
@@ -138,6 +139,64 @@ namespace MyWorld.Core.Tests.Voxel
             var source = new WorldSolidSource(world, _registry);
 
             Assert.That(source.IsSolidAt(0, 62, 0), Is.False, "玩家应能走进水里而不是站在水面上");
+        }
+
+        /// <summary>
+        /// m11 W1-5：九件家具方块 Solid=false——玩家必须能径直穿过摆进屋里的家具（不堵路）。
+        /// 加载真实 blocks/*.json 而不是内联副本：谁把某个家具 JSON 的 solid 改成 true，
+        /// 这里立刻红（与本文件内联注册表的正反向用例互不掩护）。
+        /// </summary>
+        [Test]
+        public void SolidSource_RealFurnitureBlocks_DoNotBlockMovement()
+        {
+            var registry = BlockRegistry.FromJson(
+                System.IO.Directory.GetFiles(LocateRealBlocksDirectory(), "*.json")
+                    .Select(System.IO.File.ReadAllText));
+
+            string[] furnitureIds =
+            {
+                "chair_block", "table_block", "office_desk_block", "laptop_block", "keyboard_block",
+                "mouse_block", "notebook_block", "hacker_pc_block", "globe_block",
+            };
+
+            var world = new World();
+            var source = new WorldSolidSource(world, registry);
+
+            int x = -40;
+            foreach (string id in furnitureIds)
+            {
+                ushort numericId = registry.GetById(id).NumericId;
+                world.SetBlock(x, 70, 128, numericId);
+                Assert.That(source.IsSolidAt(x, 70, 128), Is.False,
+                    $"{id} 不应阻挡玩家移动（装饰性家具 Solid=false）");
+                x++;
+            }
+
+            // 对照组：同一坐标系里石头仍挡路——证明上面不是「未加载区块恒 false」式的假绿
+            world.SetBlock(x, 70, 128, BlockIds.Stone);
+            Assert.That(source.IsSolidAt(x, 70, 128), Is.True, "对照组石头应照常阻挡移动");
+        }
+
+        /// <summary>dotnet 从测试输出目录向上爬找仓库；Unity 走 streamingAssetsPath。</summary>
+        private static string LocateRealBlocksDirectory()
+        {
+#if UNITY_EDITOR
+            return System.IO.Path.Combine(UnityEngine.Application.streamingAssetsPath, "blocks");
+#else
+            var directory = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+            while (directory != null)
+            {
+                string candidate = System.IO.Path.Combine(
+                    directory.FullName, "Assets", "StreamingAssets", "blocks");
+                if (System.IO.Directory.Exists(candidate))
+                {
+                    return candidate;
+                }
+                directory = directory.Parent;
+            }
+            throw new System.IO.DirectoryNotFoundException(
+                "未能从测试输出目录向上找到 Assets/StreamingAssets/blocks。");
+#endif
         }
 
         [Test]
