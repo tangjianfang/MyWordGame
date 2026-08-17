@@ -457,6 +457,188 @@ def cmd_install() -> int:
     return 0
 
 
+# ──────────────────────────────────────────────────────────── Task 3: 视频配额队列
+
+
+@dataclass
+class QuotaState:
+    """视频生成配额状态：date/used_today/max_per_day + 各任务的 status/attempts。
+
+    持久化在 <art/incoming/video/quota.json>，跨天 rollover 自动清零。
+    """
+
+    date: str
+    used_today: int
+    max_per_day: int
+    tasks: dict  # name → {"status": "pending|done|failed", "attempts": int}
+
+
+def load_quota(today: str) -> QuotaState:
+    """读 quota.json；缺失/损坏/异常 → 视为全新重建（打印警告但不抛）。"""
+    q = QuotaState(date=today, used_today=0, max_per_day=3, tasks={})
+    if QUOTA_PATH.exists():
+        try:
+            raw = json.loads(QUOTA_PATH.read_text(encoding="utf-8"))
+            q = QuotaState(
+                raw.get("date", today),
+                int(raw.get("usedToday", 0)),
+                int(raw.get("maxPerDay", 3)),
+                raw.get("tasks", {}),
+            )
+        except (json.JSONDecodeError, OSError):
+            print("quota.json 损坏，视同全新重建")
+    return rollover(q, today)
+
+
+def save_quota(q: QuotaState) -> None:
+    """写 quota.json（每次 used_today 变更即落盘，避免崩溃丢计数）。"""
+    INCOMING_VIDEO.mkdir(parents=True, exist_ok=True)
+    QUOTA_PATH.write_text(
+        json.dumps(
+            {
+                "date": q.date,
+                "usedToday": q.used_today,
+                "maxPerDay": q.max_per_day,
+                "tasks": q.tasks,
+            },
+            ensure_ascii=False, indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
+def rollover(q: QuotaState, today: str) -> QuotaState:
+    """跨天重置：date 不一致 → 改 date + 清 used_today（任务状态保留）。"""
+    if q.date != today:
+        q.date, q.used_today = today, 0
+    return q
+
+
+def plan_tasks(declared: list[str], q: QuotaState) -> list[tuple[str, str]]:
+    """为每条声明的任务算行动（generate / skip_done / defer_quota / give_up）。
+
+    优先级：done > attempts≥3 > 配额满 > 可生成。
+    """
+    out = []
+    for name in declared:
+        t = q.tasks.setdefault(name, {"status": "pending", "attempts": 0})
+        if t["status"] == "done":
+            out.append((name, "skip_done"))
+        elif t["attempts"] >= 3:
+            out.append((name, "give_up"))
+        elif q.used_today >= q.max_per_day:
+            out.append((name, "defer_quota"))
+        else:
+            out.append((name, "generate"))
+    return out
+
+
+def build_video_payload(prompt: str) -> dict:
+    """Hailuo-2.3 文生视频请求（6s 768P）。"""
+    return {
+        "model": "MiniMax-Hailuo-2.3",
+        "prompt": prompt[:2000],
+        "duration": 6,
+        "resolution": "768P",
+        "prompt_optimizer": False,
+        "aigc_watermark": False,
+    }
+
+
+def get_json(path: str, timeout: int = 120) -> dict:
+    """GET JSON（轮询 / 文件信息）。"""
+    req = urllib.request.Request(
+        API_BASE + path,
+        headers={"Authorization": "Bearer " + api_key()},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def generate_video(entry: Entry) -> Path:
+    """提交 + 轮询 + 下载视频。最长 ~10 分钟（120 × 5s）。"""
+    data = post_json("/v1/video_generation", build_video_payload(entry.prompt))
+    task_id = data["task_id"]
+    for _ in range(120):
+        time.sleep(5)
+        q = get_json(f"/v1/query/video_generation?task_id={task_id}")
+        if q.get("status") == "Success":
+            file_id = q["file_id"]
+            info = get_json(f"/v1/files/retrieve?file_id={file_id}")
+            url = info["file"]["download_url"]  # 1 小时有效，立即下载
+            dst = INCOMING_VIDEO / f"{entry.name}.mp4"
+            with urllib.request.urlopen(url, timeout=600) as r, open(dst, "wb") as f:
+                shutil.copyfileobj(r, f)
+            return dst
+        if q.get("status") == "Fail":
+            raise RuntimeError(f"{entry.name} 视频生成 Fail")
+    raise RuntimeError(f"{entry.name} 视频轮询超时")
+
+
+def postprocess_video(raw: Path, dst: Path) -> Path:
+    """Hailuo-2.3 输出直接是 mp4，这里转码确保编码兼容 + 移动友好。"""
+    run_ff([
+        "-i", str(raw),
+        "-an",  # 去掉音轨（视频当背景乐配 BGM，不需要原生音）
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        "-c:v", "libx264",
+        "-crf", "23",
+        str(dst),
+    ])
+    return dst
+
+
+def cmd_videos() -> int:
+    """--videos 主流程：按配额队列跑视频。失败/超限/已 done 各有提示。"""
+    today = time.strftime("%Y-%m-%d")
+    q = load_quota(today)
+    declared = [e.name for e in parse_entries(REQUESTS_ROOT) if e.kind == "video"]
+    if not declared:
+        print("（无视频需求文件）")
+        return 0
+    plan = plan_tasks(declared, q)
+    print(f"今日配额：{q.used_today}/{q.max_per_day}（日期 {q.date}）")
+
+    deferred = []
+    for name, action in plan:
+        if action == "skip_done":
+            print(f"  [跳过] {name} 已 done")
+        elif action == "give_up":
+            print(f"  [放弃] {name} attempts≥3（人工改提示词后清 quota.json 再跑）")
+        elif action == "defer_quota":
+            print(f"  [明日] {name} 今日配额已用完")
+            deferred.append(name)
+        elif action == "generate":
+            # 提交即计配额：先 bump + save，再调 API（失败也占一次）
+            q.used_today += 1
+            q.tasks[name]["attempts"] += 1
+            save_quota(q)
+            entry = next((e for e in parse_entries(REQUESTS_ROOT)
+                          if e.kind == "video" and e.name == name), None)
+            if entry is None:
+                print(f"  [失败] {name} 需求丢失")
+                continue
+            try:
+                print(f"  [生成] {name}（{q.used_today}/{q.max_per_day}）…")
+                raw = generate_video(entry)
+                final = INCOMING_VIDEO / f"{entry.name}.mp4"
+                postprocess_video(raw, final)
+                q.tasks[name]["status"] = "done"
+                save_quota(q)
+                print(f"  [OK] {name}")
+            except Exception as e:
+                q.tasks[name]["status"] = "failed"
+                save_quota(q)
+                print(f"  [失败] {name}：{e}")
+
+    if deferred:
+        print(f"\n今日视频配额已用完（{q.used_today}/{q.max_per_day}），"
+              f"剩余 {len(deferred)} 个任务明天再跑 --videos")
+    print(f"\n入库跑: python tools/generate_media.py --install")
+    return 0
+
+
 # ──────────────────────────────────────────────────────────── 入口（CLI）
 
 
@@ -540,6 +722,30 @@ def self_test() -> None:
         sfx = synth_sfx("thud", Path(td) / "thud.ogg", mono=True)
         assert sfx.exists() and probe_duration(sfx) < 1.5
 
+    # ── Task 3 扩展：视频配额队列 + payload ──
+    # 队列状态机：跨天重置 / 配额耗尽 / 重试上限 / skip done
+    q = QuotaState(date="2026-08-17", used_today=3, max_per_day=3,
+                   tasks={"menu-bg": {"status": "done", "attempts": 1}})
+    q = rollover(q, "2026-08-18")
+    assert q.used_today == 0 and q.date == "2026-08-18"
+    plan = plan_tasks(["menu-bg", "laptop-loop", "a", "b", "c"], q)
+    assert plan[0] == ("menu-bg", "skip_done")
+    assert plan[1] == ("laptop-loop", "generate")  # 第 1/3 次
+    q.used_today = 2
+    plan = plan_tasks(["laptop-loop"], q)
+    assert plan == [("laptop-loop", "generate")]
+    q.used_today = 3
+    plan = plan_tasks(["laptop-loop"], q)
+    assert plan == [("laptop-loop", "defer_quota")]
+    q.tasks["laptop-loop"] = {"status": "failed", "attempts": 3}
+    plan = plan_tasks(["laptop-loop"], q)
+    assert plan == [("laptop-loop", "give_up")]
+
+    # payload 纯函数
+    vp = build_video_payload("Voxel landscape.")
+    assert vp["model"] == "MiniMax-Hailuo-2.3" and vp["duration"] == 6
+    assert vp["resolution"] == "768P" and vp["prompt_optimizer"] is False
+
     print("self-test OK")
 
 
@@ -564,8 +770,7 @@ def main() -> int:
     if args.audio:
         return cmd_audio(args.only)
     if args.videos:
-        print("（--videos 在 Task 3 实现）")
-        return 0
+        return cmd_videos()
     if args.install:
         return cmd_install()
     parser.print_help()
