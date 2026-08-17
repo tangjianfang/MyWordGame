@@ -236,6 +236,26 @@ milestone-10 矿物进阶的 6 张新贴图全部先程序占位：
 | M10-D | [6 张装备物品图标（金/合金/机元剑+镐）](requests/items/m10-gear-placeholders.md) | 6 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
 | M10-E | [9 张升级链物品图标（金锭 + 四系剑/镐+1）](requests/items/m10-c2-upgrade-placeholders.md) | 9 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
 
+### av 批 · 音频与视频（MiniMax 生成）
+
+音频 33 条走 `tools/generate_media.py --audio`（music-2.6，SFX 带 ffmpeg 合成兜底），
+视频 2 条走 `--videos`（Hailuo-2.3 768P，**每日 3 次配额**，队列
+`art/incoming/video/quota.json`，gitignored）。需求在 `art/requests/audio|video/`，
+入库 `Assets/Resources/Audio/` 与 `Assets/StreamingAssets/video/`。
+
+| 编号 | 资源 | 条数 | 说明 | 状态 |
+| --- | --- | --- | --- | --- |
+| AV-BGM | [BGM 三首](requests/audio/bgm/bgm.md) | 3 | 氛围钢琴 无缝循环 | 待生成 |
+| AV-AMB | [环境循环](requests/audio/ambient/ambient.md) | 3 | 鸟/虫/洞穴 | 待生成 |
+| AV-SFX | [事件音](requests/audio/events/events.md) | 11 | mono 短音（含合成兜底模板） | 待生成 |
+| AV-MOB | [生物叫声](requests/audio/mobs/mobs.md) | 16 | 6 专属 + 2 通用 × idle/hurt | 待生成 |
+| AV-VID | [视频两条](requests/video/menu-bg.md) | 2 | 主菜单背景 + 笔记本屏 | 待生成 |
+| AV-LS | [笔记本屏幕贴图](requests/items/laptop-screen.md) | 1 | 32×32 程序占位，运行时换 RenderTexture | 程序占位（待正式美术替换） |
+
+第 4 批合计 **36 个文件**（音频 33 ogg + 视频 2 mp4 + 屏幕贴图 1 png）。
+注：plan 文字提到 mob 14，但实际需要 6 专属 × 2 + 2 通用 × 2 = 16 条（Task 10
+测试要求 `generic-small/large-{idle,hurt}` 4 个文件名全在），以实现为准修计划。
+
 ### 第 3 批 · 待玩法定案后再写提示词
 
 这些资源的样子取决于还没设计的玩法，**现在写提示词是浪费**——
@@ -273,3 +293,5 @@ milestone-10 矿物进阶的 6 张新贴图全部先程序占位：
 | UI | `Assets/Art/UI/` |
 | 天空 | `Assets/Art/Sky/` |
 | 玩家 | `Assets/Art/Player/` |
+| 音频 | `Assets/Resources/Audio/` |
+| 视频 | `Assets/StreamingAssets/video/` |
