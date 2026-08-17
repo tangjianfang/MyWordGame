@@ -34,8 +34,13 @@ namespace MyWorld.Core.Player
         /// <summary>
         /// 格子与玩家包围盒是否重叠。用严格不等号——正好贴面（比如脚底那格的顶面 y = 64
         /// 对上包围盒底面 y = 64）不算重叠，否则站在地上时脚下一圈全都放不了。
+        /// <para>
+        /// m11 W3-1 起公开：放置路由对床/门这类<b>多格方块</b>的额外占据格
+        /// （床头格 / 门上格）也要过同一条防卡身判定——放固体方块进玩家身体所在格
+        /// 会把人封死在里面，多格放置的每一格都复用这一份判定，别各写一份漂移。
+        /// </para>
         /// </summary>
-        private static bool IntersectsPlayer(int x, int y, int z, Aabb box)
+        public static bool IntersectsPlayer(int x, int y, int z, Aabb box)
         {
             return box.Min.X < x + 1 && box.Max.X > x
                 && box.Min.Y < y + 1 && box.Max.Y > y

@@ -145,6 +145,11 @@ namespace MyWorld.Core.Blocks
         public bool TryGetByNumericId(ushort numericId, out BlockDefinition definition)
             => _byNumericId.TryGetValue(numericId, out definition);
 
+        /// <summary>m11 W3-1：按字符串 id 查方块，未注册返回 false 不抛——放置路由解析
+        /// 物品的 <c>blockId</c>（悬空引用 warn 后让位），不该走抛异常的 <see cref="GetById"/>。</summary>
+        public bool TryGetById(string id, out BlockDefinition definition)
+            => _byId.TryGetValue(id, out definition);
+
         private void Add(BlockDefinition definition)
         {
             if (_byId.ContainsKey(definition.Id))

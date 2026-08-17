@@ -203,6 +203,10 @@ namespace MyWorld.Core.Items
                 GearStat = gearStat,
                 GearAmount = gearAmount,
                 ArmorPart = armorPart,
+                // m11 W3-1：物品 → 方块关联（家具/箱子/床/门/附魔台）。null/不写 = 无关联方块。
+                // 这里不校验跨表引用（ItemDatabase 不持有 BlockRegistry）——悬空 blockId 由
+                // 真数据守卫测试（加载真实 items+blocks 两目录对账）抓，运行时放置路由 warn 后让位
+                BlockId = (string)root["blockId"],
             };
 
             return (def, numericIdToken != null);

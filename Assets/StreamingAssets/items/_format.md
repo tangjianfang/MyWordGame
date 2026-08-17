@@ -44,7 +44,7 @@
 | `numericId` | 整数 | 否 | 自动分配 | 见下方「关于 numericId」；存档里实际存的是它，**定了就别改** |
 | `maxStack` | 整数 | 否 | `64` | 单格堆叠上限。工具/装备填 `1` |
 | `texture` | 字符串 | 否 | `"missing"` | 贴图名，对应 `textures/` 目录下的文件名，**不带 `.png` 后缀**（如 `"lapis"` 对应 `textures/lapis.png`） |
-| `blockId` | 字符串 | 否 | 无关联 | **m11 W1-5 新引入**：物品与其「方块形态」的关联声明（如 `chair` ↔ `chair_block`，九件家具物品都写了）。声明该物品放置时落哪个方块、挖掉那个方块掉回哪个物品（`blocks/drops/block_drops.json` 的条目按它对齐）。v1 是**数据约定**——加载器宽松解析、未知字段忽略，尚无代码消费，写错不会被加载器抓住，靠 FunctionalBlockFilesTests 的掉落对表守卫兜底 |
+| `blockId` | 字符串 | 否 | 无关联 | **m11 W1-5 新引入，W3-1 起被放置路由消费**：物品与其「方块形态」的关联声明（如 `chair` ↔ `chair_block`）。写了它的物品右键放置落对应方块并扣 1 个物品（床走双格摆法、门贴地两格，见 BlockInteraction 放置路由）；不写 = 放置回落 placeBlockId 占位、不扣物品。挖掉那个方块掉回哪个物品由 `blocks/drops/block_drops.json` 的条目对齐（1:1 掉回——放置扣 1、挖掉还 1，不做无限复制机）。加载器解析进 `ItemDefinition.BlockId` 但不做跨表校验，悬空引用（写了但 blocks 注册表里没有）由真数据守卫测试 `BlockInteractionPlaceRoutingTests` 抓 |
 | `attackDamage` | 小数 | 否 | 不可作武器 | 主手挥击伤害。不写（null）= 该物品不能当武器挥击 |
 | `healAmount` | 小数 | 否 | 不可食用 | 右键吃掉后经 `HungerSystem.Eat` 回的饥饿值。不写或 0 = 不是食物，右键照常放方块 |
 | `isTool` | 布尔 | 否 | `false` | 是否归类为工具（剑/镐/斧/锹）。用于耐久条与方块采集加速判定 |

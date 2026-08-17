@@ -118,6 +118,15 @@ namespace MyWorld.Core.Items
         /// </summary>
         public ArmorPart ArmorPart = ArmorPart.None;
 
+        /// <summary>
+        /// m11 W3-1：该物品右键放置时对应的方块字符串 id（<c>items/*.json</c> 的 <c>blockId</c>）。
+        /// null/空 = 无关联方块——放置回落 BlockInteraction 的 placeBlockId 占位（m3 语义）。
+        /// 家具 9 件 + 附魔台 / 箱子 / 床 / 木门写这个字段，放置路由据此放对应方块并扣 1 个物品；
+        /// 跨表一致性（blockId 必须能在 blocks 注册表解析到）由真数据守卫测试把守
+        /// （BlockInteractionPlaceRoutingTests）。
+        /// </summary>
+        public string BlockId;
+
         public override string ToString() => $"Item({Id}, id={NumericId})";
     }
 }

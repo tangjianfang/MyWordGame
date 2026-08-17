@@ -3,5 +3,6 @@
   "displayName": "木门",
   "numericId": 1352,
   "maxStack": 16,
-  "texture": "wooden-door-lower"
+  "texture": "wooden-door-lower",
+  "blockId": "wooden_door"
 }

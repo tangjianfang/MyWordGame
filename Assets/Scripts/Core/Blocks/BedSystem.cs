@@ -202,7 +202,10 @@ namespace MyWorld.Core.Blocks
         /// <summary>重生点坐标：脚格中心、床面上一格——床是实心方块，直接站脚格里会卡模型。</summary>
         private static Float3 SpawnPointAt(int x, int y, int z) => new Float3(x + 0.5f, y + 1f, z + 0.5f);
 
-        private static (int X, int Y, int Z) HeadOffset(BedFacing facing)
+        /// <summary>朝向 → 头格相对脚格的偏移。m11 W3-1 起公开：放置路由放完床要给
+        /// 头格也标脏（重建网格），放之前还要预检头格防卡身——偏移真源只此一份，
+        /// 调用方不要自算（自算会与本表漂移）。</summary>
+        public static (int X, int Y, int Z) HeadOffset(BedFacing facing)
         {
             switch (facing)
             {
