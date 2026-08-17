@@ -1,0 +1,7 @@
+{
+  "id": "wooden_door",
+  "displayName": "木门",
+  "numericId": 1352,
+  "maxStack": 16,
+  "texture": "wooden-door-lower"
+}

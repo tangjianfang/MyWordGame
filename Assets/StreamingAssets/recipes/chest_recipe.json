@@ -1,0 +1,22 @@
+{
+  "id": "chest_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "plank",
+    "plank",
+    "plank",
+    "plank",
+    "_",
+    "plank",
+    "plank",
+    "plank",
+    "plank"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "chest",
+    "count": 1
+  }
+}

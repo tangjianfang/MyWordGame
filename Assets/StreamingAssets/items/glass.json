@@ -1,0 +1,7 @@
+{
+  "id": "glass",
+  "displayName": "玻璃",
+  "numericId": 1354,
+  "maxStack": 64,
+  "texture": "glass"
+}

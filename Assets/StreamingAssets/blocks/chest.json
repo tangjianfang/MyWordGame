@@ -1,0 +1,14 @@
+{
+  "id": "chest",
+  "displayName": "箱子",
+  "numericId": 1023,
+  "textures": {
+    "top": "chest-top",
+    "bottom": "chest-top",
+    "side": "chest-front"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 1.0
+}

@@ -114,6 +114,37 @@ namespace MyWorld.Core.Lighting
             Flood(volume, queue);
         }
 
+        /// <summary>
+        /// 全量铺方块光（m11 W1-4）：扫描体积里每个自发光方块（火把 lightEmission=14 等，
+        /// 经 <see cref="ILightVolume.GetLightEmission"/> 通道登记），以发光强度为种子做 BFS 洪泛。
+        /// 与 <see cref="PropagateSkyLight"/> 同一光值通道（同一个字节），<b>取更亮者</b>——
+        /// 因此调用顺序必须是<b>先天光后方块光</b>：天光的柱状直射会无条件覆写所在格（含写 0），
+        /// 后跑会清掉火把光；反过来方块光只在与现有值比较后变亮，不会削弱天光。
+        /// 单点增删光源走 <see cref="AddBlockLight"/>/<see cref="RemoveBlockLight"/> 的增量路径。
+        /// </summary>
+        public static void PropagateBlockLight(ILightVolume volume)
+        {
+            var queue = new Queue<(int X, int Y, int Z)>();
+
+            for (var x = 0; x < volume.SizeX; x++)
+            {
+                for (var y = 0; y < volume.SizeY; y++)
+                {
+                    for (var z = 0; z < volume.SizeZ; z++)
+                    {
+                        byte emission = volume.GetLightEmission(x, y, z);
+                        if (emission > 0 && emission > volume.GetLight(x, y, z))
+                        {
+                            volume.SetLight(x, y, z, emission);
+                            queue.Enqueue((x, y, z));
+                        }
+                    }
+                }
+            }
+
+            Flood(volume, queue);
+        }
+
         private static void Flood(ILightVolume volume, Queue<(int X, int Y, int Z)> queue)
         {
             while (queue.Count > 0)

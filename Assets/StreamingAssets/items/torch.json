@@ -1,0 +1,7 @@
+{
+  "id": "torch",
+  "displayName": "火把",
+  "numericId": 1350,
+  "maxStack": 64,
+  "texture": "torch"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "bed",
+  "displayName": "床",
+  "numericId": 1022,
+  "textures": {
+    "top": "bed-head-top",
+    "bottom": "bed-side",
+    "side": "bed-side"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 1.0
+}

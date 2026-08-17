@@ -1,0 +1,17 @@
+{
+  "id": "torch_recipe",
+  "tier": "inventory",
+  "width": 2,
+  "height": 2,
+  "pattern": [
+    "stick",
+    "coal",
+    "_",
+    "_"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "torch",
+    "count": 4
+  }
+}

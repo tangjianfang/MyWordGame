@@ -1,0 +1,7 @@
+{
+  "id": "sand",
+  "displayName": "沙子",
+  "numericId": 1355,
+  "maxStack": 64,
+  "texture": "sand"
+}

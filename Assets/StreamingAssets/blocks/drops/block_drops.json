@@ -24,7 +24,7 @@
     "blockId": "sand",
     "blockNumericId": 4,
     "drops": [
-      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+      { "itemId": "sand", "countMin": 1, "countMax": 1 }
     ]
   },
   {
@@ -79,6 +79,104 @@
     "blockNumericId": 1012,
     "drops": [
       { "itemId": "machine_essence", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "chair_block",
+    "blockNumericId": 1013,
+    "drops": [
+      { "itemId": "chair", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "globe_block",
+    "blockNumericId": 1014,
+    "drops": [
+      { "itemId": "globe", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "hacker_pc_block",
+    "blockNumericId": 1015,
+    "drops": [
+      { "itemId": "hacker_pc", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "keyboard_block",
+    "blockNumericId": 1016,
+    "drops": [
+      { "itemId": "keyboard", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "laptop_block",
+    "blockNumericId": 1017,
+    "drops": [
+      { "itemId": "laptop", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "mouse_block",
+    "blockNumericId": 1018,
+    "drops": [
+      { "itemId": "mouse", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "notebook_block",
+    "blockNumericId": 1019,
+    "drops": [
+      { "itemId": "notebook", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "office_desk_block",
+    "blockNumericId": 1020,
+    "drops": [
+      { "itemId": "office_desk", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "table_block",
+    "blockNumericId": 1021,
+    "drops": [
+      { "itemId": "table", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "bed",
+    "blockNumericId": 1022,
+    "drops": [
+      { "itemId": "bed", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "chest",
+    "blockNumericId": 1023,
+    "drops": [
+      { "itemId": "chest", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "glass",
+    "blockNumericId": 1024,
+    "drops": [
+      { "itemId": "glass", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "torch",
+    "blockNumericId": 1025,
+    "drops": [
+      { "itemId": "torch", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "wooden_door",
+    "blockNumericId": 1026,
+    "drops": [
+      { "itemId": "wooden_door", "countMin": 1, "countMax": 1 }
     ]
   }
 ]

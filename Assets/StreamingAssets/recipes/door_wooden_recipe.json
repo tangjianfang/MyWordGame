@@ -1,0 +1,22 @@
+{
+  "id": "door_wooden_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "plank",
+    "plank",
+    "plank",
+    "plank",
+    "plank",
+    "plank",
+    "_",
+    "_",
+    "_"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "wooden_door",
+    "count": 3
+  }
+}

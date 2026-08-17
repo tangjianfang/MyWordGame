@@ -1,0 +1,12 @@
+{
+  "id": "glass",
+  "displayName": "玻璃",
+  "numericId": 1024,
+  "textures": {
+    "all": "glass"
+  },
+  "solid": true,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 1.0
+}

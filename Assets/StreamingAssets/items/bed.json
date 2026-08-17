@@ -1,0 +1,7 @@
+{
+  "id": "bed",
+  "displayName": "床",
+  "numericId": 1353,
+  "maxStack": 1,
+  "texture": "bed-side"
+}

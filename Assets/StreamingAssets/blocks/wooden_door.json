@@ -1,0 +1,14 @@
+{
+  "id": "wooden_door",
+  "displayName": "木门",
+  "numericId": 1026,
+  "textures": {
+    "top": "wooden-door-upper",
+    "bottom": "wooden-door-lower",
+    "side": "wooden-door-lower"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 1.0
+}

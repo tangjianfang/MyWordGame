@@ -1,0 +1,22 @@
+{
+  "id": "bed_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "wool",
+    "wool",
+    "wool",
+    "plank",
+    "plank",
+    "plank",
+    "_",
+    "_",
+    "_"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "bed",
+    "count": 1
+  }
+}

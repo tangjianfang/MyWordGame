@@ -1,0 +1,7 @@
+{
+  "id": "chest",
+  "displayName": "箱子",
+  "numericId": 1351,
+  "maxStack": 64,
+  "texture": "chest-front"
+}
