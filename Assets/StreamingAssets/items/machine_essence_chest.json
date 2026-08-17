@@ -1,0 +1,9 @@
+{
+  "id": "machine_essence_chest",
+  "displayName": "机元胸甲",
+  "numericId": 1463,
+  "maxStack": 1,
+  "texture": "chest-machine-essence",
+  "armorPart": "chest",
+  "gearBonus": { "stat": "maxHealth", "amount": 2 }
+}

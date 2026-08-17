@@ -1,0 +1,9 @@
+{
+  "id": "iron_chest",
+  "displayName": "铁胸甲",
+  "numericId": 1451,
+  "maxStack": 1,
+  "texture": "chest-iron",
+  "armorPart": "chest",
+  "gearBonus": { "stat": "defense", "amount": 2 }
+}

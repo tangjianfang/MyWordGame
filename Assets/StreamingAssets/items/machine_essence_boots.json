@@ -1,0 +1,9 @@
+{
+  "id": "machine_essence_boots",
+  "displayName": "机元靴子",
+  "numericId": 1465,
+  "maxStack": 1,
+  "texture": "boots-machine-essence",
+  "armorPart": "boots",
+  "gearBonus": { "stat": "maxHealth", "amount": 1 }
+}

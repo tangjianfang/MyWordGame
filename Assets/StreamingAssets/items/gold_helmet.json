@@ -1,0 +1,8 @@
+{
+  "id": "gold_helmet",
+  "displayName": "金头盔",
+  "numericId": 1454,
+  "maxStack": 1,
+  "texture": "helmet-gold",
+  "armorPart": "helmet"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "summer_alloy_chest",
+  "displayName": "夏季合金胸甲",
+  "numericId": 1459,
+  "maxStack": 1,
+  "texture": "chest-summer-alloy",
+  "armorPart": "chest",
+  "gearBonus": { "stat": "moveSpeed", "amount": 0.03 }
+}

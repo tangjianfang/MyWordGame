@@ -1,0 +1,9 @@
+{
+  "id": "iron_legs",
+  "displayName": "铁护腿",
+  "numericId": 1452,
+  "maxStack": 1,
+  "texture": "legs-iron",
+  "armorPart": "legs",
+  "gearBonus": { "stat": "defense", "amount": 2 }
+}

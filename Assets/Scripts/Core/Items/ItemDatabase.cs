@@ -168,6 +168,25 @@ namespace MyWorld.Core.Items
                 }
             }
 
+            // m11 W2-1 盔甲部位：armorPart "helmet"/"chest"/"legs"/"boots"，受控词表
+            //（写错立刻抛，与 toolTier / gearBonus.stat 同态度）。不写 = 非盔甲。
+            // 部位与 gearBonus 正交：盔甲通常两者都写（部位 + 材料属性），武器只写后者。
+            ArmorPart armorPart = ArmorPart.None;
+            JToken partToken = root["armorPart"];
+            if (partToken != null)
+            {
+                string part = (string)partToken;
+                armorPart = part switch
+                {
+                    "helmet" => ArmorPart.Helmet,
+                    "chest" => ArmorPart.Chest,
+                    "legs" => ArmorPart.Legs,
+                    "boots" => ArmorPart.Boots,
+                    _ => throw new InvalidDataException(
+                        $"物品 {id} 的 armorPart 为「{part}」，只认 helmet / chest / legs / boots（不写 = 非盔甲）。"),
+                };
+            }
+
             var def = new ItemDefinition
             {
                 Id = id,
@@ -183,6 +202,7 @@ namespace MyWorld.Core.Items
                 MaxDurability = maxDurability,
                 GearStat = gearStat,
                 GearAmount = gearAmount,
+                ArmorPart = armorPart,
             };
 
             return (def, numericIdToken != null);

@@ -1,0 +1,9 @@
+{
+  "id": "summer_alloy_helmet",
+  "displayName": "夏季合金头盔",
+  "numericId": 1458,
+  "maxStack": 1,
+  "texture": "helmet-summer-alloy",
+  "armorPart": "helmet",
+  "gearBonus": { "stat": "moveSpeed", "amount": 0.02 }
+}

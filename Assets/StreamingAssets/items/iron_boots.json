@@ -1,0 +1,9 @@
+{
+  "id": "iron_boots",
+  "displayName": "铁靴子",
+  "numericId": 1453,
+  "maxStack": 1,
+  "texture": "boots-iron",
+  "armorPart": "boots",
+  "gearBonus": { "stat": "defense", "amount": 1 }
+}

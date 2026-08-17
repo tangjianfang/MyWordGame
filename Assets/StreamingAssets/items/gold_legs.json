@@ -1,0 +1,8 @@
+{
+  "id": "gold_legs",
+  "displayName": "金护腿",
+  "numericId": 1456,
+  "maxStack": 1,
+  "texture": "legs-gold",
+  "armorPart": "legs"
+}

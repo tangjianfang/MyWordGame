@@ -51,11 +51,20 @@ namespace MyWorld.Unity.Gameplay
             new System.Collections.Generic.List<ItemDropEntity>();
         public MyWorld.Unity.UI.DeathScreenUi DeathScreen;
 
-        // ─── m10 C1：手持装备三属性（手持即生效，切走失效） ─────────────────────
+        // ─── 装备三属性（m10 C1 手持模型 → m11 W2-1 升级双源）──────────────────
         //
-        // 简化模型（spec §3）：不做穿戴栏，加成只看**选中物品一件**——
-        // 金系攻击走物品表 attackDamage（既有通道），防御/移速/生命上限三新属性
-        // 走 items/*.json 的 gearBonus，由 RefreshGearBonuses 每帧从选中物品重建。
+        // m10 简化模型「手持即生效」升级为「**穿戴盔甲 + 手持装备**」双源汇总：
+        //   - 穿戴源：ArmorSlots 4 槽（头/胸/腿/脚）逐件累计，只收对应部位盔甲
+        //     （items/*.json 的 armorPart），穿脱走 ArmorInventory.TryEquipFrom/TryUnequipTo
+        //   - 手持源：选中格一件（m10 语义**原样保留**——拿着带 gearBonus 的任何物品，
+        //     含还没穿上的盔甲，照样生效；拿走即失效）
+        // 金系攻击不参与汇总：永远走手持物品表 attackDamage（CombatController 挥击读选中物品），
+        // 穿戴不改变攻击。三属性仍由 RefreshGearBonuses 每帧重建，读取方零改动。
+
+        /// <summary>穿戴栏（头/胸/腿/脚 4 槽，m11 W2-1）。只收对应部位盔甲
+        ///（<see cref="ArmorInventory.TryEquipFrom"/> 按部位定槽），进档随
+        /// PlayerSnapshot.ArmorSlots 往返。UI 侧 <see cref="MyWorld.Unity.UI.ArmorSlotsUi"/>。</summary>
+        public readonly ArmorInventory ArmorSlots = new ArmorInventory();
 
         /// <summary>防御点数：受伤时伤害 - 本值（下限 1 伤不无敌，
         /// <see cref="GearBonusMath.MitigateDamage"/>）。</summary>
@@ -67,23 +76,44 @@ namespace MyWorld.Unity.Gameplay
         /// <summary>生命上限加成（点数）：有效血上限 = <see cref="Health"/>.Max + 本值。</summary>
         public int MaxHealthBonus { get; private set; }
 
-        /// <summary>有效血上限（m10 C1）：基础 <see cref="Health"/>.Max + 手持装备加成。
+        /// <summary>有效血上限（m10 C1）：基础 <see cref="Health"/>.Max + 装备加成。
         /// <see cref="MyWorld.Unity.Player.PlayerController.Respawn"/> 回满到这里而不是基础值。</summary>
         public float EffectiveMaxHealth =>
             GearBonusMath.EffectiveMaxHealth(Health.Max, MaxHealthBonus);
 
         /// <summary>
-        /// 从选中物品刷新三属性（m10 C1）。本组件挂 DefaultExecutionOrder(-1000)，
-        /// Update 先于 PlayerController 执行，运行时每帧自动刷；EditMode 测试
-        /// 改完选中格后手动调。刷新末尾把 <see cref="Health"/>.Current 钳到有效上限内——
-        /// 切走生命上限装备的瞬间，多出来的血当场收回（血量刷新处钳制，只收不加）。
+        /// 双源刷新三属性（m11 W2-1）：穿戴盔甲逐件累计 + 手持选中格一件。
+        /// 本组件挂 DefaultExecutionOrder(-1000)，Update 先于 PlayerController 执行，
+        /// 运行时每帧自动刷；EditMode 测试与穿脱交互（ArmorSlotsUi.ClickSlot）改完状态后手动调。
+        /// 同一件物品不可能既穿着又拿着，双源不会重复计同一件。
+        /// 刷新末尾把 <see cref="Health"/>.Current 钳到有效上限内——脱下生命上限装备的瞬间，
+        /// 多出来的血当场收回（血量刷新处钳制，只收不加）。
         /// </summary>
         public void RefreshGearBonuses()
         {
-            var bonuses = GearBonuses.FromDefinition(GetSelectedDefinition());
-            Defense = bonuses.Defense;
-            MoveSpeedBonus = bonuses.MoveSpeedBonus;
-            MaxHealthBonus = bonuses.MaxHealthBonus;
+            // 穿戴源：4 槽逐件累计（纯求和，无分配）
+            int defense = 0;
+            float moveSpeed = 0f;
+            int maxHealth = 0;
+            if (ArmorSlots != null && Items != null)
+            {
+                for (int i = 0; i < ArmorInventory.SlotCount; i++)
+                {
+                    ItemStack stack = ArmorSlots.GetSlot(i);
+                    if (stack.IsEmpty) continue;
+                    if (!Items.TryGetByNumericId(stack.ItemId, out var worn)) continue;
+                    GearBonuses piece = GearBonuses.FromDefinition(worn);
+                    defense += piece.Defense;
+                    moveSpeed += piece.MoveSpeedBonus;
+                    maxHealth += piece.MaxHealthBonus;
+                }
+            }
+
+            // 手持源：m10 语义原样（选中格一件，拿走失效）
+            GearBonuses held = GearBonuses.FromDefinition(GetSelectedDefinition());
+            Defense = defense + held.Defense;
+            MoveSpeedBonus = moveSpeed + held.MoveSpeedBonus;
+            MaxHealthBonus = maxHealth + held.MaxHealthBonus;
             Health.Current = GearBonusMath.ClampCurrentToEffectiveMax(
                 Health.Current, Health.Max, MaxHealthBonus);
         }

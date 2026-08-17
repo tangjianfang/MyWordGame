@@ -1,0 +1,9 @@
+{
+  "id": "summer_alloy_boots",
+  "displayName": "夏季合金靴子",
+  "numericId": 1461,
+  "maxStack": 1,
+  "texture": "boots-summer-alloy",
+  "armorPart": "boots",
+  "gearBonus": { "stat": "moveSpeed", "amount": 0.02 }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "gold_boots",
+  "displayName": "金靴子",
+  "numericId": 1457,
+  "maxStack": 1,
+  "texture": "boots-gold",
+  "armorPart": "boots"
+}

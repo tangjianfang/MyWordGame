@@ -1,0 +1,9 @@
+{
+  "id": "summer_alloy_legs",
+  "displayName": "夏季合金护腿",
+  "numericId": 1460,
+  "maxStack": 1,
+  "texture": "legs-summer-alloy",
+  "armorPart": "legs",
+  "gearBonus": { "stat": "moveSpeed", "amount": 0.03 }
+}

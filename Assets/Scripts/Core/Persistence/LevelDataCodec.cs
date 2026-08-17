@@ -52,6 +52,7 @@ namespace MyWorld.Core.Persistence
         /// <summary>m11 I3 追加的五组可空集合字段做「缺键 → 空集合」归一：
         /// 旧档 JSON 没有对应键时 Newtonsoft 会留 null，这里统一补成空集合，
         /// 后续波次直接拿来用不会 NPE（沿用 quests「旧档 = 全新开始」的兼容策略）。
+        /// m11 W2-1 追加：Player.ArmorSlots（穿戴栏数组）同策略归一为空数组 = 空穿戴。
         /// 字段类型给错（如 Stats 给字符串）在反序列化阶段就抛错，本方法不做任何静默吞错。
         /// level.dat 本身没有版本号字段（FormatVersion 是 regions 二进制格式的概念），无需 bump。</summary>
         private static void NormalizeNewCollections(LevelData data)
@@ -62,6 +63,8 @@ namespace MyWorld.Core.Persistence
             data.PlayerEnchantments ??= new Dictionary<string, string>();
             data.Stats ??= new Dictionary<string, int>();
             data.FarmStates ??= new Dictionary<string, string>();
+            // 旧档 Player 节点没有 armorSlots 键 → null；Player 本身缺失（无玩家段的档）保持 null
+            if (data.Player != null) data.Player.ArmorSlots ??= new SlotSnapshot[0];
         }
     }
 }

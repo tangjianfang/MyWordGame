@@ -1,0 +1,9 @@
+{
+  "id": "machine_essence_legs",
+  "displayName": "机元护腿",
+  "numericId": 1464,
+  "maxStack": 1,
+  "texture": "legs-machine-essence",
+  "armorPart": "legs",
+  "gearBonus": { "stat": "maxHealth", "amount": 2 }
+}

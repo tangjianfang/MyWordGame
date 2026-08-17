@@ -1,0 +1,9 @@
+{
+  "id": "iron_helmet",
+  "displayName": "铁头盔",
+  "numericId": 1450,
+  "maxStack": 1,
+  "texture": "helmet-iron",
+  "armorPart": "helmet",
+  "gearBonus": { "stat": "defense", "amount": 1 }
+}

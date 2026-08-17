@@ -1,0 +1,9 @@
+{
+  "id": "machine_essence_helmet",
+  "displayName": "机元头盔",
+  "numericId": 1462,
+  "maxStack": 1,
+  "texture": "helmet-machine-essence",
+  "armorPart": "helmet",
+  "gearBonus": { "stat": "maxHealth", "amount": 1 }
+}

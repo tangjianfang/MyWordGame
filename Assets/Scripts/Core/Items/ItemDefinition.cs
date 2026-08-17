@@ -22,6 +22,31 @@ namespace MyWorld.Core.Items
     }
 
     /// <summary>
+    /// m11 W2-1 盔甲部位（items/*.json 的 <c>armorPart</c> 字段，受控词表）。
+    /// 写了部位的物品是「盔甲」，可进玩家穿戴栏（<see cref="MyWorld.Core.Player.ArmorInventory"/>）；
+    /// 部位决定进哪个穿戴槽，与 <see cref="GearStat"/> 正交——同材料四件共用一种属性：
+    /// 铁系 defense / 夏季合金系 moveSpeed / 机元系 maxHealth；金系加成是攻击
+    ///（走手持 <see cref="ItemDefinition.AttackDamage"/>），盔甲形态无 gearBonus。
+    /// </summary>
+    public enum ArmorPart
+    {
+        /// <summary>非盔甲（绝大多数物品的缺省值）。</summary>
+        None = 0,
+
+        /// <summary>头盔（头部槽 0）。</summary>
+        Helmet = 1,
+
+        /// <summary>胸甲（胸部槽 1）。</summary>
+        Chest = 2,
+
+        /// <summary>护腿（腿部槽 2）。</summary>
+        Legs = 3,
+
+        /// <summary>靴子（脚部槽 3）。</summary>
+        Boots = 4,
+    }
+
+    /// <summary>
     /// 物品元数据。从 <c>items/*.json</c> 解析得到。
     /// 数值 ID 由 <see cref="ItemDatabase"/> 分配，与 <see cref="MyWorld.Core.Blocks.BlockRegistry"/> 互不干扰。
     /// </summary>
@@ -83,6 +108,15 @@ namespace MyWorld.Core.Items
         /// 按比例（0.05 = +5%）。类别为 None 时无意义（保持 0）。
         /// </summary>
         public float GearAmount;
+
+        /// <summary>
+        /// m11 W2-1 盔甲部位（<c>items/*.json</c> 的 <c>armorPart</c>）。
+        /// <see cref="ArmorPart.None"/> = 非盔甲；有部位的物品由
+        /// <see cref="MyWorld.Core.Player.ArmorInventory"/> 按部位收进对应穿戴槽，
+        /// gearBonus 改从穿戴源生效（手持它时仍按 m10 手持源生效，双源并存不重复计——
+        /// 同一件物品不可能既穿着又拿着）。
+        /// </summary>
+        public ArmorPart ArmorPart = ArmorPart.None;
 
         public override string ToString() => $"Item({Id}, id={NumericId})";
     }

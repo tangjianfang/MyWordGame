@@ -1,0 +1,8 @@
+{
+  "id": "gold_chest",
+  "displayName": "金胸甲",
+  "numericId": 1455,
+  "maxStack": 1,
+  "texture": "chest-gold",
+  "armorPart": "chest"
+}

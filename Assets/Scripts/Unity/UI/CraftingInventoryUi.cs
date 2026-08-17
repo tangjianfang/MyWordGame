@@ -37,6 +37,12 @@ namespace MyWorld.Unity.UI
             else if (!UiCursorGate.IsOpen) SetOpen(true);
         }
 
+        /// <summary>背包当前是否开着（m11 W2-1）。只读投影——穿戴栏
+        /// <see cref="ArmorSlotsUi"/> 绑定背包后随它同开同关，避免两个组件
+        /// 各自按 E 判 <see cref="UiCursorGate"/> 的同帧竞态（先开者把门顶起来，
+        /// 后开者的「无其它模态」检查就通不过，两边永远错拍）。</summary>
+        public bool IsOpen => _open;
+
         /// <summary>m6 B1：程序化开关背包（--ui-shot 截图管线用）。不影响 Update 里的按键开关。
         /// <para>m6 终审修 C1：所有开关路径统一经 <see cref="UiCursorGate"/> 登记指针门——
         /// 打开时解锁指针，否则实机上点击只命中屏幕中心，格子点不到。</para></summary>
