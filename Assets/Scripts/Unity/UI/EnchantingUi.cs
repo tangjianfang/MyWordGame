@@ -7,9 +7,14 @@ using UnityEngine;
 namespace MyWorld.Unity.UI
 {
     /// <summary>
-    /// 附魔界面：按 X 打开。选目标等级（1-5）→ 扣经验 + 青金石 → 给工具加 Sharpness。
+    /// 附魔界面：按 X 打开。选目标等级（1-5）→ 扣经验 + 青金石 → 掷出 Sharpness 等级做提示。
     /// <para>
     /// 简化：作用于 hotbar 选中槽的工具。失败提示理由（缺经验/缺青金石/无工具）。
+    /// </para>
+    /// <para>
+    /// m10 终审修 I1：附魔是占位系统——**不实际改写工具栈**（不写 Metadata、不改耐久上限）。
+    /// 耐久上限唯一来源是 items 表 <c>maxDurability</c>，只在首次消耗时经
+    /// <see cref="ItemStack.WithDurabilityUsed"/> 惰性落编码，附魔绝不当第三条初始化路径。
     /// </para>
     /// </summary>
     public sealed class EnchantingUi : MonoBehaviour
@@ -87,7 +92,7 @@ namespace MyWorld.Unity.UI
             GUI.enabled = canDo;
             if (GUI.Button(doBtn, "附魔"))
             {
-                DoEnchant(ctx, tool, idx, cost, _selectedLevel);
+                DoEnchant(ctx, tool, cost, _selectedLevel);
             }
             GUI.enabled = true;
         }
@@ -104,7 +109,13 @@ namespace MyWorld.Unity.UI
             return total;
         }
 
-        private static void DoEnchant(PlayerContext ctx, ItemStack tool, int slotIndex, (int ExpCost, int LapisCost) cost, int selectedLevel)
+        /// <summary>执行一次附魔（占位语义）：扣青金石 + 扣经验 + 掷 Sharpness 等级出提示。
+        /// m10 终审修 I1：**不改写工具栈**——耐久上限唯一来源是 items 表 <c>maxDurability</c>，
+        /// 且只在首次消耗时经 <see cref="ItemStack.WithDurabilityUsed"/> 惰性落编码
+        /// （Metadata=0 视为满耐久）。旧实现给无耐久位的工具写死 100，铁镐 250 被静默砍到 100、
+        /// 金镐 32 被放大到 100，违反「两条初始化路径永不给同一把工具写不同的 max」。
+        /// public 供 EditMode 测试直驱（OnGUI 不可无头驱动）。</summary>
+        public static void DoEnchant(PlayerContext ctx, ItemStack tool, (int ExpCost, int LapisCost) cost, int selectedLevel)
         {
             // 扣青金石
             if (!ctx.Items.TryGetById("lapis", out var lapisDef)) return;
@@ -129,17 +140,12 @@ namespace MyWorld.Unity.UI
                 else break;
             }
 
-            // 投附魔 → 写入工具 metadata（这里只演示 Sharpness attack bonus 累加）
+            // 投附魔：只掷出 Sharpness 等级用于提示，不写工具 Metadata（占位语义，见方法注释）
             var rolled = EnchantingTable.Roll(selectedLevel);
-            int newDamage = ctx.Items.TryGetByNumericId(tool.ItemId, out var def) && def.AttackDamage != null
+            ctx.Items.TryGetByNumericId(tool.ItemId, out var def);
+            int newDamage = def != null && def.AttackDamage != null
                 ? (int)(def.AttackDamage.Value + rolled.AttackBonus)
                 : 0;
-            // 简化：metadata 低字节存附魔等级；这里只加耐久字段（如果工具还没有）
-            int maxDur = tool.HasDurability ? tool.MaxDurability : 100;
-            var newStack = tool.WithMaxDurability(maxDur);
-            // 编码 Sharpness level 进 metadata 的 8-15 位（与耐久共享高字节会冲突）
-            // 简化：附魔等级写入 count 不可行；直接保留当前栈，不写入附魔数值（演示够用）。
-            ctx.Inventory.SetSlot(slotIndex, newStack);
 
             // 用 IMGUI 弹一条提示（无 GUI 信息通道，简化为 Debug.Log）
             Debug.Log($"附魔 {def?.DisplayName ?? "工具"} → +Sharpness Lv{rolled.Level}，攻击 {newDamage}");
