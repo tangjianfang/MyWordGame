@@ -2,6 +2,7 @@
 // PlayerAudioSystem 是 nice-to-have：AudioClip 缺失时不能阻断游戏（debug.LogWarning 后跳过即可）。
 // 这两个 fixture 验证缺失 clip 的两条路径（footstep / place），break 走同一条 PlayClip，足够覆盖。
 // m9 B1 fix1 追加挂载顺序的结构断言（见 MountOrder 测试注释）。
+// av W1-6 追加 11 个事件音 + 静态 Instance 契约。
 using System.Reflection;
 using MyWorld.Unity.Audio;
 using MyWorld.Unity.Player;
@@ -88,6 +89,59 @@ namespace MyWorld.Core.Tests.Audio
             finally
             {
                 Object.DestroyImmediate(go);
+            }
+        }
+
+        /// <summary>
+        /// av W1-6：11 个事件音在 clip 缺失时都应静默跳过（EditMode 无资源是常态，
+        /// 不能阻断游戏）。一个 Assert.DoesNotThrow 把 11 条都跑一遍。
+        /// </summary>
+        [Test]
+        public void EventSounds_DoesNotThrowWhenClipMissing()
+        {
+            var go = new GameObject("PlayerAudio_EventsTest");
+            try
+            {
+                var audio = go.AddComponent<PlayerAudioSystem>();
+                Assert.DoesNotThrow(() =>
+                {
+                    audio.PlayEat(); audio.PlayHurt(); audio.PlayDie(); audio.PlayPickup();
+                    audio.PlayCraft(); audio.PlayDoorOpen(); audio.PlayDoorClose();
+                    audio.PlayHoeTill(); audio.PlayPlant(); audio.PlayHarvest();
+                    audio.PlayToolBreak();
+                }, "11 个事件音在 clip 缺失时都应静默跳过（EditMode 无资源是常态）");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        /// <summary>
+        /// av W1-6：Awake 应设置静态 Instance——合成 UI / RedstoneSystem 等不在玩家宿主链上的
+        /// 系统（如 CraftingPocketUi / CraftingFurnaceUi）靠它取音效，不需走玩家身上的 _audio 缓存。
+        /// </summary>
+        [Test]
+        public void Instance_SetOnAwake()
+        {
+            var go = new GameObject("PlayerAudio_InstanceTest");
+            try
+            {
+                var audio = go.AddComponent<PlayerAudioSystem>();
+                var awake = typeof(PlayerAudioSystem).GetMethod(
+                    "Awake", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assume.That(awake, Is.Not.Null, "PlayerAudioSystem 应有私有 Awake");
+                awake.Invoke(audio, null);
+                Assert.That(PlayerAudioSystem.Instance, Is.EqualTo(audio),
+                    "Awake 应设置静态 Instance");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+                // 反射置 null（Instance setter 是 private）
+                typeof(PlayerAudioSystem).GetProperty(
+                    "Instance", BindingFlags.Static | BindingFlags.Public)
+                    .SetValue(null, null);
             }
         }
     }
