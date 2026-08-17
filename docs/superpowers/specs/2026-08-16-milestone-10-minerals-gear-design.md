@@ -97,6 +97,18 @@
 5. 用一把旧木镐挖到耐久尽：碎裂！碎块扎脚（0.5 伤）
 6. 死了按右键复活，满血
 
+**验收标注（C3 收尾，2026-08-17）**——「机器侧」= 自动化断言背书 + 实机 build/启动通过；
+「父子侧」= 留给父子实机游玩确认的手感项：
+
+| # | 剧本 | 机器侧（断言背书） | 父子侧待确认 |
+| --- | --- | --- | --- |
+| ① | 徒手挖石慢且不掉 | `BlockGatingTests`：徒手 tier0 < 石头 minToolTier1 → 无掉落 + 时间 ×4（4s），全矩阵吃真实 JSON（`RealBlocks_SpecOneMatrix_FromHardnessAndMinToolTier`） | 实机挖一块石头：4s 的「慢」+ 不掉落，孩子是否读出「要用镐」 |
+| ② | 木镐→石镐→铁→炼锭→铁镐 | 门槛矩阵（木 tier1 挖石掉落 / 石 tier2 才挖得动粗铁）+ `FurnaceSystemTests.Tick_RawIron_SmeltsIntoIronIngot_InTenSeconds`（10s 冶炼）+ 铁镐配方（m3 既有） | 全链手玩一遍，含「等熔炉 10s」的节奏感 |
+| ③ | 铁镐挖金/合金→金剑攻击+1 | 铁 tier3 = 金/合金门槛 3（矩阵断言）+ `GearUpgradeRecipeTests.RealRecipes_SixBaseGearRecipes_CraftNewGearFromMaterials`（金锭→金剑）+ `GearBonusEquipTests.真实物品表_金系从零建_攻击走attackDamage且门槛耐久对齐`（金剑攻 5 = 木剑 4+1） | 打一只怪对比攻击 +1 的手感 |
+| ④ | 深挖机元→血上限+2 | `GearBonusEquipTests.手持机元件_生命上限加二_超上限钳制` + `Respawn_回满到有效上限_机元件复活多两点血`；Preview 剖面 `@` 仅 y<16 可见 | 手持机元件明显更抗打。注意：血 UI 仍 10 心，上限数值生效但不多画心（已记 m11 follow-up） |
+| ⑤ | 旧镐耐尽碎裂+碎块扎脚 0.5 | `DurabilityTests`（耐久递减到零）+ `PickaxeShardTests`（碎块恰扣 0.5 / 同一次碎裂共享一次伤害 / 2s 消失 / 复活无敌帧豁免） | 真机看到碎块散落、被扎掉 0.5 的反馈是否有趣不挫败 |
+| ⑥ | 死亡右键复活满血 | `DeathScreenUiWireTests`（右键只认 MouseDown+button1、Respawning 阶段跳倒计时）+ `EatFoodTests.UseAt_DeathScreenVisible_RightClickYieldsToRespawn`（不误吃/误放）+ `RespawnSafetyTests.复活回满血与饥饿` | 右键复活的手感、满血直观确认 |
+
 ## 与既有约束的关系
 
 - 矿石/门槛全数据驱动（blocks/items/recipes JSON + `_format.md` 同步）——跨表引用测试守卫（BlockDropsTests 模式扩展）

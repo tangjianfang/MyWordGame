@@ -10,7 +10,7 @@ MyWordGame 是一个自研体素沙盒游戏（Unity 6 + 纯 C# Core 层），�
 全部在**仓库根目录**执行，**不需要安装 Unity**：
 
 ```bash
-dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 489 个）
+dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 573 个）
 dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTests"   # 单个测试类
 dotnet build tools/dotnet/MyWorld.Tools.sln              # 编译三个工程
 
@@ -260,6 +260,21 @@ Newtonsoft Json 包是必需的，缺了 Core 编译失败。
 - `PlayerAudioSystem` 必须挂在 `WorldBootstrap` **步骤 7.5**——先于步骤 8
   `PlayerController.Awake` / 步骤 9 `BlockInteraction.Bind` 的一次性 `_audio` 缓存点，
   挪后则 footstep/place/break 三音全哑
+
+**矿物与装备约定（milestone-10 起）**：
+
+- 挖矿门槛是数据不是代码：`blocks/*.json` 的 `minToolTier`（0 手/1 木/2 石/3 铁/4 钻），
+  镐自身档位在 items 表 `toolTier`——**低于门槛挖得掉方块但无掉落、时间 ×4**（Core
+  `Blocks/BlockGating`），守卫测试强制每把镐显式声明 toolTier/maxDurability（写漏=测试红）
+- 世界生成在石层按确定性哈希嵌四矿（金 y<32 / 粗铁 y<48 / 合金 y<24 / 机元 y<16，
+  字形 `$ % & @`），改嵌矿参数跑 `MyWorld.Preview` 目检矿层剖面
+- 镐耐久走 `ItemStack.Metadata`（木 59 / 石 131 / 铁 250 / 钻封顶 255——8 位编码上限），
+  hotbar 图标叠耐久条；耐久尽镐**碎裂**成碎块散落（0.5 伤、同一次碎裂共享一次伤害、2s 消失）
+- 装备属性是 items 表 `gearBonus`（defense/moveSpeed/maxHealth；金系攻击直接叠在
+  `attackDamage` 上不走 gearBonus），**手持即生效、切走归零**（`PlayerContext` 每帧刷新）；
+  升级 = 同材料 2 件**满耐久**合 1 件 `*_plus`（加成翻倍，残次品拒合——防洗耐久）
+- 死亡画面**右键=点复活按钮**（`BlockInteraction.UseAt` 见死亡画面即让位——右键复活
+  不会误吃食物/误放方块）
 
 编辑器菜单 `MyWorld/` 下有五个批处理入口，都能用 `-executeMethod` 无头跑：
 
