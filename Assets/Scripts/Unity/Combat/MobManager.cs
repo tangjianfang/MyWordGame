@@ -87,7 +87,7 @@ namespace MyWorld.Unity.Combat
 
         // m11 W1-4（集成点②）：真实光照采样器——非空时刷怪光照从体积采样
         // （白天 max(天光,方块光)、夜间纯方块光），空时退回昼夜相位近似（白天 15/夜晚 0）
-        private MyWorld.Unity.World.ChunkLightSystem _lightSampler;
+        private MyWorld.Unity.Lighting.ChunkLightSystem _lightSampler;
 
         /// <summary>已消费过的最近一次爆炸产物（引用比对去重，见 <see cref="TickExplosionDrops"/>）。</summary>
         private MyWorld.Core.Combat.ExplosionResult _lastHandledExplosion;
@@ -168,7 +168,7 @@ namespace MyWorld.Unity.Combat
         /// m11 W1-4（集成点②）：注入光照采样器（WorldBootstrap 挂 ChunkLightSystem 后调用）。
         /// null（未挂 / 测试）时刷怪光照退回昼夜相位近似，既有行为不变。
         /// </summary>
-        public void BindLightSampler(MyWorld.Unity.World.ChunkLightSystem lightSampler)
+        public void BindLightSampler(MyWorld.Unity.Lighting.ChunkLightSystem lightSampler)
         {
             _lightSampler = lightSampler;
         }

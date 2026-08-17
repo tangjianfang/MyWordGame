@@ -3,7 +3,7 @@ using MyWorld.Core.Lighting;
 using MyWorld.Core.Voxel;
 using UnityEngine;
 
-namespace MyWorld.Unity.World
+namespace MyWorld.Unity.Lighting
 {
     /// <summary>
     /// 玩家周界的光照采样系统（m11 W1-4 集成点②）：定时以玩家为中心重建一个

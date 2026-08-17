@@ -343,7 +343,7 @@ namespace MyWorld.Unity.Bootstrap
             //     光照体积（契约顺序：先天光 → 填 lightEmission → 方块光），2s 定时重建。
             //     MobManager 刷怪光照改从体积采样（白天 max(天光,方块光)、夜间纯方块光
             //     ——火把圈夜里 ≥9，被动生物可在亮处刷新），替代「白天恒 15/夜晚恒 0」近似。
-            var lightSystem = gameObject.AddComponent<MyWorld.Unity.World.ChunkLightSystem>();
+            var lightSystem = gameObject.AddComponent<MyWorld.Unity.Lighting.ChunkLightSystem>();
             lightSystem.Bind(_world, _registry, _player.transform);
             _mobManager.BindLightSampler(lightSystem);
 

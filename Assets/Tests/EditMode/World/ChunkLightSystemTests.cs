@@ -5,7 +5,7 @@
 // dotnet 链跑不动，整个文件用 #if UNITY_EDITOR 包裹（与 PlayerAttackTests 同款）。
 using MyWorld.Core.Blocks;
 using MyWorld.Core.Voxel;
-using MyWorld.Unity.World;
+using MyWorld.Unity.Lighting;
 using NUnit.Framework;
 using UnityEngine;
 
