@@ -31,6 +31,8 @@ namespace MyWorld.Core.Entities
     /// <para>
     /// 归属：骷髅开火时经 <see cref="MobAI.OnProjectileFired"/> 抛出箭实体，
     /// Unity 侧（集成点②接线）订阅后接管 tick 列表与视觉；Core 单测订阅捕获做弹道断言。
+    /// m11 ②起玩家弓同样经该事件发射（<see cref="OwnerEntityId"/>=0 表示玩家箭，
+    /// 不判玩家命中、伤害取 <see cref="Damage"/> 蓄力注入值）。
     /// </para>
     /// </summary>
     public sealed class ProjectileEntity
@@ -49,6 +51,12 @@ namespace MyWorld.Core.Entities
 
         /// <summary>最长飞行时间（秒）：超时标记 Dead（防永远悬空的幽灵箭）。</summary>
         public const float MaxLifetime = 10f;
+
+        /// <summary>
+        /// 命中实体时结算的伤害（点）。m11 ②起由发射方注入：玩家弓按蓄力比例写 1-4；
+        /// 骷髅箭走构造缺省 = <see cref="PlayerHitDamage"/>（卡片数值 2，既有测试钉着）。
+        /// </summary>
+        public float Damage = PlayerHitDamage;
 
         /// <summary>
         /// 箭物品的 numericId。与 <c>StreamingAssets/items/arrow.json</c> 显式声明的
@@ -106,14 +114,17 @@ namespace MyWorld.Core.Entities
             Velocity = new Float3(Velocity.X, Velocity.Y - Gravity * dt, Velocity.Z);
             Position = Position + Velocity * dt;
 
-            // 1) 玩家命中优先（贴墙的玩家仍会被打到）
+            // 1) 玩家命中优先（贴墙的玩家仍会被打到）。
+            //    m11 ②：OwnerEntityId == 0 是玩家自己射的箭——不判玩家命中（MC 同款：
+            //    自己的箭不能糊自己脸上），宿主侧改判 mob 命中（伤害读 Damage 字段）。
             float dx = Position.X - playerPos.X;
             float dy = Position.Y - playerPos.Y;
             float dz = Position.Z - playerPos.Z;
-            if (dx * dx + dy * dy + dz * dz < PlayerHitRadius * PlayerHitRadius)
+            if (OwnerEntityId != 0
+                && dx * dx + dy * dy + dz * dz < PlayerHitRadius * PlayerHitRadius)
             {
                 CombatEvents.RaiseTaken(new DamageEvent(
-                    DamageSource.Projectile, PlayerHitDamage,
+                    DamageSource.Projectile, Damage,
                     attacker: OwnerEntityId, victim: 0, hit: Position));
                 State = ProjectileState.Dead;
                 return true;

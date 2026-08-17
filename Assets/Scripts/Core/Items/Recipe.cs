@@ -31,6 +31,24 @@ namespace MyWorld.Core.Items
         public bool Shaped;
         public ItemStack Output;
 
+        /// <summary>
+        /// 非空材料格数。m11 ②：FindMatch 同档位内的稳定排序用它——
+        /// 同样能匹配的输入优先试「摆得更满」的配方（6 板门 &gt; 4 板工作台），
+        /// 否则 shapeless 只数材料总数的宽匹配会抢走 shaped 的窄匹配。
+        /// </summary>
+        public int MaterialCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (ItemStack p in Pattern)
+                {
+                    if (!p.IsEmpty) count++;
+                }
+                return count;
+            }
+        }
+
         public IReadOnlyList<ItemStack> Ingredients
         {
             get

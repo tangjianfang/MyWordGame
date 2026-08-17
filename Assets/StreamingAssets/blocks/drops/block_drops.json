@@ -178,5 +178,19 @@
     "drops": [
       { "itemId": "wooden_door", "countMin": 1, "countMax": 1 }
     ]
+  },
+  {
+    "blockId": "farmland",
+    "blockNumericId": 1050,
+    "drops": [
+      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+    ]
+  },
+  {
+    "blockId": "farmland_wet",
+    "blockNumericId": 1051,
+    "drops": [
+      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+    ]
   }
 ]

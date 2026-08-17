@@ -27,5 +27,14 @@ namespace MyWorld.Core.Voxel
 
         /// <summary>机元矿石（m10，最稀有）。与 <c>blocks/machine_essence_ore.json</c> 的 numericId=1012 手动保持一致。</summary>
         public const ushort MachineEssenceOre = 1012;
+
+        /// <summary>床（m11 W1-4）。与 <c>blocks/bed.json</c> 的 numericId=1022 手动保持一致。</summary>
+        public const ushort Bed = 1022;
+
+        /// <summary>箱子（m11 W1-4）。与 <c>blocks/chest.json</c> 的 numericId=1023 手动保持一致。</summary>
+        public const ushort Chest = 1023;
+
+        /// <summary>木门（m11 W1-4）。与 <c>blocks/wooden_door.json</c> 的 numericId=1026 手动保持一致。</summary>
+        public const ushort WoodenDoor = 1026;
     }
 }

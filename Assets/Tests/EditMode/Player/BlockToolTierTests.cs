@@ -205,6 +205,36 @@ namespace MyWorld.Core.Tests.Player
             Assert.That(_block.ToolTierHintCount, Is.EqualTo(0), "无门槛方块不应触发提示");
         }
 
+        // ─── BreakTime(blockId, biome, toolTier, hardness) 即挖/回退分支（m11 ②） ──
+
+        /// <summary>
+        /// m11 ②：hardness 第 4 参的三条契约——①[0, 0.05) 秒挖 → 0.15s（与 blockId 无关，
+        /// 花草/作物这类 hardness=0 的装饰方块不用逐个进 switch）；②无 switch 特例的方块
+        /// 以传入 hardness 为基准（farmland 0.6、新树种原木 2 等不进表也能对表）；
+        /// ③不传（NaN）/负数（不可破坏）保持旧行为（m3 默认 1s，空气契约有旧测试钉着）。
+        /// </summary>
+        [Test]
+        public void BreakTime_HardnessParam_InstantAndFallbackBranches()
+        {
+            Assert.That(BlockInteraction.BreakTime(BlockIds.Dirt, Biome.Plains, 0, hardness: 0f),
+                Is.EqualTo(BlockInteraction.InstantBreakSeconds), "hardness=0（花草/作物）→ 0.15s 秒挖");
+            Assert.That(BlockInteraction.BreakTime(BlockIds.Dirt, Biome.Plains, 0, hardness: 0.049f),
+                Is.EqualTo(BlockInteraction.InstantBreakSeconds), "阈值左开右闭：0.049 仍秒挖");
+            Assert.That(BlockInteraction.BreakTime(BlockIds.Dirt, Biome.Plains, 0, hardness: 0.05f),
+                Is.EqualTo(0.05f), "恰在阈值上不秒挖，回落 hardness 本值");
+
+            // 无特例方块以传入 hardness 为基准：耕地 0.6（numericId=FarmSystem.FarmlandId）
+            Assert.That(
+                BlockInteraction.BreakTime(MyWorld.Core.Farming.FarmSystem.FarmlandId, Biome.Plains, 0, 0.6f),
+                Is.EqualTo(0.6f), "farmland 不进 switch，default 分支采信传入 hardness");
+
+            // 旧调用不传 hardness：泥 1s 不变；负 hardness（空气/基岩）回落 m3 默认 1s
+            Assert.That(BlockInteraction.BreakTime(BlockIds.Dirt, Biome.Plains, 0), Is.EqualTo(1f),
+                "缺省 NaN 与旧三参调用行为完全一致");
+            Assert.That(BlockInteraction.BreakTime(BlockIds.Air, Biome.Plains, 0, hardness: -1f),
+                Is.EqualTo(1f), "负 hardness（不可破坏）不参与即挖/回退，回落默认 1s");
+        }
+
         // ─── BreakTime(blockId, biome, toolTier) 查表（spec §1 矩阵 + 群系折扣） ──
 
         [Test]
@@ -273,6 +303,13 @@ namespace MyWorld.Core.Tests.Player
         /// 没同步代码），这里立刻红。负 hardness（空气/水/基岩）表示挖不动，没有「挖掘耗时」
         /// 可言，BreakTime 对它们返回 m3 默认 1f 只是为了契约稳定（空气那条有旧测试钉着），
         /// 不参与对表。
+        /// <para>
+        /// m11 ②两处同步：①调用传入 <c>def.Hardness</c>（default 分支以它为基准——第 1 波
+        /// 新方块如七新树种原木/树叶 2s、耕地 0.6 不进 switch 也能对表）；②hardness 落在
+        /// [0, <see cref="BlockInteraction.InstantBreakHardness"/>) 的秒挖方块（12 花草 + 9 作物）
+        /// 期望 <see cref="BlockInteraction.InstantBreakSeconds"/>=0.15s——「秒挖」而非「1 秒」，
+        /// 这就是 12 花草 hardness=0 与本守卫冲突的修复面（改代码不改 12 份 JSON）。
+        /// </para>
         /// </summary>
         [Test]
         public void BreakTime_Table_AgreesWithRealBlockJsonHardness_EveryRegisteredBlock()
@@ -282,6 +319,7 @@ namespace MyWorld.Core.Tests.Player
                 Directory.GetFiles(blocksDir, "*.json").Select(File.ReadAllText));
 
             int compared = 0;
+            int instant = 0;
             foreach (BlockDefinition def in registry.Definitions)
             {
                 if (def.Hardness < 0f)
@@ -289,18 +327,30 @@ namespace MyWorld.Core.Tests.Player
                     continue; // 不可破坏方块：无耗时语义，见方法注释
                 }
 
+                // 期望表生成（m11 ②同步）：秒挖方块 → 0.15s；其余 → JSON hardness
+                float expected = def.Hardness < BlockInteraction.InstantBreakHardness
+                    ? BlockInteraction.InstantBreakSeconds
+                    : def.Hardness;
+
                 Assert.That(
-                    BlockInteraction.BreakTime(def.NumericId, Biome.Plains, 99),
-                    Is.EqualTo(def.Hardness).Within(1e-5f),
-                    $"{def.Id}（numericId={def.NumericId}）：代码查表的达标耗时应等于 JSON hardness={def.Hardness}，"
+                    BlockInteraction.BreakTime(def.NumericId, Biome.Plains, 99, def.Hardness),
+                    Is.EqualTo(expected).Within(1e-5f),
+                    $"{def.Id}（numericId={def.NumericId}）：代码查表的达标耗时应等于 {expected}"
+                    + $"（JSON hardness={def.Hardness}，秒挖分支阈值 {BlockInteraction.InstantBreakHardness}），"
                     + "两边改不同步了——新方块要么 JSON hardness 写 1（走 default 分支），要么同步进 BreakTime 的 switch");
                 compared++;
+                if (expected == BlockInteraction.InstantBreakSeconds) instant++;
             }
 
-            // 20 个已注册方块 - 3 个负 hardness（air/water/bedrock）= 17 个参与对表。
+            // 全部已注册方块 - 3 个负 hardness（air/water/bedrock）= 参与对表数。
             // 这个数本身也是守卫：注册表新增方块而本测试没跑到全量，说明遍历路径坏了。
             Assert.That(compared, Is.EqualTo(registry.Count - 3),
                 "对表方块数应为「注册总数 - 不可破坏方块数」，全量遍历不能悄悄漏块");
+
+            // m11 ①第 1 波注册的秒挖方块（12 花草 + 9 作物 = 21）必须全部命中即挖分支——
+            // 这个下限防「阈值调大误伤普通方块」或「新秒挖方块没被覆盖」两个方向的漂移。
+            Assert.That(instant, Is.GreaterThanOrEqualTo(21),
+                "12 花草 + 9 作物应全部走即挖分支（0.15s）");
         }
     }
 }

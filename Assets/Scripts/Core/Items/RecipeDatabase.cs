@@ -39,7 +39,18 @@ namespace MyWorld.Core.Items
             // 优先匹配最严格的档位，避免 2x2 配方被 3x3 网格误中
             foreach (var tier in new[] { CraftingTier.Workbench3x3, CraftingTier.Inventory2x2, CraftingTier.Pocket1x1 })
             {
-                Recipe r = CraftingMatrix.FindMatch(input, width, height, _all.Where(x => x.Tier == tier));
+                // m11 ②（B 批守卫修复）：同档位内先稳定排序再试匹配——
+                //   ① shaped 优先于 shapeless；② 材料格多者优先（Recipe.MaterialCount）。
+                // 否则「6 板摆两行合门」（shaped）会被「4 板合工作台」（shapeless）抢匹配：
+                // shapeless 只数材料总数，6 ≥ 4 恒真。修复前靠配方文件名恰好排在前面侥幸不抢
+                // （文件枚举顺序是文件系统实现细节，跨机器不可靠）。
+                // 并列时按 id 序数决胜，彻底摆脱枚举顺序。
+                Recipe r = CraftingMatrix.FindMatch(
+                    input, width, height,
+                    _all.Where(x => x.Tier == tier)
+                        .OrderByDescending(x => x.Shaped)
+                        .ThenByDescending(x => x.MaterialCount)
+                        .ThenBy(x => x.Id, StringComparer.Ordinal));
                 if (r != null) return r;
             }
             return null;
