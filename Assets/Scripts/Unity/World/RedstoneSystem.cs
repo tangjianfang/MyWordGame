@@ -119,7 +119,7 @@ namespace MyWorld.Unity.Environment
                 var audio = MyWorld.Unity.Audio.PlayerAudioSystem.Instance;
                 if (audio != null)
                 {
-                    if (state == MyWorld.Core.World.DoorState.Open) audio.PlayDoorClose();
+                    if (state == DoorState.Open) audio.PlayDoorClose();
                     else audio.PlayDoorOpen();
                 }
             }

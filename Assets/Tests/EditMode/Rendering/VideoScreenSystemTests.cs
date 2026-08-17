@@ -28,7 +28,12 @@ namespace MyWorld.Core.Tests.Rendering
                 var library = BlockMaterialLibrary.Load(registry,
                     System.IO.Path.Combine(blocksDir, "textures"));
 
-                int slot = System.Array.IndexOf(registry.TextureNames, VideoScreenSystem.ScreenTextureName);
+                int slot = -1;
+                var names = registry.TextureNames;
+                for (int i = 0; i < names.Count; i++)
+                {
+                    if (names[i] == VideoScreenSystem.ScreenTextureName) { slot = i; break; }
+                }
                 Assert.That(slot, Is.GreaterThanOrEqualTo(0),
                     "laptop_block.json 拆面后注册表应含 laptop-screen 贴图槽");
 

@@ -29,7 +29,12 @@ namespace MyWorld.Unity.Rendering
         /// </summary>
         public void Apply(BlockMaterialLibrary library, MyWorld.Core.Blocks.BlockRegistry registry)
         {
-            int slot = System.Array.IndexOf(registry.TextureNames, ScreenTextureName);
+            int slot = -1;
+            var names = registry.TextureNames;
+            for (int i = 0; i < names.Count; i++)
+            {
+                if (names[i] == ScreenTextureName) { slot = i; break; }
+            }
             if (slot < 0)
             {
                 Warn($"注册表无贴图槽 {ScreenTextureName}（laptop_block.json 顶面应引用）");
