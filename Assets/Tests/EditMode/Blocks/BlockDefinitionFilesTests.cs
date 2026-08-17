@@ -217,6 +217,11 @@ namespace MyWorld.Core.Tests.Blocks
         /// <summary>
         /// m11 W1-5 九件家具的注册对照表：方块 id / numericId / 贴图名（= art 需求名）/ 对应物品 id。
         /// numericId 与 blocks/drops/block_drops.json 的 blockNumericId 一一对应（守卫测试钉死两边同步）。
+        /// <para>
+        /// av W2-11：laptop_block 与 hacker_pc_block 的顶面是屏幕面（"laptop-screen"），
+        /// 其余面与原贴图一致——视频背景由 <see cref="MyWorld.Unity.Rendering.VideoScreenSystem"/>
+        /// 把贴图槽共享材质的 mainTexture 换成 VideoPlayer 的 RenderTexture。
+        /// </para>
         /// </summary>
         private static readonly (string BlockId, ushort NumericId, string Texture, string ItemId)[] M11FurnitureBlocks =
         {
@@ -260,6 +265,11 @@ namespace MyWorld.Core.Tests.Blocks
         /// m11 W1-5：家具方块贴图复用同名美术需求（第 0 波 A2 立在 art/requests/items 下），
         /// 贴图名 = 需求文件名（多词连字符：office-desk / hacker-pc）。png 未入库走品红占位不阻塞，
         /// 但需求文件缺失会让美术链路断档，这里照 W1-3 植被同款守卫拦下。
+        /// <para>
+        /// av W2-11：laptop_block / hacker_pc_block 的顶面（<see cref="BlockFace.Top"/>）必须是
+        /// "laptop-screen"——这是 VideoScreenSystem 换 RenderTexture 的目标贴图槽。
+        /// 其余五面统一引用原贴图名。
+        /// </para>
         /// </summary>
         [Test]
         public void M11FurnitureBlocks_ReferencedTextures_HaveArtRequests()
@@ -274,17 +284,27 @@ namespace MyWorld.Core.Tests.Blocks
             foreach ((string blockId, ushort _, string texture, string _) in M11FurnitureBlocks)
             {
                 BlockDefinition furniture = _registry.GetById(blockId);
+                bool hasScreen = blockId == "laptop_block" || blockId == "hacker_pc_block";
+                int screenCount = 0;
                 foreach (string face in furniture.Textures)
                 {
+                    if (hasScreen && face == "laptop-screen") { screenCount++; continue; }
                     Assert.That(face, Is.EqualTo(texture),
-                        $"{blockId} 六面应统一引用 {texture}（装饰方块不分面）");
+                        $"{blockId} 非 screen 面应统一引用 {texture}（装饰方块除顶面屏幕外不分面）");
                 }
+                Assert.That(screenCount, Is.EqualTo(hasScreen ? 1 : 0),
+                    $"{blockId} 顶面应为 laptop-screen（恰好一面，供 VideoScreenSystem 换 RenderTexture）");
 
                 Assert.That(
                     Directory.GetFiles(artRequestsRoot, texture + ".md", SearchOption.AllDirectories).Length,
                     Is.GreaterThan(0),
                     $"{blockId} 引用的贴图 {texture} 在 art/requests 下没有需求文件（家具需求应在 items/{texture}.md）");
             }
+
+            // av W2-11：laptop-screen 自身也应有需求文件
+            Assert.That(
+                Directory.GetFiles(artRequestsRoot, "laptop-screen.md", SearchOption.AllDirectories).Length,
+                Is.GreaterThan(0), "laptop-screen 在 art/requests 下没有需求文件");
         }
 
         /// <summary>从 StreamingAssets/blocks 向上找仓库根下的 art/requests/blocks（美术需求索引目录）。</summary>

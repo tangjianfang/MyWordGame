@@ -3,7 +3,9 @@
   "displayName": "笔记本电脑",
   "numericId": 1017,
   "textures": {
-    "all": "laptop"
+    "top": "laptop-screen",
+    "bottom": "laptop",
+    "side": "laptop"
   },
   "solid": false,
   "opaque": false,

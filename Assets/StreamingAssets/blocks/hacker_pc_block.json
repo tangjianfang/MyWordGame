@@ -3,7 +3,9 @@
   "displayName": "黑客电脑",
   "numericId": 1015,
   "textures": {
-    "all": "hacker-pc"
+    "top": "laptop-screen",
+    "bottom": "hacker-pc",
+    "side": "hacker-pc"
   },
   "solid": false,
   "opaque": false,
