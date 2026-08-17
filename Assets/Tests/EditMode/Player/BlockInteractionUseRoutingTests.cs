@@ -15,6 +15,7 @@ using MyWorld.Core.Time;
 using MyWorld.Core.Voxel;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Player;
+using MyWorld.Unity.UI;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -270,18 +271,43 @@ namespace MyWorld.Core.Tests.Player
             Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Air), "提示性 no-op：不放方块");
         }
 
-        // ─── 箱子 / 门：v1 消费右键 no-op ────────────────────────────────
+        // ─── 箱子：右键开箱子 UI（m11 W2-3，替换 v1 no-op 占位） ─────────
 
         [Test]
-        public void UseAt_Chest_ConsumesClick_NoPlace()
+        public void UseAt_Chest_OpensChestUi_ConsumesClick_NoPlace()
         {
             _world.SetBlock(8, 70, 8, BlockIds.Chest);
             _ctx.Inventory.SelectedHotbarIndex = 0;
+            _ctx.ChestSystem = new ChestSystem(_ctx.Items); // 运行时 WorldBootstrap 已挂，这里直注
 
             _block.UseAt(CastDownAtColumn());
 
+            var chestUi = _host.GetComponent<MyWorld.Unity.UI.ChestUi>();
+            Assert.That(chestUi, Is.Not.Null, "右键箱子懒挂并打开 ChestUi（WorldBootstrap 零装配）");
+            Assert.That(chestUi.IsOpen, Is.True);
+            Assert.That((chestUi.ChestX, chestUi.ChestY, chestUi.ChestZ), Is.EqualTo((8, 70, 8)),
+                "打开的正是被右键的那格箱子");
+            Assert.That(MyWorld.Unity.UI.UiCursorGate.IsOpen, Is.True, "开箱登记指针门");
             Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Air),
-                "箱子 v1 无 UI：右键 no-op，不对着箱子放方块（箱子 UI 第 2 波接）");
+                "右键被开箱消费，不对着箱子放方块");
+
+            chestUi.Close();
+            UiCursorGate.Reset(); // 门位还清，别泄漏给后续测试
+        }
+
+        [Test]
+        public void UseAt_Chest_WithoutChestSystem_StillConsumesClick_NoPlace()
+        {
+            // ChestSystem 降级（数据表缺失时 WorldBootstrap 置 null）：开不了箱，
+            // 但右键仍被消费——不能对着箱子放方块（旧 no-op 行为保留）
+            _world.SetBlock(8, 70, 8, BlockIds.Chest);
+            _ctx.Inventory.SelectedHotbarIndex = 0;
+            _ctx.ChestSystem = null;
+
+            _block.UseAt(CastDownAtColumn());
+
+            Assert.That(_host.GetComponent<MyWorld.Unity.UI.ChestUi>(), Is.Null, "系统未接好不懒挂 UI");
+            Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Air), "右键仍被消费");
         }
 
         [TestCase(1026)] // wooden_door（= BlockIds.WoodenDoor）
