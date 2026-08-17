@@ -4,6 +4,7 @@
 // 检测条件的纯逻辑面（2×2/y 门槛/键）在 Entities/MachineGuardianTests（Core 双链）；
 // 这里守 Unity 接线：MobManager 生成、Boss 生成位置、防重复、文案常量。
 using System.Reflection;
+using MyWorld.Core.Blocks; // （m11 W3-4 顺手补：本文件用了 BlockRegistry 但漏了 using，阻塞整条 EditMode 链）
 using MyWorld.Core.Entities;
 using MyWorld.Core.Math;
 using MyWorld.Core.Voxel;
@@ -201,7 +202,9 @@ namespace MyWorld.Core.Tests.Player
                 var field = typeof(MobManager).GetField(name, flags);
                 Assert.That(field, Is.Not.Null, "MobManager 应有 " + name + " 候选表");
                 var candidates = (MobKind[])field.GetValue(null);
-                Assert.That(candidates, Does.Not.Contain(MobKind.MachineGuardian),
+                // （m11 W3-4 顺手修：Unity 内置 NUnit 3.5 没有 Does.Not.Contain(object) 重载，
+                //  dotnet 侧 NUnit 3.14 才有——换等价的 IndexOf 判定，双链都能编译）
+                Assert.That(System.Array.IndexOf(candidates, MobKind.MachineGuardian), Is.LessThan(0),
                     name + " 不该含 Boss——只经图腾召唤，不进自然刷怪候选");
             }
         }

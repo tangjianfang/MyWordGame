@@ -56,6 +56,14 @@ namespace MyWorld.Core.Combat
         public static ExplosionResult LastResult { get; private set; }
 
         /// <summary>
+        /// m11 W3-4：起爆完成事件（爆心、破坏半径）——纯视觉订阅点（Unity 侧
+        /// ParticlePool 播 fx-explosion 三帧特效）。Core 不持 Unity 类型，坐标用
+        /// <see cref="Float3"/>；无订阅者时 <c>?.Invoke</c> 零开销，结算逻辑与
+        /// 本事件完全解耦（既有 ExplosionTests 的确定性断言不受影响）。
+        /// </summary>
+        public static event System.Action<Float3, float> AfterDetonate;
+
+        /// <summary>
         /// 某格方块能否被本次爆炸破坏：空气不算、<c>y&lt;0</c> 不算、不可破坏方块
         /// （注册表 hardness&lt;0，或无注册表时的内置基岩）不算、液体不算（水不该被「炸开」）。
         /// </summary>
@@ -203,6 +211,7 @@ namespace MyWorld.Core.Combat
             }
 
             LastResult = result;
+            AfterDetonate?.Invoke(center, radius); // m11 W3-4：纯视觉挂载点（结算完成后广播）
             return result;
         }
     }

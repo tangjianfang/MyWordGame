@@ -57,6 +57,24 @@ namespace MyWorld.Unity.Rendering
         }
 
         /// <summary>
+        /// m11 W3-4：带贴图的半透明叠加材质（粒子特效面片：爆炸帧 / 附魔光柱）。
+        /// 配方同 <see cref="CreateOverlay"/>（着色器色 Alpha 控制透明，两态材质约定），
+        /// 额外接 <paramref name="texture"/> 到 _BaseMap；贴图传 null 时退纯色面片——
+        /// 占位贴图未入库也不至于整个特效消失。不缓存——每粒子槽位独立实例
+        /// （切帧/淡出只改自己），总量 ≤ 池容量，缓存无意义。
+        /// </summary>
+        public static Material CreateTexturedOverlay(Texture2D texture, Color rgba)
+        {
+            var material = CreateOverlay(rgba);
+            if (texture != null)
+            {
+                texture.filterMode = FilterMode.Point; // 32×32 像素风，拒绝双线性糊
+                material.mainTexture = texture;
+            }
+            return material;
+        }
+
+        /// <summary>
         /// 取 URP/Lit shader（哑材质防剔除 + Standard 回退），CreateLit / CreateOverlay 共用。
         /// 找不到时抛异常——与 BlockMaterialLibrary 同一硬约束：shader 为 null 时
         /// new Material(null) 不报错但渲染全粉红，必须在源头拦下并给出可操作的提示。

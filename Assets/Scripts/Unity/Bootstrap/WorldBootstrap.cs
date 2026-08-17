@@ -390,6 +390,17 @@ namespace MyWorld.Unity.Bootstrap
             //     伤害入口），视觉挂世界根节点（与掉落物视图同层）。
             var projectiles = gameObject.AddComponent<MyWorld.Unity.Combat.ProjectileManager>();
             projectiles.Bind(_world, _player.transform, _playerContext, worldRoot);
+
+            // 33. 氛围层（m11 W3-4）：云面片 + 天气雨雪窗 + 粒子池——全部纯视觉，
+            //     不写任何玩法状态。WeatherSystem 从 PlayerContext.Time 派生确定性雨雪窗
+            //     （每 3-5 游戏日 0.5 日；Snow 群系下雪、其余下雨，群系查询走 generator）；
+            //     CloudLayer 4 片白色半透面片 y≈150 沿 +X 缓慢漂移（跟随玩家 wrap）；
+            //     ParticlePool 订阅 BlockBroken / Explosion.AfterDetonate / EnchantingUi.Enchanted
+            //     三个公开事件——挖掘碎屑 / 爆炸三帧 / 附魔光柱全部复用 64 槽池，热路径零 new。
+            //     挂玩家 GO：光柱等「以玩家为锚」的特效直接用宿主位置。
+            gameObject.AddComponent<MyWorld.Unity.Environment.CloudLayer>().Bind(_player.transform);
+            gameObject.AddComponent<MyWorld.Unity.Environment.WeatherSystem>().Bind(generator, _player.transform, (int)seed);
+            gameObject.AddComponent<MyWorld.Unity.FX.ParticlePool>().Bind(_registry);
         }
 
         private void Update()

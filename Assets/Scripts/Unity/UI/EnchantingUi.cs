@@ -22,6 +22,13 @@ namespace MyWorld.Unity.UI
         public KeyCode ToggleKey = KeyCode.X;
         public int MaxLevel = 5;
 
+        /// <summary>
+        /// m11 W3-4：附魔完成公开事件——纯视觉订阅点（<see cref="MyWorld.Unity.FX.ParticlePool"/>
+        /// 在玩家处播附魔光柱），无订阅者零开销，玩法语义零变化。
+        /// DoEnchant 是 static，事件也 static（与 BlockInteraction.BlockBroken 同约定）。
+        /// </summary>
+        public static event System.Action Enchanted;
+
         private bool _open;
         private int _selectedLevel = 1;
 
@@ -158,6 +165,10 @@ namespace MyWorld.Unity.UI
                 {
                     Type = MyWorld.Core.Quests.QuestEventType.EnchantItem,
                 });
+
+            // m11 W3-4：附魔光柱纯视觉挂载点（扣费成功才算完成；上方 lapis 缺失的
+            // 早退路径不会到这——没扣费就没光柱，语义一致）
+            Enchanted?.Invoke();
         }
 
         public int SelectedLevel { get => _selectedLevel; set => _selectedLevel = value; }
