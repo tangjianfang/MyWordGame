@@ -60,6 +60,11 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Chicken:
                 case MobKind.Zombie:
                 case MobKind.Villager:
+                // m11 W1-1：三敌对走部位表拼装（造型 JSON 同批入库；走保底灰双部位
+                // 的话夜间刷出的骷髅/蜘蛛/苦力怕全是灰方块，模型白做）
+                case MobKind.Skeleton:
+                case MobKind.Spider:
+                case MobKind.Creeper:
                     BuildFromPartTable(kind);
                     break;
                 default:
@@ -139,6 +144,18 @@ namespace MyWorld.Unity.Combat
             if (Mob == null) return;
             transform.position = new Vector3(Mob.Position.X, Mob.Position.Y, Mob.Position.Z);
 
+            // m11 W1-1：新苦力怕引信膨胀——引信倒数进度驱动整体放大（最高 1.3×），
+            // 起爆 / 取消后回到 1。旧苦力怕（mobTypeId=5）不膨胀（保持既有视觉）。
+            if (Mob.Kind == MobKind.Creeper)
+            {
+                float progress = 1f - Mathf.Clamp01(Mob.FuseTimer / MyWorld.Core.Entities.MobAI.NewCreeperFuseDuration);
+                transform.localScale = Vector3.one * (1f + progress * 0.3f);
+            }
+            else if (transform.localScale != Vector3.one)
+            {
+                transform.localScale = Vector3.one;
+            }
+
             // m8 A2 拼装路径：朝向 + 逐部位染色
             if (_assembled != null)
             {
@@ -160,7 +177,7 @@ namespace MyWorld.Unity.Combat
                     {
                         c = Color.red;
                     }
-                    else if (Mob.IsCreeper && Mob.FuseTimer > 0f)
+                    else if (FuseFlashing())
                     {
                         float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 16f);
                         c = Color.Lerp(_assembled.PartBaseColors[i], Color.white, pulse * 0.7f);
@@ -175,7 +192,7 @@ namespace MyWorld.Unity.Combat
             {
                 ApplyColor(Color.red);
             }
-            else if (Mob.IsCreeper && Mob.FuseTimer > 0f)
+            else if (FuseFlashing())
             {
                 // 苦力怕引信中：颜色随剩余时间变白闪烁
                 float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 16f);
@@ -186,5 +203,8 @@ namespace MyWorld.Unity.Combat
                 ApplyColor(BaseColor);
             }
         }
+
+        /// <summary>引信白闪是否激活：旧苦力怕（mobTypeId=5）与新苦力怕（MobKind.Creeper）共用引信视觉。</summary>
+        private bool FuseFlashing() => Mob.FuseTimer > 0f && (Mob.IsCreeper || Mob.Kind == MobKind.Creeper);
     }
 }

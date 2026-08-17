@@ -1,0 +1,8 @@
+{
+  "id": "shield",
+  "displayName": "盾",
+  "numericId": 1302,
+  "maxStack": 1,
+  "maxDurability": 100,
+  "texture": "shield"
+}

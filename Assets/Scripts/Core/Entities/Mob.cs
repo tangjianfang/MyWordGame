@@ -77,6 +77,31 @@ namespace MyWorld.Core.Entities
                 // MoveSpeed 留 0（不靠 wander / flee 速度）。
                 10 => new Mob { MobTypeId = 10, Kind = MobKind.Villager, Health = new Health(20), Position = position, WanderCooldown = 2f, MoveSpeed = 0f },
 
+                // m11 W1-1：12 新生物建档（P0 只接了枚举/分派，Create 曾对 15-26 一律抛
+                // 「未知 mobTypeId」——spawn_rules 有条目后夜间刷怪会当场炸，这里是一次性补齐）。
+                // 被动 9 个照猪组建档（wander + 受击逃 3s），血量按卡片：羊8 兔3 狐5 鹿8
+                // 熊猫15 企鹅4 山羊8 浣熊4 仓鼠2（猪10/牛15/鸡4 的量级）；MoveSpeed 按体型：
+                // 兔/狐/鹿敏捷、熊猫企鹅迟缓，其余贴猪 1.5 上下。
+                15 => new Mob { MobTypeId = 15, Kind = MobKind.Sheep, Health = new Health(8), Position = position, WanderCooldown = 2f, MoveSpeed = 1.2f },
+                16 => new Mob { MobTypeId = 16, Kind = MobKind.Rabbit, Health = new Health(3), Position = position, WanderCooldown = 2f, MoveSpeed = 2.4f },
+                17 => new Mob { MobTypeId = 17, Kind = MobKind.Fox, Health = new Health(5), Position = position, WanderCooldown = 2f, MoveSpeed = 3.0f },
+                18 => new Mob { MobTypeId = 18, Kind = MobKind.Deer, Health = new Health(8), Position = position, WanderCooldown = 2f, MoveSpeed = 2.8f },
+                19 => new Mob { MobTypeId = 19, Kind = MobKind.Panda, Health = new Health(15), Position = position, WanderCooldown = 2f, MoveSpeed = 0.8f },
+                20 => new Mob { MobTypeId = 20, Kind = MobKind.Penguin, Health = new Health(4), Position = position, WanderCooldown = 2f, MoveSpeed = 0.9f },
+                21 => new Mob { MobTypeId = 21, Kind = MobKind.Goat, Health = new Health(8), Position = position, WanderCooldown = 2f, MoveSpeed = 1.4f },
+                22 => new Mob { MobTypeId = 22, Kind = MobKind.Raccoon, Health = new Health(4), Position = position, WanderCooldown = 2f, MoveSpeed = 1.2f },
+                23 => new Mob { MobTypeId = 23, Kind = MobKind.Hamster, Health = new Health(2), Position = position, WanderCooldown = 2f, MoveSpeed = 1.0f },
+
+                // 敌对 3 个照卡片数值（量级对齐旧 mobTypeId 4 骷髅 / 5 苦力怕）：
+                // 骷髅血16 远程风筝（射程窗口 8-12m 见 MobAI.SkeletonMin/MaxRange）、
+                // 蜘蛛血16 近战2点 + 夜间追击速度 4.5（MobAI.SpiderChaseSpeed）、
+                // 苦力怕血20 引信自爆（<3m 触发 / 1.5s / 爆炸见 Combat.Explosion）。
+                // AttackRange 对骷髅取射程窗口上限 12（AI 分支的保持距离判定基准）、
+                // 对苦力怕取触发半径 3，语义与旧僵尸 AttackRange（近战距离）一致可读。
+                24 => new Mob { MobTypeId = 24, Kind = MobKind.Skeleton, Health = new Health(16), Position = position, AttackDamage = 2f, AttackRange = 12f, ChaseRadius = 20f, WanderCooldown = 2f, MoveSpeed = 3.0f },
+                25 => new Mob { MobTypeId = 25, Kind = MobKind.Spider, Health = new Health(16), Position = position, AttackDamage = 2f, AttackRange = 4f, ChaseRadius = 20f, WanderCooldown = 2f, MoveSpeed = 4.5f },
+                26 => new Mob { MobTypeId = 26, Kind = MobKind.Creeper, Health = new Health(20), Position = position, ChaseRadius = 20f, WanderCooldown = 2f, MoveSpeed = 3.0f },
+
                 _ => throw new System.ArgumentException($"未知 mobTypeId: {mobTypeId}"),
             };
         }

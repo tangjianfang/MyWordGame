@@ -1,0 +1,17 @@
+{
+  "kind": "Spider",
+  "parts": [
+    { "name": "body", "size": [0.9, 0.45, 0.9], "position": [0, 0.45, -0.1], "color": "#2A1E16", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.5, 0.4, 0.45], "position": [0, 0.5, 0.55], "color": "#4A362A", "isLeg": false, "legPhase": 0 },
+    { "name": "crest", "size": [0.5, 0.08, 0.2], "position": [0, 0.72, 0.5], "color": "#6A5648", "isLeg": false, "legPhase": 0 },
+    { "name": "eyes", "size": [0.3, 0.08, 0.05], "position": [0, 0.62, 0.79], "color": "#C42222", "isLeg": false, "legPhase": 0 },
+    { "name": "legFR1", "size": [0.5, 0.12, 0.12], "position": [0.62, 0.35, 0.3], "color": "#2A1E16", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legFR2", "size": [0.5, 0.12, 0.12], "position": [0.62, 0.35, 0.05], "color": "#2A1E16", "isLeg": true, "legPhase": 0 },
+    { "name": "legBR1", "size": [0.5, 0.12, 0.12], "position": [0.62, 0.35, -0.2], "color": "#2A1E16", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBR2", "size": [0.5, 0.12, 0.12], "position": [0.62, 0.35, -0.45], "color": "#2A1E16", "isLeg": true, "legPhase": 0 },
+    { "name": "legFL1", "size": [0.5, 0.12, 0.12], "position": [-0.62, 0.35, 0.3], "color": "#2A1E16", "isLeg": true, "legPhase": 0 },
+    { "name": "legFL2", "size": [0.5, 0.12, 0.12], "position": [-0.62, 0.35, 0.05], "color": "#2A1E16", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBL1", "size": [0.5, 0.12, 0.12], "position": [-0.62, 0.35, -0.2], "color": "#2A1E16", "isLeg": true, "legPhase": 0 },
+    { "name": "legBL2", "size": [0.5, 0.12, 0.12], "position": [-0.62, 0.35, -0.45], "color": "#2A1E16", "isLeg": true, "legPhase": 3.141592653589793 }
+  ]
+}

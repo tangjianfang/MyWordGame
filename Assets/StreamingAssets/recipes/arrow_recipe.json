@@ -1,0 +1,15 @@
+{
+  "id": "arrow_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "cobblestone",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "arrow",
+    "count": 4
+  }
+}

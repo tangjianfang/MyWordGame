@@ -3,5 +3,8 @@
   "Cow":      { "biomes": ["Plains"], "minLight": 9, "weight": 8 },
   "Chicken":  { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 8 },
   "Zombie":   { "biomes": ["Plains", "Forest", "Mountains"], "minLight": 0, "weight": 5 },
-  "Villager": { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 6 }
+  "Villager": { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 6 },
+  "Skeleton": { "biomes": ["Plains", "Forest", "Mountains"], "minLight": 0, "weight": 4 },
+  "Spider":   { "biomes": ["Plains", "Forest", "Mountains"], "minLight": 0, "weight": 3 },
+  "Creeper":  { "biomes": ["Plains", "Forest"], "minLight": 0, "weight": 3 }
 }

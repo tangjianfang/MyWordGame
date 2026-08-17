@@ -1,11 +1,11 @@
-// m11 P0（前置·串行独占）：12 新生物枚举与分派预接线的 Core 侧守卫。
-// P0 只接线、不写专属 AI：9 被动 kind（Sheep/Rabbit/Fox/Deer/Panda/Penguin/Goat/
-// Raccoon/Hamster）行为等价猪组（wander + 受击逃 3s）；骷髅/蜘蛛/苦力怕暂等价
-// 僵尸组（夜里追、白天不追）——专属行为由 W1 代理（W1-1/W1-2）替换。
-// 安全性依据：真实 spawn_rules.json 尚未加这 12 个名字的条目，ShouldSpawn 恒 false，
-// 接线后不会真的刷出（模型 mobs/models/*.json 同批未就绪，UsesPartTable=true 的
-// 部位表拼装路径不会被走到）；等 W1 代理补条目 + 模型 JSON 后自然生效——
-// PickKind_RealRules_NewKindsNotConfigured_NeverSpawn 守卫这条性质。
+// m11 P0（前置·串行独占）→ W1-1（战斗）演进：12 新生物枚举与分派接线守卫。
+// P0 阶段（commit f317e33）只接线、不写专属 AI 且不加条目；W1-1 起：
+//   - 骷髅/蜘蛛/苦力怕换上专属 AI（远程风筝/夜间 4.5 追击/引信自爆），
+//     spawn_rules.json + drop_tables.json 加了三敌对条目，夜间会真的刷出；
+//     专属行为断言在 Entities/HostileAiTests（W1-1 新增）。
+//   - 9 被动 kind 仍等价猪组（wander + 受击逃 3s），spawn 条目照计划由集成点②
+//     合并 W1-2 的建议清单后投放——PickKind_RealRules_NinePassives_StillNotConfigured
+//     守卫「无条目不刷」这条性质在投放前持续有效。
 // MobManager 侧（UsesPartTable/MobKindToTypeId/昼夜候选表）的映射守卫在
 // Combat/MobManagerSpawnTests.cs（MobManager 是 MonoBehaviour，编辑器链专用）。
 using System;
@@ -105,20 +105,65 @@ namespace MyWorld.Core.Tests.Entities
         }
 
         [Test]
-        public void PickKind_RealRules_NewKindsNotConfigured_NeverSpawn()
+        public void PickKind_RealRules_ThreeHostiles_ConfiguredAndGated()
         {
-            // P0 安全性依据的守卫：真实 spawn_rules.json 尚未加 12 新名条目 →
-            // 未配置的 kind ShouldSpawn 恒 false → MobManager 昼夜候选表带着它们
-            // 也不会真的刷出（模型 JSON 未就绪前这是唯一的安全闸）。
+            // W1-1 起真实 spawn_rules.json 有三敌对条目：
+            // Skeleton/Spider 夜间 Plains/Forest/Mountains，Creeper 夜间 Plains/Forest。
+            // MobManager 的 NightCandidates 带着它们 → 夜间会真的刷出（模型与 AI 同批就绪）。
             var rules = MobSpawnRules.Load(RealSpawnRulesPath());
             foreach (var (name, kind, _) in NewKinds)
+            {
+                if (kind != MobKind.Skeleton && kind != MobKind.Spider && kind != MobKind.Creeper)
+                {
+                    continue;
+                }
+
+                // 条目群系内、夜间光照（0 ≥ minLight）应能命中（weight 3-4 → 15%-20%）
+                int plainsHits = 0, forestHits = 0;
+                for (int seed = 0; seed < 100; seed++)
+                {
+                    if (rules.ShouldSpawn(Biome.Plains, kind, lightLevel: 0, seed)) plainsHits++;
+                    if (rules.ShouldSpawn(Biome.Forest, kind, lightLevel: 0, seed)) forestHits++;
+                }
+                Assert.That(plainsHits, Is.GreaterThan(0), $"{name} 夜间 Plains 应能刷出（实际 {plainsHits}/100）");
+                Assert.That(forestHits, Is.GreaterThan(0), $"{name} 夜间 Forest 应能刷出（实际 {forestHits}/100）");
+
+                // Desert 不在任何条目群系里：一个 seed 都不许命中
+                for (int seed = 0; seed < 100; seed++)
+                {
+                    Assert.That(rules.ShouldSpawn(Biome.Desert, kind, lightLevel: 0, seed), Is.False,
+                        $"{name} 的条目不含 Desert，不应在沙漠刷出");
+                }
+            }
+
+            // Mountains 只配给 Skeleton/Spider，Creeper 不上山
+            int mountainHits = 0;
+            for (int seed = 0; seed < 100; seed++)
+            {
+                if (rules.ShouldSpawn(Biome.Mountains, MobKind.Skeleton, 0, seed)) mountainHits++;
+                if (rules.ShouldSpawn(Biome.Mountains, MobKind.Spider, 0, seed)) mountainHits++;
+                Assert.That(rules.ShouldSpawn(Biome.Mountains, MobKind.Creeper, 0, seed), Is.False,
+                    "Creeper 条目不含 Mountains，不应上山刷出");
+            }
+            Assert.That(mountainHits, Is.GreaterThan(0),
+                "Skeleton/Spider 应在 Mountains 有条目（100 seed 至少命中一次，实际 " + mountainHits + "）");
+        }
+
+        [Test]
+        public void PickKind_RealRules_NinePassives_StillNotConfigured_NeverSpawn()
+        {
+            // 9 被动 kind 仍无条目（W1-2 只写模型，spawn/drop 条目照 _part2 总则由
+            // 集成点②合并投放）——未配置的 kind ShouldSpawn 恒 false，
+            // MobManager 白天候选表带着它们也不会真的刷出（投放前持续守卫）。
+            var rules = MobSpawnRules.Load(RealSpawnRulesPath());
+            foreach (var kind in NewPassiveKinds)
             {
                 for (int seed = 0; seed < 50; seed++)
                 {
                     Assert.That(rules.ShouldSpawn(Biome.Plains, kind, lightLevel: 15, seed), Is.False,
-                        $"{name} 在真实 spawn_rules.json 尚无条目，白天不应刷出（P0 只预接线不投放）");
+                        $"{kind} 在真实 spawn_rules.json 尚无条目，白天不应刷出");
                     Assert.That(rules.ShouldSpawn(Biome.Forest, kind, lightLevel: 0, seed), Is.False,
-                        $"{name} 在真实 spawn_rules.json 尚无条目，夜间不应刷出（P0 只预接线不投放）");
+                        $"{kind} 在真实 spawn_rules.json 尚无条目，夜间不应刷出");
                 }
             }
         }
@@ -154,69 +199,36 @@ namespace MyWorld.Core.Tests.Entities
         }
 
         [Test]
-        public void MobAI_SkeletonSpiderCreeper_EquivalentToZombieInP0()
+        public void MobAI_SkeletonSpiderCreeper_W11专属行为已替换_昼夜与受击语义不回退()
         {
             var night = new TimeOfDay { CurrentTick = 15000 };
             foreach (var kind in NewHostileKinds)
             {
-                // 夜间 15 格（<20 追击半径）应追击。Chasing 也证明没误入旧苦力怕
-                // 引信分支——TickCreeper 从不置 Chasing。
-                var m = NewHostileMob(kind);
+                // 夜间 15 格（<20 追击半径）三敌对都进入交战（骷髅在窗口外逼近、
+                // 蜘蛛直线追、苦力怕贴身导向）。专属行为的细节断言在 HostileAiTests。
+                var m = Mob.Create((int)kind, new Float3(0, 64, 0));
                 MobAI.Tick(m, new Float3(15, 64, 0), null, night, 0.1f, isNight: true);
                 Assert.That(m.State, Is.EqualTo(MobState.Chasing),
-                    $"{kind} P0 等价僵尸：夜间 20 格内应追击");
-
-                // 贴脸 2 格（<3 旧引信触发半径）：不该走旧苦力怕引信（专属自爆 W1-1 再实现）
-                var close = NewHostileMob(kind);
-                MobAI.Tick(close, new Float3(2, 64, 0), null, night, 0.1f, isNight: true);
-                Assert.That(close.State, Is.EqualTo(MobState.Chasing),
-                    $"{kind} P0 走僵尸近战分支，贴脸也应处于 Chasing");
-                Assert.That(close.FuseTimer, Is.EqualTo(0f),
-                    $"{kind} P0 不进旧苦力怕引信（FuseTimer 不动）");
+                    $"{kind} 夜间 20 格内应交战（专属 AI 不改追击半径语义）");
 
                 // 白天（isNight=false）不追，回落被动流
-                var day = NewHostileMob(kind);
+                var day = Mob.Create((int)kind, new Float3(0, 64, 0));
                 MobAI.Tick(day, new Float3(15, 64, 0), null, night, 0.1f, isNight: false);
                 Assert.That(day.State, Is.Not.EqualTo(MobState.Chasing),
-                    $"{kind} P0 等价僵尸：白天不追（威胁只在夜里成立）");
+                    $"{kind} 白天不追（威胁只在夜里成立，W1-1 不改昼夜门）");
 
                 // 敌对受击不逃（等价 Hostile/Zombie 语义）
-                var h = NewHostileMob(kind);
+                var h = Mob.Create((int)kind, new Float3(0, 64, 0));
                 MobAI.TakeHit(h, new Float3(0, 64, 0), 1f);
                 Assert.That(h.State, Is.Not.EqualTo(MobState.FleeingFromAttacker),
-                    $"{kind} 敌对受击不逃（P0 等价僵尸）");
+                    $"{kind} 敌对受击不逃");
             }
         }
 
-        /// <summary>被动 kind 的测试实体（新 kind 不在 Mob.Create 表内，直接按字段构造，模式抄 MobKindVillagerTests.NewVillagerMob）。</summary>
+        /// <summary>被动 kind 的测试实体（W1-1 起 15-23 已进 Mob.Create 表，直接建档创建）。</summary>
         private static Mob NewPassiveMob(MobKind kind)
         {
-            return new Mob
-            {
-                MobTypeId = (int)kind, // P0 约定：新 kind 的 mobTypeId = 枚举数值
-                Kind = kind,
-                Health = new Health(10),
-                Position = new Float3(0, 64, 0),
-                WanderCooldown = 2f,
-                MoveSpeed = 1.5f,
-            };
-        }
-
-        /// <summary>敌对 kind 的测试实体（参数照抄 Mob.Create(9) 的新僵尸：射程 4 / 追击 20）。</summary>
-        private static Mob NewHostileMob(MobKind kind)
-        {
-            return new Mob
-            {
-                MobTypeId = (int)kind, // ≠5：Mob.IsCreeper 判定不成立，P0 走僵尸分支
-                Kind = kind,
-                Health = new Health(20),
-                Position = new Float3(0, 64, 0),
-                AttackDamage = 2f,
-                AttackRange = 4f,
-                ChaseRadius = 20f,
-                WanderCooldown = 2f,
-                MoveSpeed = 3.5f,
-            };
+            return Mob.Create((int)kind, new Float3(0, 64, 0));
         }
 
         private static string RealSpawnRulesPath()

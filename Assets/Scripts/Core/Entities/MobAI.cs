@@ -22,9 +22,12 @@ namespace MyWorld.Core.Entities
     /// 既有 mobTypeId 1-5（Passive/Hostile/Neutral 分类）行为同步此语义。
     /// </para>
     /// <para>
-    /// m11 P0：12 新生物只做枚举与分派预接线——9 被动 kind（Sheep…Hamster）并入
-    /// 猪组（wander + 受击逃 3s），骷髅/蜘蛛/苦力怕暂走 Zombie 组（夜里追白天不追）；
-    /// 专属 AI 由 W1 代理替换。spawn_rules.json 未加这 12 个名字的条目前不会真的刷出。
+    /// m11 W1-1：三敌对专属 AI 落地——骷髅 8-12m 风筝 + 每 2s 一箭
+    /// （<see cref="ProjectileEntity"/> 经 <see cref="OnProjectileFired"/> 抛出）、
+    /// 蜘蛛夜间 <see cref="SpiderChaseSpeed"/>=4.5 追击、苦力怕 &lt;3m 引信 1.5s 后
+    /// <see cref="MyWorld.Core.Combat.Explosion"/> 自爆（半径 3 / 最高 6 伤 / 基岩幸存）。
+    /// 9 被动 kind（Sheep…Hamster）仍等价猪组（wander + 受击逃 3s）。
+    /// 昼夜门（isNight 参数）与追击半径语义对三敌对与僵尸保持一致。
     /// </para>
     /// </summary>
     public static class MobAI
@@ -48,6 +51,36 @@ namespace MyWorld.Core.Entities
         public const float HitFlashDuration = 0.15f;
 
         public const float DefaultDeathTimer = 0.5f;
+
+        // ─── m11 W1-1：三敌对专属行为参数（卡片数值） ────────────────────────
+
+        /// <summary>骷髅射击间隔（秒）：每 2s 一箭。</summary>
+        public const float SkeletonShootInterval = 2f;
+
+        /// <summary>骷髅保持距离窗口下限（米）：玩家比这近就开始后撤。</summary>
+        public const float SkeletonMinRange = 8f;
+
+        /// <summary>骷髅保持距离窗口上限（米）：玩家比这远就逼近，窗口内站定射击。</summary>
+        public const float SkeletonMaxRange = 12f;
+
+        /// <summary>蜘蛛夜间追击速度（格/s）。4.5 &gt; 玩家走速 4.3——夜里甩不掉，白天才安全。</summary>
+        public const float SpiderChaseSpeed = 4.5f;
+
+        /// <summary>新苦力怕引信触发半径（米）：玩家进入即点燃。</summary>
+        public const float NewCreeperTriggerRadius = 3f;
+
+        /// <summary>新苦力怕引信脱离半径（米）：玩家跑出该距离取消引信（照旧苦力怕的 3/5 节奏）。</summary>
+        public const float NewCreeperAbortRadius = 5f;
+
+        /// <summary>新苦力怕引信时长（秒）：膨胀 1.5s 后起爆（Combat.Explosion 半径 3 / 最高 6 伤）。</summary>
+        public const float NewCreeperFuseDuration = 1.5f;
+
+        /// <summary>
+        /// m11 W1-1：骷髅开火的箭实体出口。Unity 侧（集成点②接线）订阅后接管箭的
+        /// tick 列表与视觉（箭本体 Core 只在此抛出，不持有世界级容器）；
+        /// Core 单测订阅捕获做弹道断言。null 时箭实体仍构造，只是无人接管。
+        /// </summary>
+        public static System.Action<ProjectileEntity> OnProjectileFired;
 
         /// <summary>
         /// X4.5：JSON 驱动的概率掉落表（<c>Entities.MobDropTable</c>）。
@@ -103,7 +136,7 @@ namespace MyWorld.Core.Entities
                     }
                     else
                     {
-                        TickHostile(mob, playerPos, distSq, dt, world);
+                        TickHostile(mob, playerPos, distSq, dt, world, ChaseSpeed);
                     }
                     break;
 
@@ -126,21 +159,51 @@ namespace MyWorld.Core.Entities
                     TickPassive(mob, dt);
                     break;
                 case MobKind.Zombie:
-                // m11 P0：骷髅/蜘蛛/苦力怕暂等价僵尸（夜里追白天 wander），专属 AI 由 W1-1 替换。
-                // 注意 MobKind.Creeper ≠ 旧 mobTypeId=5（Mob.IsCreeper 判 MobTypeId），
-                // 新 kind 不走 TickCreeper 引信分支——本组只接 Zombie 的昼夜语义
-                case MobKind.Skeleton:
-                case MobKind.Spider:
-                case MobKind.Creeper:
                     // m7 A2：白天（isNight=false）不追——与友好动物一样走 wander（TickPassive），
                     // 威胁只在夜里成立。isNight 由宿主传入（MobManager.IsNightPhase 单一真源），
                     // 不在此读第二套时钟。chase/attack 半径由 mob.ChaseRadius / mob.AttackRange 控制。
                     if (isNight)
                     {
-                        TickHostile(mob, playerPos, distSq, dt, world);
+                        TickHostile(mob, playerPos, distSq, dt, world, ChaseSpeed);
                     }
                     else
                     {
+                        TickPassive(mob, dt);
+                    }
+                    break;
+
+                // m11 W1-1：三敌对专属 AI（P0 曾暂等价僵尸，本波替换）。
+                // 昼夜门与追击半径语义沿用僵尸组：夜里威胁、白天回落 wander。
+                case MobKind.Skeleton:
+                    if (isNight)
+                    {
+                        TickSkeleton(mob, playerPos, distSq, dt);
+                    }
+                    else
+                    {
+                        TickPassive(mob, dt);
+                    }
+                    break;
+                case MobKind.Spider:
+                    if (isNight)
+                    {
+                        TickHostile(mob, playerPos, distSq, dt, world, SpiderChaseSpeed);
+                    }
+                    else
+                    {
+                        TickPassive(mob, dt);
+                    }
+                    break;
+                case MobKind.Creeper:
+                    // 注意 MobKind.Creeper ≠ 旧 mobTypeId=5（Mob.IsCreeper 判 MobTypeId）：
+                    // 旧苦力怕走 TickHostile→TickCreeper，新 kind 走下面的专属引信分支。
+                    if (isNight)
+                    {
+                        TickCreeperKind(mob, playerPos, distSq, dt, world);
+                    }
+                    else
+                    {
+                        if (mob.FuseTimer > 0) mob.FuseTimer = 0; // 入昼熄引信，不带着半截引信进白天闪白
                         TickPassive(mob, dt);
                     }
                     break;
@@ -311,7 +374,8 @@ namespace MyWorld.Core.Entities
                 mob.Position.Z + mob.Velocity.Z * dt);
         }
 
-        private static void TickHostile(Mob mob, Float3 playerPos, float distSq, float dt, World world)
+        private static void TickHostile(Mob mob, Float3 playerPos, float distSq, float dt, World world,
+            float chaseSpeed)
         {
             if (mob.IsCreeper)
             {
@@ -357,12 +421,146 @@ namespace MyWorld.Core.Entities
                 {
                     var to = playerPos - mob.Position;
                     float d = (float)System.Math.Sqrt(to.X * to.X + to.Z * to.Z);
-                    mob.Velocity = new Float3(to.X / d * ChaseSpeed, 0, to.Z / d * ChaseSpeed);
+                    mob.Velocity = new Float3(to.X / d * chaseSpeed, 0, to.Z / d * chaseSpeed);
                 }
             }
             else
             {
                 mob.Velocity = default;
+            }
+
+            mob.Position = new Float3(
+                mob.Position.X + mob.Velocity.X * dt,
+                mob.Position.Y,
+                mob.Position.Z + mob.Velocity.Z * dt);
+        }
+
+        /// <summary>
+        /// m11 W1-1：骷髅远程 AI——保持 8-12m 距离风筝：太近后撤、太远逼近、
+        /// 窗口内站定每 <see cref="SkeletonShootInterval"/> 秒射一箭（箭实体经
+        /// <see cref="OnProjectileFired"/> 抛给宿主接管，箭伤由 ProjectileEntity 结算）。
+        /// </summary>
+        private static void TickSkeleton(Mob mob, Float3 playerPos, float distSq, float dt)
+        {
+            float chaseRadius = mob.ChaseRadius > 0f ? mob.ChaseRadius : HostileChaseRadius;
+            if (distSq > chaseRadius * chaseRadius)
+            {
+                mob.State = MobState.Idle;
+                mob.Velocity = default;
+                return;
+            }
+
+            mob.State = MobState.Chasing;
+            float speed = mob.MoveSpeed > 0f ? mob.MoveSpeed : ChaseSpeed;
+            float minSq = SkeletonMinRange * SkeletonMinRange;
+            float maxSq = SkeletonMaxRange * SkeletonMaxRange;
+
+            if (distSq < minSq)
+            {
+                // 玩家贴脸：后撤拉开距离（方向 = 远离玩家）
+                var away = mob.Position - playerPos;
+                float d = (float)System.Math.Sqrt(away.X * away.X + away.Z * away.Z);
+                if (d > 0.001f)
+                {
+                    mob.Velocity = new Float3(away.X / d * speed, 0, away.Z / d * speed);
+                }
+            }
+            else if (distSq > maxSq)
+            {
+                // 玩家太远：逼近到射击窗口
+                var to = playerPos - mob.Position;
+                float d = (float)System.Math.Sqrt(to.X * to.X + to.Z * to.Z);
+                if (d > 0.001f)
+                {
+                    mob.Velocity = new Float3(to.X / d * speed, 0, to.Z / d * speed);
+                }
+            }
+            else
+            {
+                // 射击窗口内：站定开火
+                mob.Velocity = default;
+                if (mob.AttackCooldown <= 0f)
+                {
+                    FireArrow(mob, playerPos);
+                    mob.AttackCooldown = SkeletonShootInterval;
+                }
+            }
+
+            mob.Position = new Float3(
+                mob.Position.X + mob.Velocity.X * dt,
+                mob.Position.Y,
+                mob.Position.Z + mob.Velocity.Z * dt);
+        }
+
+        /// <summary>
+        /// m11 W1-1：骷髅开火——从持弓高度（脚底 +1.4）向玩家胸口（脚底 +0.9）射一支
+        /// 重力补偿瞄准的箭（<see cref="ProjectileEntity.ComputeLaunchVelocity"/>）。
+        /// </summary>
+        private static void FireArrow(Mob mob, Float3 playerPos)
+        {
+            var origin = mob.Position + new Float3(0f, 1.4f, 0f);
+            var target = playerPos + new Float3(0f, 0.9f, 0f);
+            var velocity = ProjectileEntity.ComputeLaunchVelocity(
+                origin, target, ProjectileEntity.DefaultSpeed, ProjectileEntity.Gravity);
+            OnProjectileFired?.Invoke(new ProjectileEntity(origin, velocity, mob.EntityId));
+        }
+
+        /// <summary>
+        /// m11 W1-1：新苦力怕（MobKind.Creeper）——距玩家 &lt;
+        /// <see cref="NewCreeperTriggerRadius"/> 进入 <see cref="NewCreeperFuseDuration"/> 秒
+        /// 引信（站定膨胀，视觉由 MobView 按 FuseTimer 驱动），烧完起爆：
+        /// <see cref="MyWorld.Core.Combat.Explosion"/> 半径 3 破坏方块（基岩/不可破坏幸存）+
+        /// 距离衰减伤害最高 6 点，自身转 Dying。玩家跑出 <see cref="NewCreeperAbortRadius"/>
+        /// 取消引信（照旧苦力怕的触发/脱离节奏）。
+        /// </summary>
+        private static void TickCreeperKind(Mob mob, Float3 playerPos, float distSq, float dt, World world)
+        {
+            // 与其他敌对同语义：追击半径内保持 Chasing（含引信站定阶段——仍在交战），
+            // 半径外 Idle。下游（walk phase 驱动等）按速度而非 State 判断移动，不受影响。
+            float chaseRadius = mob.ChaseRadius > 0f ? mob.ChaseRadius : HostileChaseRadius;
+            mob.State = distSq <= chaseRadius * chaseRadius ? MobState.Chasing : MobState.Idle;
+
+            if (distSq < NewCreeperTriggerRadius * NewCreeperTriggerRadius)
+            {
+                if (mob.FuseTimer <= 0)
+                {
+                    mob.FuseTimer = NewCreeperFuseDuration;
+                }
+            }
+            else if (distSq > NewCreeperAbortRadius * NewCreeperAbortRadius && mob.FuseTimer > 0)
+            {
+                mob.FuseTimer = 0;
+            }
+
+            if (mob.FuseTimer > 0)
+            {
+                mob.FuseTimer -= dt;
+                mob.Velocity = default;
+                if (mob.FuseTimer <= 0)
+                {
+                    // 起爆：爆心取身体中心（脚底 +0.9）。伤害事件与方块破坏都在
+                    // Explosion.Detonate 内结算，这里只负责把自身转 Dying。
+                    MyWorld.Core.Combat.Explosion.Detonate(
+                        world,
+                        mob.Position + new Float3(0f, 0.9f, 0f),
+                        playerPos,
+                        attackerEntityId: mob.EntityId);
+                    mob.Health = new Health(0);
+                    mob.State = MobState.Dying;
+                    mob.DeathTimer = 0.4f;
+                    return;
+                }
+            }
+            else
+            {
+                // 引信未起：朝玩家逼近
+                var to = playerPos - mob.Position;
+                float d = (float)System.Math.Sqrt(to.X * to.X + to.Z * to.Z);
+                if (d > 0.001f)
+                {
+                    float speed = mob.MoveSpeed > 0f ? mob.MoveSpeed : ChaseSpeed;
+                    mob.Velocity = new Float3(to.X / d * speed, 0, to.Z / d * speed);
+                }
             }
 
             mob.Position = new Float3(

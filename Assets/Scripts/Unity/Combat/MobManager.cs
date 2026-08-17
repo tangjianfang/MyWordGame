@@ -526,6 +526,8 @@ namespace MyWorld.Unity.Combat
 
         /// <summary>
         /// m9 A3：击杀经验常量表（spec §3「击杀经验」）——猪 3 / 牛 5 / 鸡 2 / 僵尸 10。
+        /// m11 W1-1 扩 12 新生物：敌对照卡片（骷髅 8 / 蜘蛛 6 / 苦力怕 9，量级贴僵尸 10）；
+        /// 被动照猪/牛/鸡量级按血量缩放（羊2 兔1 狐2 鹿2 熊猫4 企鹅1 山羊2 浣熊1 仓鼠1）。
         /// 不在表内的 kind（旧 Passive/Hostile、Villager）为 0。
         /// </summary>
         public static int KillExperience(MobKind kind)
@@ -536,6 +538,20 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Cow: return 5;
                 case MobKind.Chicken: return 2;
                 case MobKind.Zombie: return 10;
+                // m11 W1-1 三敌对（远程/群战/自爆的风险位次：骷髅最高、苦力怕次之、蜘蛛最低）
+                case MobKind.Skeleton: return 8;
+                case MobKind.Spider: return 6;
+                case MobKind.Creeper: return 9;
+                // m11 W1-1 九被动（血量量级：仓鼠 2 血最不值钱、熊猫 15 血与牛同档）
+                case MobKind.Sheep: return 2;
+                case MobKind.Rabbit: return 1;
+                case MobKind.Fox: return 2;
+                case MobKind.Deer: return 2;
+                case MobKind.Panda: return 4;
+                case MobKind.Penguin: return 1;
+                case MobKind.Goat: return 2;
+                case MobKind.Raccoon: return 1;
+                case MobKind.Hamster: return 1;
                 default: return 0;
             }
         }

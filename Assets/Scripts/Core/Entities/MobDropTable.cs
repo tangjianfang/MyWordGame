@@ -202,9 +202,13 @@ namespace MyWorld.Core.Entities
                 case "Cow": return MobKind.Cow;
                 case "Chicken": return MobKind.Chicken;
                 case "Zombie": return MobKind.Zombie;
+                // m11 W1-1：三敌对掉落条目（skeleton→bone+arrow / spider→string_ / creeper→gunpowder）
+                case "Skeleton": return MobKind.Skeleton;
+                case "Spider": return MobKind.Spider;
+                case "Creeper": return MobKind.Creeper;
                 default:
                     throw new System.ArgumentException(
-                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie）");
+                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Skeleton/Spider/Creeper）");
             }
         }
     }

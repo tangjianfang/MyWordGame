@@ -1,0 +1,22 @@
+{
+  "id": "bow_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "stick",
+    "_",
+    "string_",
+    "stick",
+    "_",
+    "string_",
+    "stick",
+    "_",
+    "string_"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "bow",
+    "count": 1
+  }
+}

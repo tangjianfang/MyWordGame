@@ -51,7 +51,8 @@ namespace MyWorld.Unity.Rendering
     {
         /// <summary>
         /// 按生物类型取部位表（每次调用返回新数组，调用方可安全修改）。
-        /// 五生物委托 <see cref="MobModelLibrary.Load"/>（JSON 真值）；旧三类走下方 C# 保底表。
+        /// 五生物（m11 I1）+ 三敌对（m11 W1-1：骷髅/蜘蛛/苦力怕）委托
+        /// <see cref="MobModelLibrary.Load"/>（JSON 真值）；旧三类走下方 C# 保底表。
         /// </summary>
         public static MobPart[] Build(MobKind kind)
         {
@@ -62,6 +63,10 @@ namespace MyWorld.Unity.Rendering
                 case MobKind.Chicken:
                 case MobKind.Zombie:
                 case MobKind.Villager:
+                // m11 W1-1：三敌对造型 JSON 同批入库（spawn_rules 有条目后夜间真的会刷出）
+                case MobKind.Skeleton:
+                case MobKind.Spider:
+                case MobKind.Creeper:
                     // 五生物真值已外置 mobs/models/*.json（m11 I1）——
                     // 门面只转调，加载/缓存/报错策略统一在 Library
                     return MobModelLibrary.Load(kind);

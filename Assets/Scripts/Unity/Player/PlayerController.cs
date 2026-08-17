@@ -148,6 +148,12 @@ namespace MyWorld.Unity.Player
         /// 防御为 0（空手 / 非防御装备）时伤害**原样通过**——下限只防「减穿到 0」，
         /// 不把 B2 碎块的 0.5 抬成 1。
         /// </para>
+        /// <para>
+        /// m11 W1-1 起手持盾先打五折（×0.5）再走防御减伤，且每次挨打盾耐久 -1
+        /// （<see cref="ApplyShieldMitigation"/>）；耐久归零盾当场碎裂（空格），
+        /// 与镐碎裂同语义。盾的减伤是专属通道（按物品 id 判定），不走 gearBonus——
+        /// 避免与装备防御点数叠出双重暗减。
+        /// </para>
         /// </summary>
         public void TakeDamage(float amount, object attacker)
         {
@@ -158,11 +164,41 @@ namespace MyWorld.Unity.Player
             if (amount <= 0) return;
             var ctx = GetComponent<PlayerContext>();
             if (ctx == null) return;
+            amount = ApplyShieldMitigation(ctx, amount);
             ctx.Health.Damage(GearBonusMath.MitigateDamage(amount, ctx.Defense));
             if (ctx.Health.IsDead)
             {
                 ctx.DeathScreen?.Show();
             }
+        }
+
+        /// <summary>盾物品的注册 id（与 items/shield.json 一致）——手持判定按它走。</summary>
+        private const string ShieldItemId = "shield";
+
+        /// <summary>
+        /// m11 W1-1：手持盾减伤 ×0.5 且耐久 -1。非盾 / 空手原样返回（零行为变化）。
+        /// 耐久走 <see cref="ItemStack.WithDurabilityUsed"/>（Metadata=0 的存量兼容：
+        /// 先按物品表上限落编码再扣 1），扣到 0 当场碎成空格——先结算伤害再碎盾，
+        /// 碎裂那一下仍然减半。
+        /// </summary>
+        private static float ApplyShieldMitigation(PlayerContext ctx, float amount)
+        {
+            var definition = ctx.GetSelectedDefinition();
+            if (definition == null || definition.Id != ShieldItemId || definition.MaxDurability <= 0)
+            {
+                return amount;
+            }
+
+            var stack = ctx.Inventory.GetSelected();
+            if (stack.IsEmpty)
+            {
+                return amount;
+            }
+
+            ctx.Inventory.SetSlot(
+                ctx.Inventory.SelectedHotbarIndex,
+                stack.WithDurabilityUsed(definition.MaxDurability));
+            return amount * 0.5f;
         }
 
         // ─── 伤害源 1：摔落 ───────────────────────────────────────────────────

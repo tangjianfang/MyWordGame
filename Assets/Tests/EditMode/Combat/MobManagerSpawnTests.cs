@@ -80,10 +80,11 @@ namespace MyWorld.Core.Tests.Combat
         }
 
         /// <summary>
-        /// 夜晚（dayNightPhase=0.7，即深夜 16800 tick）+ Plains + 候选 [Zombie] 应刷出 Zombie。
+        /// 夜晚（dayNightPhase=0.7，即深夜 16800 tick）+ Plains + 候选 [Zombie, Skeleton, Spider, Creeper]
+        /// 应刷出敌对生物之一。m11 W1-1 起 spawn_rules.json 有三敌对条目，夜晚不再是 Zombie 独占。
         /// </summary>
         [Test]
-        public void TickSpawn_Nighttime_SpawnsZombie()
+        public void TickSpawn_Nighttime_SpawnsHostileMob()
         {
             int hits = 0;
             for (int seed = 1; seed <= 100; seed++)
@@ -94,25 +95,26 @@ namespace MyWorld.Core.Tests.Combat
                 {
                     hits++;
                     var spawned = _mgr.ActiveMobs[_mgr.ActiveMobs.Count - 1];
-                    Assert.That(spawned.Kind, Is.EqualTo(MobKind.Zombie),
-                        "夜晚 + Plains 唯一候选 Zombie，应刷 Zombie");
+                    Assert.That(spawned.Kind,
+                        Is.EqualTo(MobKind.Zombie).Or.EqualTo(MobKind.Skeleton)
+                            .Or.EqualTo(MobKind.Spider).Or.EqualTo(MobKind.Creeper),
+                        "夜晚 + Plains 刷出的 mob 应是四敌对 kind 之一（W1-1 起三新敌对已投放）");
                 }
             }
             Assert.That(hits, Is.GreaterThan(0),
-                $"夜晚应能刷出 Zombie（实际 {hits}/100）");
+                $"夜晚应能刷出敌对生物（实际 {hits}/100）");
         }
 
         /// <summary>
-        /// 夜晚所有候选都是 Pig/Cow/Chicken 时，MinLight=9 全军覆没 → TickSpawn 不应刷怪。
-        /// 这条规则只走 _rules.PickKind 分支测试；为验证夜间拒绝友好 mob，
-        /// 把规则临时改一下（限定只查友好 mob）。
+        /// 夜晚所有白天候选（Pig/Cow/Chicken）的 MinLight=9，lightLevel=0 全军覆没 →
+        /// TickSpawn 夜间刷出的绝不可能是友好 kind。
+        /// （nightCandidates 是 [Zombie, Skeleton, Spider, Creeper]，mob 一定是四者之一或没刷。）
         /// </summary>
         [Test]
         public void TickSpawn_Nighttime_DoesNotSpawnFriendlyMobs()
         {
             int totalSpawns = 0;
             // 反复 TickSpawn 100 次，断言刷出的 mob 不可能是友好 kind
-            // （PickKind 的 nightCandidates 已是 [Zombie]，所以 mob 一定是 Zombie 或没刷）
             for (int seed = 1; seed <= 100; seed++)
             {
                 int before = _mgr.ActiveMobs.Count;

@@ -1,0 +1,22 @@
+{
+  "id": "shield_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "plank",
+    "iron_ingot",
+    "plank",
+    "plank",
+    "plank",
+    "plank",
+    "plank",
+    "_",
+    "plank"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "shield",
+    "count": 1
+  }
+}
