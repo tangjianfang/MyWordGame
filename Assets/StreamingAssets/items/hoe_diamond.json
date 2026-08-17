@@ -1,0 +1,12 @@
+{
+  "id": "hoe_diamond",
+  "displayName": "钻石锄",
+  "numericId": 1433,
+  "maxStack": 1,
+  "texture": "hoe-diamond",
+  "attackDamage": 5,
+  "isTool": true,
+  "miningLevel": 4,
+  "toolTier": 4,
+  "maxDurability": 255
+}

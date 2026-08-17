@@ -1,0 +1,11 @@
+{
+  "id": "wheat_stage1",
+  "displayName": "小麦（半熟）",
+  "numericId": 1053,
+  "textures": { "all": "wheat-stage1" },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0.0,
+  "minToolTier": 0
+}

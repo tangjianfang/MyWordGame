@@ -1,0 +1,7 @@
+{
+  "id": "wheat",
+  "displayName": "小麦",
+  "numericId": 1018,
+  "maxStack": 64,
+  "texture": "wheat-item"
+}

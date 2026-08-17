@@ -1,0 +1,14 @@
+{
+  "id": "bone_to_bone_meal_recipe",
+  "tier": "pocket",
+  "width": 1,
+  "height": 1,
+  "pattern": [
+    "bone"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "bone_meal",
+    "count": 3
+  }
+}

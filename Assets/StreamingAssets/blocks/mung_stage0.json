@@ -1,0 +1,11 @@
+{
+  "id": "mung_stage0",
+  "displayName": "绿豆（发芽）",
+  "numericId": 1058,
+  "textures": { "all": "mung-stage0" },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0.0,
+  "minToolTier": 0
+}

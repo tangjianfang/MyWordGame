@@ -1,0 +1,11 @@
+{
+  "id": "mung_stage2",
+  "displayName": "绿豆（成熟）",
+  "numericId": 1060,
+  "textures": { "all": "mung-stage2" },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0.0,
+  "minToolTier": 0
+}

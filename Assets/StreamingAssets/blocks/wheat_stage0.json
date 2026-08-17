@@ -1,0 +1,11 @@
+{
+  "id": "wheat_stage0",
+  "displayName": "小麦（发芽）",
+  "numericId": 1052,
+  "textures": { "all": "wheat-stage0" },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0.0,
+  "minToolTier": 0
+}

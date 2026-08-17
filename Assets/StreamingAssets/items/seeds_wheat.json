@@ -1,0 +1,7 @@
+{
+  "id": "seeds_wheat",
+  "displayName": "小麦种子",
+  "numericId": 1019,
+  "maxStack": 64,
+  "texture": "seeds-wheat"
+}

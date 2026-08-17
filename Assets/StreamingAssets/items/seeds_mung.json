@@ -1,0 +1,7 @@
+{
+  "id": "seeds_mung",
+  "displayName": "绿豆种子",
+  "numericId": 1029,
+  "maxStack": 64,
+  "texture": "mung_bean"
+}

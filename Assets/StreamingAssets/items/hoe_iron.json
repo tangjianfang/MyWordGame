@@ -1,0 +1,12 @@
+{
+  "id": "hoe_iron",
+  "displayName": "铁锄",
+  "numericId": 1432,
+  "maxStack": 1,
+  "texture": "hoe-iron",
+  "attackDamage": 4,
+  "isTool": true,
+  "miningLevel": 3,
+  "toolTier": 3,
+  "maxDurability": 250
+}

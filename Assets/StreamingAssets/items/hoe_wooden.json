@@ -1,0 +1,12 @@
+{
+  "id": "hoe_wooden",
+  "displayName": "木锄",
+  "numericId": 1430,
+  "maxStack": 1,
+  "texture": "hoe-wooden",
+  "attackDamage": 2,
+  "isTool": true,
+  "miningLevel": 1,
+  "toolTier": 1,
+  "maxDurability": 59
+}

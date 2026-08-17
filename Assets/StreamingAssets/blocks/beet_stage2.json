@@ -1,0 +1,11 @@
+{
+  "id": "beet_stage2",
+  "displayName": "甜菜（成熟）",
+  "numericId": 1057,
+  "textures": { "all": "beet-stage2" },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0.0,
+  "minToolTier": 0
+}

@@ -1,0 +1,14 @@
+{
+  "id": "wheat_to_seeds_recipe",
+  "tier": "pocket",
+  "width": 1,
+  "height": 1,
+  "pattern": [
+    "wheat"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "seeds_wheat",
+    "count": 2
+  }
+}

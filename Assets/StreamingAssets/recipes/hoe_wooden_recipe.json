@@ -1,0 +1,19 @@
+{
+  "id": "hoe_wooden_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 2,
+  "pattern": [
+    "plank",
+    "plank",
+    "_",
+    "_",
+    "stick",
+    "_"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "hoe_wooden",
+    "count": 1
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "id": "bone_meal",
+  "displayName": "骨粉",
+  "numericId": 1505,
+  "maxStack": 64,
+  "texture": "bone-meal"
+}

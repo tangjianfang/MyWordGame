@@ -1,0 +1,19 @@
+{
+  "id": "hoe_iron_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 2,
+  "pattern": [
+    "iron_ingot",
+    "iron_ingot",
+    "_",
+    "_",
+    "stick",
+    "_"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "hoe_iron",
+    "count": 1
+  }
+}

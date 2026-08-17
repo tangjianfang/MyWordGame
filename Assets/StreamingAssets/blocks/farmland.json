@@ -1,0 +1,11 @@
+{
+  "id": "farmland",
+  "displayName": "耕地",
+  "numericId": 1050,
+  "textures": { "top": "farmland-dry", "bottom": "dirt", "side": "dirt" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 0.6,
+  "minToolTier": 0
+}

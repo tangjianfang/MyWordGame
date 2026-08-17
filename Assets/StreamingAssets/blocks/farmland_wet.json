@@ -1,0 +1,11 @@
+{
+  "id": "farmland_wet",
+  "displayName": "耕地（湿润）",
+  "numericId": 1051,
+  "textures": { "top": "farmland-wet", "bottom": "dirt", "side": "dirt" },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 0.6,
+  "minToolTier": 0
+}

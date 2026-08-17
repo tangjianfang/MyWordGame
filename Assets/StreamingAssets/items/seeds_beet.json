@@ -1,0 +1,7 @@
+{
+  "id": "seeds_beet",
+  "displayName": "甜菜种子",
+  "numericId": 1028,
+  "maxStack": 64,
+  "texture": "seeds-beet"
+}
