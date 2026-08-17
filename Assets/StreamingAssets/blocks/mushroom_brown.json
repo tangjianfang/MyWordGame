@@ -1,0 +1,11 @@
+{
+  "id": "mushroom_brown",
+  "displayName": "棕色蘑菇",
+  "textures": {
+    "all": "mushroom-brown"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0
+}

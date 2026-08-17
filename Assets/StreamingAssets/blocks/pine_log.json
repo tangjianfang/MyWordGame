@@ -1,0 +1,12 @@
+{
+  "id": "pine_log",
+  "displayName": "松木原木",
+  "textures": {
+    "all": "pine-log"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0,
+  "minToolTier": 0
+}

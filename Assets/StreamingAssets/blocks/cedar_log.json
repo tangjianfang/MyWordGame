@@ -1,0 +1,12 @@
+{
+  "id": "cedar_log",
+  "displayName": "雪松原木",
+  "textures": {
+    "all": "cedar-log"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0,
+  "minToolTier": 0
+}

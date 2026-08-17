@@ -1,0 +1,11 @@
+{
+  "id": "pine_leaves",
+  "displayName": "松树叶",
+  "textures": {
+    "all": "pine-leaves"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

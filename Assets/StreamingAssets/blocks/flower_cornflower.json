@@ -1,0 +1,11 @@
+{
+  "id": "flower_cornflower",
+  "displayName": "矢车菊",
+  "textures": {
+    "all": "flower-cornflower"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0
+}

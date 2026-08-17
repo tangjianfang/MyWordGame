@@ -1,0 +1,11 @@
+{
+  "id": "cedar_leaves",
+  "displayName": "雪松树叶",
+  "textures": {
+    "all": "cedar-leaves"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

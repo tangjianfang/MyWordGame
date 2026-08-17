@@ -1,0 +1,12 @@
+{
+  "id": "cherry_log",
+  "displayName": "樱花原木",
+  "textures": {
+    "all": "cherry-log"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0,
+  "minToolTier": 0
+}

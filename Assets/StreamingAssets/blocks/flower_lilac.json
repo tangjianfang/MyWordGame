@@ -1,0 +1,11 @@
+{
+  "id": "flower_lilac",
+  "displayName": "丁香",
+  "textures": {
+    "all": "flower-lilac"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0
+}

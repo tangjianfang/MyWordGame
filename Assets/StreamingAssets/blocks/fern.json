@@ -1,0 +1,11 @@
+{
+  "id": "fern",
+  "displayName": "蕨",
+  "textures": {
+    "all": "fern"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0
+}

@@ -1,0 +1,11 @@
+{
+  "id": "flower_dandelion",
+  "displayName": "蒲公英",
+  "textures": {
+    "all": "flower-dandelion"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0
+}

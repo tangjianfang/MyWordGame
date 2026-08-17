@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -14,12 +15,26 @@ namespace MyWorld.Preview
     /// </summary>
     internal static class Program
     {
+        /// <summary>植被方块 numericId → 剖面字形（m11 W1-3）。新树种/花草的 numericId 是自动分配的，
+        /// 首次用到时从真实注册表建映射。字母区分树种：原木与树叶各一档，花草统一 ','。</summary>
+        private static Dictionary<ushort, char> _vegetationGlyphs;
+
         private static void Main(string[] args)
         {
             Console.OutputEncoding = Encoding.UTF8;
 
             int seed = args.Length > 0 && int.TryParse(args[0], out int parsed) ? parsed : 20260806;
             var generator = new WorldGenerator(seed);
+
+            // m11 W1-3：剖面里要能看到树种/花草，先建植被字形表（缺文件时保持旧字形集）
+            try
+            {
+                _vegetationGlyphs = BuildVegetationGlyphs(LoadBlockRegistry(), LoadVegetationTable());
+            }
+            catch
+            {
+                _vegetationGlyphs = null;
+            }
 
             Console.WriteLine($"种子: {seed}");
             Console.WriteLine();
@@ -31,6 +46,8 @@ namespace MyWorld.Preview
             PrintOreStats(generator);
             Console.WriteLine();
             PrintMeshStats(generator);
+            Console.WriteLine();
+            PrintVegetationStats(generator);
         }
 
         /// <summary>纵向剖面：直观展示地表起伏、土层厚度、水面与地下矿层（m10 起下探到 y=-24）。</summary>
@@ -60,6 +77,7 @@ namespace MyWorld.Preview
             Console.WriteLine("     +" + new string('-', width));
             Console.WriteLine("     图例: '\"'草 '.'土 '#'石 ':'沙 '~'水 '_'基岩 '*'雪 ' '空气");
             Console.WriteLine("     矿石: '$'金 '%'粗铁 '&'合金 '@'机元（地层：粗铁<48 金<32 合金<24 机元<16）");
+            Console.WriteLine("     植被: 原木 i橡 I桦 j松 J雪松 K丛林 S红杉 c樱 | 树叶 o橡 O桦 p松 P雪松 Q丛林 Z红杉 C樱 U灌木 | ','花草");
         }
 
         /// <summary>地下矿层统计（m10）：四矿在石层中的实测占比（含洞穴挖掉的部分），供调稀有度参数时对比。</summary>
@@ -233,6 +251,200 @@ namespace MyWorld.Preview
             throw new DirectoryNotFoundException("未找到 Assets/StreamingAssets/blocks 目录。");
         }
 
+        /// <summary>
+        /// 地表植被统计（m11 W1-3）：实测各树种树干数、花草株数与五群系的树种构成，
+        /// 是调 trees.json/flowers.json 密度后的目检依据（对照 trees.json 的 biomes 声明）。
+        /// </summary>
+        private static void PrintVegetationStats(WorldGenerator generator)
+        {
+            const int chunkRadius = 16;   // 33×33 区块——覆盖多种群系（雪原等低温带离原点较远）
+            const int scanBottom = 60;    // 植被只可能出现在海平面以上的地表带
+            const int scanTop = 140;
+
+            Console.WriteLine($"── 地表植被统计 ({chunkRadius * 2 + 1}×{chunkRadius * 2 + 1} 区块, y∈[{scanBottom},{scanTop})) ──");
+
+            BlockRegistry registry = LoadBlockRegistry();
+            VegetationTable table = LoadVegetationTable();
+
+            // 树种 → 树干/树叶 numericId；花草条目 → numericId。
+            // 注意 oak 与 bush 共用 log 方块——树干计数靠「树干顶上的叶冠」区分两者。
+            var trunkIds = new Dictionary<ushort, List<string>>();
+            var speciesLeaves = new Dictionary<string, ushort>();
+            var leafIds = new HashSet<ushort>();
+            foreach (TreeSpecies species in table.Trees)
+            {
+                ushort logId = registry.GetById(species.LogBlock).NumericId;
+                if (!trunkIds.TryGetValue(logId, out var sharers))
+                {
+                    sharers = new List<string>();
+                    trunkIds[logId] = sharers;
+                }
+                sharers.Add(species.Id);
+                speciesLeaves[species.Id] = registry.GetById(species.LeavesBlock).NumericId;
+                leafIds.Add(registry.GetById(species.LeavesBlock).NumericId);
+            }
+            var flowerIds = new Dictionary<ushort, string>();
+            foreach (FlowerEntry flower in table.Flowers)
+            {
+                flowerIds[registry.GetById(flower.Block).NumericId] = flower.Id;
+            }
+
+            var trunks = new Dictionary<string, long>();
+            long leafBlocks = 0;
+            var flowers = new Dictionary<string, long>();
+            var biomeTrees = new Dictionary<string, HashSet<string>>();
+            var biomeFlowerCount = new Dictionary<string, long>();
+            var biomeColumnCount = new Dictionary<string, long>();
+            var biomeGrassColumns = new Dictionary<string, long>();
+            var biomeSnowColumns = new Dictionary<string, long>();
+            var biomeSandColumns = new Dictionary<string, long>();
+
+            void TouchBiome(string biome)
+            {
+                if (!biomeTrees.ContainsKey(biome)) biomeTrees[biome] = new HashSet<string>();
+                if (!biomeFlowerCount.ContainsKey(biome)) biomeFlowerCount[biome] = 0;
+                if (!biomeColumnCount.ContainsKey(biome)) biomeColumnCount[biome] = 0;
+                if (!biomeGrassColumns.ContainsKey(biome)) biomeGrassColumns[biome] = 0;
+                if (!biomeSnowColumns.ContainsKey(biome)) biomeSnowColumns[biome] = 0;
+                if (!biomeSandColumns.ContainsKey(biome)) biomeSandColumns[biome] = 0;
+            }
+
+            for (var chunkX = -chunkRadius; chunkX <= chunkRadius; chunkX++)
+            {
+                for (var chunkZ = -chunkRadius; chunkZ <= chunkRadius; chunkZ++)
+                {
+                    ChunkColumn column = generator.Generate(new ChunkPos(chunkX, chunkZ));
+                    for (var lz = 0; lz < VoxelCoords.ChunkSize; lz++)
+                    for (var lx = 0; lx < VoxelCoords.ChunkSize; lx++)
+                    {
+                        string biome = generator.BiomeAt(chunkX * VoxelCoords.ChunkSize + lx,
+                            chunkZ * VoxelCoords.ChunkSize + lz).ToString();
+                        TouchBiome(biome);
+                        biomeColumnCount[biome]++;
+
+                        // 该列地表方块类型（树/花草都只长在草上——雪原树种例外可长雪上）
+                        for (int y = scanTop - 1; y >= scanBottom; y--)
+                        {
+                            ushort surface = column.GetBlock(lx, y, lz);
+                            if (surface == BlockIds.Air || surface == BlockIds.Water) continue;
+                            if (surface == BlockIds.Grass) biomeGrassColumns[biome]++;
+                            else if (surface == BlockIds.Snow) biomeSnowColumns[biome]++;
+                            else if (surface == BlockIds.Sand) biomeSandColumns[biome]++;
+                            break;
+                        }
+
+                        for (int y = scanBottom; y < scanTop; y++)
+                        {
+                            ushort block = column.GetBlock(lx, y, lz);
+                            if (!trunkIds.TryGetValue(block, out List<string> sharers2))
+                            {
+                                if (leafIds.Contains(block))
+                                {
+                                    leafBlocks++;
+                                }
+                                else if (flowerIds.TryGetValue(block, out string flowerId))
+                                {
+                                    flowers[flowerId] = flowers.TryGetValue(flowerId, out long m) ? m + 1 : 1;
+                                    biomeFlowerCount[biome]++;
+                                }
+                                continue;
+                            }
+
+                            // 树干：顺着干往上找叶冠，用叶方块定树种（oak/bush 共用 log）
+                            int top = y;
+                            while (top + 1 < scanTop && column.GetBlock(lx, top + 1, lz) == block) top++;
+                            ushort crown = top + 1 < scanTop ? column.GetBlock(lx, top + 1, lz) : BlockIds.Air;
+                            string speciesId = null;
+                            foreach (string candidate in sharers2)
+                            {
+                                if (speciesLeaves[candidate] == crown)
+                                {
+                                    speciesId = candidate;
+                                    break;
+                                }
+                            }
+                            speciesId = speciesId ?? sharers2[0];
+
+                            trunks[speciesId] = trunks.TryGetValue(speciesId, out long n) ? n + 1 : 1;
+                            biomeTrees[biome].Add(speciesId);
+                            y = top;   // 干的其余段落不再重复计数
+                        }
+                    }
+                }
+            }
+
+            Console.WriteLine("     树干: " + (trunks.Count == 0
+                ? "无"
+                : string.Join("  ", trunks.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}"))));
+            Console.WriteLine($"     树叶: 共 {leafBlocks} 块");
+            Console.WriteLine("     花草: " + (flowers.Count == 0
+                ? "无"
+                : $"共 {flowers.Values.Sum()} 株（" + string.Join(" / ",
+                      flowers.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key} {kv.Value}")) + "）"));
+            foreach (string biome in new[] { "Plains", "Forest", "Mountains", "Snow", "Desert" })
+            {
+                if (!biomeTrees.TryGetValue(biome, out var speciesSet))
+                {
+                    continue;   // 该窗口内没有这个群系
+                }
+                string trees = speciesSet.Count == 0
+                    ? "无树"
+                    : string.Join("+", table.Trees.Where(s => speciesSet.Contains(s.Id)).Select(s => s.Id));
+                Console.WriteLine(
+                    $"     {biome,-10}: {trees}；花草 {biomeFlowerCount[biome]} 株" +
+                    $"（列 {biomeColumnCount[biome]}，地表 草{biomeGrassColumns[biome]}/雪{biomeSnowColumns[biome]}/沙{biomeSandColumns[biome]}）");
+            }
+        }
+
+        /// <summary>从真实注册表 + 植被表建「numericId → 剖面字形」映射（见 Main 里的字形说明）。</summary>
+        private static Dictionary<ushort, char> BuildVegetationGlyphs(BlockRegistry registry, VegetationTable table)
+        {
+            var logGlyphs = new Dictionary<string, char>
+            {
+                ["oak"] = 'i', ["birch"] = 'I', ["pine"] = 'j', ["cedar"] = 'J',
+                ["jungle"] = 'K', ["sequoia"] = 'S', ["cherry"] = 'c',
+            };
+            var leafGlyphs = new Dictionary<string, char>
+            {
+                ["oak"] = 'o', ["birch"] = 'O', ["pine"] = 'p', ["cedar"] = 'P',
+                ["jungle"] = 'Q', ["sequoia"] = 'Z', ["cherry"] = 'C', ["bush"] = 'U',
+            };
+            var map = new Dictionary<ushort, char>();
+            foreach (TreeSpecies species in table.Trees)
+            {
+                if (logGlyphs.TryGetValue(species.Id, out char logGlyph))
+                {
+                    map[registry.GetById(species.LogBlock).NumericId] = logGlyph;
+                }
+                if (leafGlyphs.TryGetValue(species.Id, out char leafGlyph))
+                {
+                    map[registry.GetById(species.LeavesBlock).NumericId] = leafGlyph;
+                }
+            }
+            foreach (FlowerEntry flower in table.Flowers)
+            {
+                map[registry.GetById(flower.Block).NumericId] = ',';
+            }
+            return map;
+        }
+
+        private static VegetationTable LoadVegetationTable()
+        {
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null)
+            {
+                string candidate = Path.Combine(directory.FullName, "Assets", "StreamingAssets", "vegetation");
+                if (Directory.Exists(candidate))
+                {
+                    return VegetationTable.Load(
+                        File.ReadAllText(Path.Combine(candidate, "trees.json")),
+                        File.ReadAllText(Path.Combine(candidate, "flowers.json")));
+                }
+                directory = directory.Parent;
+            }
+            throw new DirectoryNotFoundException("未找到 Assets/StreamingAssets/vegetation 目录。");
+        }
+
         private static char Glyph(ushort blockId)
         {
             switch (blockId)
@@ -248,7 +460,9 @@ namespace MyWorld.Preview
                 case BlockIds.RawIronOre: return '%';
                 case BlockIds.SummerAlloyOre: return '&';
                 case BlockIds.MachineEssenceOre: return '@';
-                default: return ' ';
+                default:
+                    var vegetation = _vegetationGlyphs;
+                    return vegetation != null && vegetation.TryGetValue(blockId, out char glyph) ? glyph : ' ';
             }
         }
     }

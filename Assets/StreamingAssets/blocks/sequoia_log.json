@@ -1,0 +1,12 @@
+{
+  "id": "sequoia_log",
+  "displayName": "红杉原木",
+  "textures": {
+    "all": "sequoia-log"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0,
+  "minToolTier": 0
+}

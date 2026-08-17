@@ -1,0 +1,11 @@
+{
+  "id": "sequoia_leaves",
+  "displayName": "红杉树叶",
+  "textures": {
+    "all": "sequoia-leaves"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

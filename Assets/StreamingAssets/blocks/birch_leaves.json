@@ -1,0 +1,11 @@
+{
+  "id": "birch_leaves",
+  "displayName": "白桦树叶",
+  "textures": {
+    "all": "birch-leaves"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

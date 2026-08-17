@@ -1,0 +1,11 @@
+{
+  "id": "tall_grass",
+  "displayName": "高草",
+  "textures": {
+    "all": "tall-grass"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0
+}

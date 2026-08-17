@@ -1,0 +1,11 @@
+{
+  "id": "flower_orchid",
+  "displayName": "兰花",
+  "textures": {
+    "all": "flower-orchid"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0
+}

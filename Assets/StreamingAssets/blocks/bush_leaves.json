@@ -1,0 +1,11 @@
+{
+  "id": "bush_leaves",
+  "displayName": "灌木树叶",
+  "textures": {
+    "all": "bush-leaves"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

@@ -1,0 +1,11 @@
+{
+  "id": "mushroom_red",
+  "displayName": "红色蘑菇",
+  "textures": {
+    "all": "mushroom-red"
+  },
+  "solid": false,
+  "opaque": false,
+  "lightEmission": 0,
+  "hardness": 0
+}

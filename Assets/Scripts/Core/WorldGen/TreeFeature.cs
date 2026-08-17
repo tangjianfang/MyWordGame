@@ -56,6 +56,12 @@ namespace MyWorld.Core.WorldGen
         }
 
         /// <summary>
+        /// 注册表是否已绑定。WorldGenerator 的 Core 侧兜底绑定用它在首次生成时
+        /// 「未绑定才绑」，避免覆盖启动器（集成点②）显式绑定的自定义注册表。
+        /// </summary>
+        public static bool BlockRegistryBound => _blockRegistry != null;
+
+        /// <summary>
         /// 按 <see cref="BiomeConfig.TreeDensity"/> 决定 (worldX, worldZ) 这一格是否要尝试放树。
         /// 纯函数：仅依赖 (worldX, worldZ, config.TreeDensity, seed)，与区块生成顺序无关。
         /// config 为 null 或 TreeDensity ≤ 0 时直接 false（沙漠不放树）。
@@ -146,6 +152,18 @@ namespace MyWorld.Core.WorldGen
         }
 
         /// <summary>
+        /// 直接对单根 <see cref="ChunkColumn"/> 按 species 放树（m11 W1-3）。
+        /// 与 <see cref="WorldGenerator"/> 的生成循环配合：那里手里是刚填完地形的列，
+        /// 不必再经 <see cref="World"/> 寻址。放置与否仍由调用方先用
+        /// <see cref="ShouldPlaceTree(int, int, string, BiomeConfig, int)"/> 问过；species 为 null 返回 false。
+        /// </summary>
+        public static bool TryGenerate(ChunkColumn column, int seed, int worldX, int worldZ, TreeSpecies species)
+        {
+            if (species == null) return false;
+            return GenerateTree(column, seed, worldX, worldZ, species);
+        }
+
+        /// <summary>
         /// 真正的放置逻辑：找到地表 → 树干 → 叶冠 → 顶部叶。前提是放置判定已经放行。
         /// 按 species 参数落块；树干高度哈希沿用旧通道（不掺 species 序号）——
         /// oak 走这里必须与历史逐格一致，这是「oak 行为不变」的铁律。
@@ -174,9 +192,13 @@ namespace MyWorld.Core.WorldGen
             }
             if (surfaceY < 0) return false;
 
-            // 只在草方块上长（也可放树叶/log 上，简单起见限草方块）
+            // 只在草方块上长（也可放树叶/log 上，简单起见限草方块）。
+            // m11 W1-3 例外：声明投放 Snow 群系的树种（pine/cedar）也能长在雪方块上——
+            // 雪原地表是雪不是草，不放开的话这些树种在声明群系里永远出不来。
+            // oak 的 biomes 只有 Plains/Forest，不享此例外——旧路径行为逐格不变仍成立。
             var groundId = column.GetBlock(localX, surfaceY, localZ);
-            if (groundId != BlockIds.Grass) return false;
+            bool growsOnSnow = GrowsOnSnowGround(species);
+            if (groundId != BlockIds.Grass && !(growsOnSnow && groundId == BlockIds.Snow)) return false;
 
             ushort logId = ResolveBlockId(species.LogBlock);
             ushort leavesId = ResolveBlockId(species.LeavesBlock);
@@ -249,6 +271,20 @@ namespace MyWorld.Core.WorldGen
                     throw new KeyNotFoundException(
                         $"树种方块 {blockId} 尚未注册：注册新方块后需先 TreeFeature.BindBlockRegistry 绑定注册表");
             }
+        }
+
+        /// <summary>
+        /// 该树种是否允许长在雪方块上：biomes 声明含 "Snow" 即耐雪（数据驱动，无代码硬编码树种表）。
+        /// 未声明 Snow 的树种（含 oak——Plains/Forest）仍只在草方块上长，旧路径行为不变。
+        /// </summary>
+        private static bool GrowsOnSnowGround(TreeSpecies species)
+        {
+            if (species?.Biomes == null) return false;
+            foreach (string biome in species.Biomes)
+            {
+                if (biome == "Snow") return true;
+            }
+            return false;
         }
 
         /// <summary>

@@ -1,0 +1,11 @@
+{
+  "id": "cherry_leaves",
+  "displayName": "樱花树叶",
+  "textures": {
+    "all": "cherry-leaves"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}
