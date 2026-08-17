@@ -125,6 +125,9 @@ namespace MyWorld.Unity.UI
             _furnace.TakeOutput();
             ctx.Inventory.TryAdd(taken, out _); // 预检过，leftover 必为 0
 
+            // av W3-13：合成音（熔炉取出算一次烧炼产物到手）
+            MyWorld.Unity.Audio.PlayerAudioSystem.Instance?.PlayCraft();
+
             QuestEventBus.Instance?.Raise(new QuestEvent
             {
                 Type = QuestEventType.SmeltItem,

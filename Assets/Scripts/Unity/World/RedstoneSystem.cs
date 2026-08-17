@@ -115,6 +115,13 @@ namespace MyWorld.Unity.Environment
                 // 门：手动切换（即使没接红石也能右键开）。m11 ②起木门同通道。
                 var state = Doors.GetState(x, y, z);
                 Doors.UpdateSignal(x, y, z, state != DoorState.Open);
+                // av W3-13：门开 / 关音（原关→开；原开→关）
+                var audio = MyWorld.Unity.Audio.PlayerAudioSystem.Instance;
+                if (audio != null)
+                {
+                    if (state == MyWorld.Core.World.DoorState.Open) audio.PlayDoorClose();
+                    else audio.PlayDoorOpen();
+                }
             }
             else if (id == RedstoneDustId)
             {

@@ -87,6 +87,9 @@ namespace MyWorld.Unity.UI
             _input = ItemStack.Empty;
             _output = ItemStack.Empty;
 
+            // av W3-13：合成音
+            MyWorld.Unity.Audio.PlayerAudioSystem.Instance?.PlayCraft();
+
             // m6 C2：产出进包 = 合成落地。Count 用本次产出数量（不是背包现存量）
             QuestEventBus.Instance?.Raise(new QuestEvent
             {

@@ -8,6 +8,7 @@ using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Bootstrap;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Rendering;
+using MyWorld.Unity.UI;
 using UnityEngine;
 
 namespace MyWorld.Unity.Combat
@@ -120,6 +121,10 @@ namespace MyWorld.Unity.Combat
             if (pc != null)
             {
                 pc.TakeDamage((int)ev.Amount, ev.AttackerEntityId);
+                // m11 W2-3：受伤 -N 红字飘字。挂载点选这里（既有事件挂载点，与
+                // DamageFlashUi 订阅同一条 CombatEvents 通道）——WorldBootstrap 本波禁改，
+                // FloatTextUi 首次触发时自挂，不需要装配步骤
+                FloatTextUi.ShowDamage(ev.Amount);
                 // 经验：被击中也算 1 点（可选）
                 ctx.Experience.Add(1);
                 return;
@@ -224,6 +229,17 @@ namespace MyWorld.Unity.Combat
                 var m = _mobs[i];
                 MobAI.Tick(m, Float3_From(_player.position), _world, _time, dt, isNight);
                 DriveWalkPhase(m, dt);
+                // av W3-13：生物 idle 叫声——按确定性哈希间隔，距玩家 > 16 格不播
+                if (m.IsAlive && _views.TryGetValue(m.EntityId, out var go)
+                    && go != null)
+                {
+                    var mobAudio = go.GetComponent<MyWorld.Unity.Audio.MobAudioSystem>();
+                    if (mobAudio != null)
+                    {
+                        float dist = Vector3.Distance(go.transform.position, _player.position);
+                        mobAudio.TickIdle(dt, dist);
+                    }
+                }
             }
 
             // 推进玩家死亡状态
@@ -520,6 +536,8 @@ namespace MyWorld.Unity.Combat
             // m9 B1：战斗手感四件套（闪红/击退/死亡缩小）与 MobView 同宿主——
             // CombatController 命中时 GetComponent 取用；旧测试宿主没挂则跳过
             MobHitFeedback.Attach(go, mob);
+            // av W3-13：生物叫声（idle 哈希间隔 + hurt on hit）
+            MyWorld.Unity.Audio.MobAudioSystem.Attach(go, mob.Kind);
             _views[mob.EntityId] = go;
             _viewComponents[mob.EntityId] = view; // m8 A2：walk phase 驱动直接取视图组件
         }
@@ -662,6 +680,10 @@ namespace MyWorld.Unity.Combat
             if (amount > 0)
             {
                 ctx.Experience.Add(amount);
+                // m11 W2-3：经验 +N 绿字飘字（m9 spec「+N 飘字」的欠账）。就在入账处触发，
+                // 只对击杀经验飘字——被击中的 +1 不飘（HandleDamageTaken 里不调 Show），
+                // 与 spec「击杀经验显示」语义一致；FloatTextUi 自挂，无需装配
+                FloatTextUi.ShowExperience(amount);
             }
         }
 

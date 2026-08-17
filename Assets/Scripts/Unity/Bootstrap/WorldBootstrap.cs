@@ -103,7 +103,7 @@ namespace MyWorld.Unity.Bootstrap
                 _playerContext.Inventory.SetSlot(0, new ItemStack(starterDef.NumericId, 64));
             }
 
-            // 7.5 玩家音效（m9 B1 fix1 挪前）：此前没有任何场景/脚本挂 PlayerAudioSystem，
+            // 7.5 玩家音效（m9 B1 fix1 挪前）：此前没有任何场景的模块挂 PlayerAudioSystem，
             // footstep/place/break 三条音效在 build 里全是哑的（Resources/Audio 下的
             // ogg 一直在却没人播）。**必须挂在步骤 8/9 之前**——PlayerController.Awake
             // 与 BlockInteraction.Bind 都在回调里一次性缓存 _audio 引用（之后不再重查），
@@ -113,6 +113,21 @@ namespace MyWorld.Unity.Bootstrap
             // BlockInteraction / PlayerController / CombatController 都按
             // 「同宿主/父链查找」取它。
             gameObject.AddComponent<MyWorld.Unity.Audio.PlayerAudioSystem>();
+
+            // 7.6 av 批：BGM 三态 + 环境循环（同宿主，PlayerContext 已在步骤 7 建好）
+            // BgmAudioSystem：menu/day/night 切 3s 线性淡化
+            // AmbientAudioSystem：玩家 y + 昼夜挑 amb-birds/crickets/cave，2s 节流复查
+            gameObject.AddComponent<MyWorld.Unity.Audio.BgmAudioSystem>();
+            gameObject.AddComponent<MyWorld.Unity.Audio.AmbientAudioSystem>();
+
+            // 7.7 av 批：主菜单遮罩（视频背景 + 开始 / 退出按钮，mp4 缺失回退纯色）
+            // —— WorldBootstrap 步骤序不动，本组件只在最上层遮罩，StartGame 解锁输入。
+            gameObject.AddComponent<MyWorld.Unity.UI.TitleScreenUi>();
+
+            // 7.8 av 批：笔记本 / 黑客电脑屏幕视频（mp4 缺失自动回退占位贴图）
+            // —— 在材质库建好之后才能 Apply。
+            gameObject.AddComponent<MyWorld.Unity.Rendering.VideoScreenSystem>()
+                .Apply(_materials, _registry);
 
             // 8. 玩家控制器
             // 出生 Y 现算（m5 A2）：地表 +2 格落地，根治固定 Y=120 的出生摔落伤害。

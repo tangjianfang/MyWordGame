@@ -27,8 +27,8 @@ namespace MyWorld.Unity.Player
     /// <para>
     /// <b>m11 ②右键路由优先级表</b>（<see cref="UseAt"/>，自上而下首中即止）：
     /// 死亡画面让位 → 食物优先（m7 A3）→ 弓蓄力（m11 ②，无需命中）→ 锄草/泥成耕地 →
-    /// 种子播上耕地 → 骨粉催熟（树苗让位 SaplingGrowth）→ 床睡觉 → 箱子 no-op（v1 无 UI）→
-    /// 木门/铁门让位 RedstoneSystem 切换 → 放 placeBlockId。
+    /// 种子播上耕地 → 骨粉催熟（树苗让位 SaplingGrowth）→ 床睡觉 → 箱子开箱（m11 W2-3
+    /// <see cref="UI.ChestUi.OpenAt"/>）→ 木门/铁门让位 RedstoneSystem 切换 → 放 placeBlockId。
     /// 左键在成熟作物（*_stage2）上改走 <see cref="FarmSystem.Harvest"/>（<see cref="BreakAt"/>）。
     /// </para>
     /// </summary>
@@ -217,8 +217,8 @@ namespace MyWorld.Unity.Player
         /// m11 ②：食物之后、放方块之前新插一排交互路由（优先级自上而下）：
         /// 弓（蓄力，不需要命中方块）→ 锄草/泥成耕地 → 种子播上耕地 → 骨粉催熟作物
         /// （树苗让位给 <see cref="MyWorld.Unity.Environment.SaplingGrowth"/> 的既有右键即长，
-        /// 这里只挡放置）→ 床睡觉 → 箱子 no-op（v1 无 UI）→ 门让位给
-        /// <see cref="MyWorld.Unity.Environment.RedstoneSystem"/> 的既有切换。
+        /// 这里只挡放置）→ 床睡觉 → 箱子开箱（m11 W2-3，<see cref="UI.ChestUi.OpenAt"/>）→
+        /// 门让位给 <see cref="MyWorld.Unity.Environment.RedstoneSystem"/> 的既有切换。
         /// 每条路由消费右键后<b>不再放方块</b>；条件不满足则落到下一条，全部落空才放。
         /// </para>
         /// </summary>
@@ -257,7 +257,11 @@ namespace MyWorld.Unity.Player
             if (TrySleepInBed(hit, target)) return;
             if (target == BlockIds.Chest)
             {
-                return; // 箱子：v1 无 UI，右键 no-op（消费掉，别对着箱子放方块；UI 第 2 波接）
+                // m11 W2-3：右键箱子开箱子 UI（替换 v1 no-op 占位，本分支本卡独占）。
+                // UI 组件懒挂在玩家宿主上（WorldBootstrap 本波禁改，不新增装配步骤）；
+                // ChestSystem 未就绪（数据表缺失降级）时 OpenAt 返回 null，保持消费右键不放方块。
+                ChestUi.OpenAt(gameObject, PlayerContext.Instance, hit.X, hit.Y, hit.Z);
+                return;
             }
             if (target == BlockIds.WoodenDoor || target == IronDoorBlockId)
             {
@@ -294,7 +298,7 @@ namespace MyWorld.Unity.Player
 
             if (!farm.Till(_world, hit.X, hit.Y, hit.Z)) return false;
             _views?.MarkBlockChanged(hit.X, hit.Y, hit.Z);
-            _audio?.PlayPlace();
+            _audio?.PlayHoeTill();  // av W3-13：锄地音
             ApplyDigDurability(hit.X, hit.Y, hit.Z);
             return true;
         }
@@ -318,7 +322,7 @@ namespace MyWorld.Unity.Player
             if (!farm.TryPlant(_world, hit.X, hit.Y + 1, hit.Z, def.Id)) return false;
             ctx.Inventory.TryRemoveOne(ctx.Inventory.SelectedHotbarIndex);
             _views?.MarkBlockChanged(hit.X, hit.Y + 1, hit.Z);
-            _audio?.PlayPlace();
+            _audio?.PlayPlant();  // av W3-13：播种音
             return true;
         }
 
@@ -391,6 +395,8 @@ namespace MyWorld.Unity.Player
 
             ctx.HungerSystem.Eat((int)def.HealAmount.Value);
             ctx.Inventory.TryRemoveOne(ctx.Inventory.SelectedHotbarIndex);
+            // av W3-13：吃成功播 eat 音
+            _audio?.PlayEat();
             return true;
         }
 
@@ -591,7 +597,7 @@ namespace MyWorld.Unity.Player
             {
                 ItemStack[] harvest = harvestFarm.Harvest(_world, x, y, z); // 内部已清方块 + 清作物状态
                 _views?.MarkBlockChanged(x, y, z);
-                _audio?.PlayBreak();
+                _audio?.PlayHarvest();  // av W3-13：成熟作物 → 收获音
                 SpawnItemDrops(harvest, x, y, z);
                 return;
             }
@@ -601,7 +607,7 @@ namespace MyWorld.Unity.Player
 
             _world.SetBlock(x, y, z, BlockIds.Air);
             _views?.MarkBlockChanged(x, y, z);
-            _audio?.PlayBreak();
+            _audio?.PlayBreak();  // 普通方块挖掘 → 破方块音
 
             // m10 B1：挖掉即磨损（白挖也算——工具挥出去了就是用了，与 MC 一致）
             ApplyDigDurability(x, y, z);
@@ -830,6 +836,7 @@ namespace MyWorld.Unity.Player
             ctx.Inventory.SetSlot(idx, after);
             if (after.IsEmpty)
             {
+                _audio?.PlayToolBreak();  // av W3-13：镐碎裂音
                 ShowToolBreakHint();
                 // m10 B2：碎裂。stack 是磨损前的完整物品栈（碎块颜色取这把镐的贴图均值色）；
                 // 场景里没有 PlayerController（旧 fixture / 纯逻辑测试）时没有伤害对象与

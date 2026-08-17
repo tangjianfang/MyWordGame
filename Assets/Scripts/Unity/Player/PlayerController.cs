@@ -165,9 +165,13 @@ namespace MyWorld.Unity.Player
             var ctx = GetComponent<PlayerContext>();
             if (ctx == null) return;
             amount = ApplyShieldMitigation(ctx, amount);
-            ctx.Health.Damage(GearBonusMath.MitigateDamage(amount, ctx.Defense));
+            float finalAmount = GearBonusMath.MitigateDamage(amount, ctx.Defense);
+            ctx.Health.Damage(finalAmount);
+            // av W3-13：受伤音（受击）
+            _audio?.PlayHurt();
             if (ctx.Health.IsDead)
             {
+                _audio?.PlayDie();  // av W3-13：死亡音
                 ctx.DeathScreen?.Show();
             }
         }
@@ -312,6 +316,7 @@ namespace MyWorld.Unity.Player
                 int picked = stack.Count;
                 if (ctx.Inventory.TryAdd(stack, out int leftover))
                 {
+                    _audio?.PlayPickup();  // av W3-13：拾取音
                     drop.MarkPicked();
                     ctx.ItemDrops.RemoveAt(i);
                     total += picked;
@@ -320,6 +325,7 @@ namespace MyWorld.Unity.Player
                 {
                     // 背包只塞下一部分：掉落物按剩余量重建，等玩家腾格子后再捡。
                     // 位置就在玩家脚下（吸附刚到位），下一帧会重新进圈吸附重试
+                    _audio?.PlayPickup();  // av W3-13：部分塞入也算拾取了一部分
                     var rebuilt = new Core.Items.ItemDropEntity(
                         stack.WithCount(leftover), drop.Position);
                     rebuilt.SpawnTime = drop.SpawnTime; // F1 follow-up：保留原 spawn 时刻，宽限期不重置

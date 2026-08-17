@@ -136,6 +136,9 @@ namespace MyWorld.Unity.UI
             }
             LastOutput = output;
 
+            // av W3-13：合成音
+            MyWorld.Unity.Audio.PlayerAudioSystem.Instance?.PlayCraft();
+
             QuestEventBus.Instance?.Raise(new QuestEvent
             {
                 Type = QuestEventType.CraftItem,

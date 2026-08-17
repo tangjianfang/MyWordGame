@@ -349,6 +349,8 @@ namespace MyWorld.Unity.Combat
             }
             if (_hitAudio == null) _hitAudio = GetComponentInParent<MyWorld.Unity.Audio.PlayerAudioSystem>();
             _hitAudio?.PlayHit();
+            // av W3-13：mob 受击音（按 kind 优先查专属，缺文件回退 generic-small/large）
+            mobComp.GetComponent<MyWorld.Unity.Audio.MobAudioSystem>()?.PlayHurt();
 
             CombatEvents.RaiseDealt(new DamageEvent(
                 DamageSource.Melee, damage, attacker: 0, victim: mob.EntityId,
