@@ -1,0 +1,14 @@
+{
+  "kind": "Rabbit",
+  "parts": [
+    { "name": "body", "size": [0.3, 0.2, 0.36], "position": [0, 0.16, 0], "color": "#C8A888", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.22, 0.2, 0.2], "position": [0, 0.24, 0.19], "color": "#C8A888", "isLeg": false, "legPhase": 0 },
+    { "name": "earL", "size": [0.06, 0.17, 0.05], "position": [0.06, 0.41, 0.16], "color": "#E8B8B0", "isLeg": false, "legPhase": 0 },
+    { "name": "earR", "size": [0.06, 0.17, 0.05], "position": [-0.06, 0.41, 0.16], "color": "#E8B8B0", "isLeg": false, "legPhase": 0 },
+    { "name": "nose", "size": [0.06, 0.04, 0.04], "position": [0, 0.24, 0.31], "color": "#F2F2F2", "isLeg": false, "legPhase": 0 },
+    { "name": "legFL", "size": [0.06, 0.08, 0.06], "position": [0.09, 0.04, 0.12], "color": "#A08060", "isLeg": true, "legPhase": 0 },
+    { "name": "legFR", "size": [0.06, 0.08, 0.06], "position": [-0.09, 0.04, 0.12], "color": "#A08060", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBL", "size": [0.06, 0.08, 0.06], "position": [0.09, 0.04, -0.12], "color": "#A08060", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBR", "size": [0.06, 0.08, 0.06], "position": [-0.09, 0.04, -0.12], "color": "#A08060", "isLeg": true, "legPhase": 0 }
+  ]
+}

@@ -13,8 +13,12 @@
 //   7) MobModels.Build 门面与 Library 同源（五生物逐部位相等，防门面分叉）
 //   8) 解析失败抛异常带文件名（结构坏/kind 不匹配/parts 空/数组非三元/未知字段）
 //   9) 色值非法不抛异常——报错返品红立刻暴露（沿用 m8 评审 I-2 的配方）
+//  10) m11 W1-2 九被动生物（Sheep…Hamster）JSON 可加载：部位数/部位名不撞/贴地/整体高与设计一致
+//  11) W1-2 九被动生物 AABB 重叠守卫 + 腿相位守卫（腿数照真实动物：企鹅 2 腿、四足 4 腿）
+//  12) W1-2 九被动生物配色与 art/requests/entities/*.md 图标需求调色板一字不差（色源同源）
 // UNITY_EDITOR 包裹确保 dotnet 链不参与（本文件依赖 MyWorld.Unity 程序集与 StreamingAssets）。
 using System.Collections.Generic;
+using System.IO;
 using MyWorld.Core.Entities;
 using MyWorld.Unity.Rendering;
 using NUnit.Framework;
@@ -277,6 +281,203 @@ namespace MyWorld.Core.Tests.Visual
             var parts = MobModelLibrary.Parse(json, "models/pig.json", MobKind.Pig);
             Assert.That(parts.Length, Is.EqualTo(1), "色值非法不应中断解析（返品红占位）");
             Assert.That(parts[0].Color, Is.EqualTo(Color.magenta), "非法色值应返品红（magenta）暴露问题");
+        }
+
+        // ---------- m11 W1-2：九被动生物造型 JSON（纯数据增量）守卫 ----------
+        // P0（m11 第 1 波预接线）已把 Sheep=15…Hamster=23 接进枚举/猪行为组/MobManager
+        // 候选表，但 MobModelLibrary.FileNameOf 尚未含九 kind（集成点②统一接线，届时
+        // Load 会抛 ArgumentException）。这里按 Library 自己的落盘约定（ModelPath 注释：
+        // mobs/models/<kind 小写>.json）直读文件走同一条 Parse 检查路径——kind 自校验/
+        // 结构/三元数组/未知字段防线全部照常生效，②接线后本节无需改动。
+        // 配色色源：art/requests/entities/<kind 小写>.md 的「## 调色板」（模型与图标同源，
+        // 由下方 NineKindPalettes 逐字照抄守卫）。
+
+        /// <summary>W1-2 落地的九被动生物 kind。</summary>
+        private static readonly MobKind[] NinePassiveKinds =
+        {
+            MobKind.Sheep, MobKind.Rabbit, MobKind.Fox, MobKind.Deer, MobKind.Panda,
+            MobKind.Penguin, MobKind.Goat, MobKind.Raccoon, MobKind.Hamster,
+        };
+
+        /// <summary>九被动生物模型配色白名单（逐字照抄 art/requests/entities/*.md 的「## 调色板」）。</summary>
+        private static readonly Dictionary<MobKind, string[]> NineKindPalettes =
+            new Dictionary<MobKind, string[]>
+        {
+            { MobKind.Sheep,   new[] { "#F2F2F2", "#C8C8C8", "#D2A48A", "#1A1A1A" } },
+            { MobKind.Rabbit,  new[] { "#C8A888", "#A08060", "#E8B8B0", "#F2F2F2", "#1A1A1A" } },
+            { MobKind.Fox,     new[] { "#E07B28", "#B85A18", "#F2E8DC", "#2A2A2A", "#1A1A1A" } },
+            { MobKind.Deer,    new[] { "#A5754A", "#7A5433", "#F2E8D8", "#C8A878", "#1A1A1A" } },
+            { MobKind.Panda,   new[] { "#F2F2F2", "#C8C8C8", "#2A2A2A", "#4A4A4A", "#0F0F0F" } },
+            { MobKind.Penguin, new[] { "#2A2A32", "#1A1A22", "#F2F2F2", "#E8912E", "#F2B03A" } },
+            { MobKind.Goat,    new[] { "#DCD6CC", "#B0AAA0", "#8A8378", "#D8B0A8", "#1A1A1A" } },
+            { MobKind.Raccoon, new[] { "#8A8580", "#5A5550", "#262626", "#E8E4DC", "#1A1A1A" } },
+            { MobKind.Hamster, new[] { "#E8B878", "#C89050", "#F2E0C8", "#E8A898", "#1A1A1A" } },
+        };
+
+        /// <summary>
+        /// 直读九被动生物的模型 JSON 并走 Library 的 Parse（FileNameOf 未接线期间的加载入口，
+        /// 理由见本节块注释）。文件缺失时断言失败（W1-2 交付物即这 9 份文件，缺了必须红）。
+        /// </summary>
+        private static MobPart[] LoadNineKindModel(MobKind kind)
+        {
+            string path = Path.Combine(Application.streamingAssetsPath, "mobs", "models",
+                kind.ToString().ToLowerInvariant() + ".json");
+            Assert.That(File.Exists(path), Is.True,
+                kind + " 造型 JSON 应存在于 " + path + "（W1-2 九被动生物模型交付物）");
+            return MobModelLibrary.Parse(File.ReadAllText(path), path, kind);
+        }
+
+        [TestCase(MobKind.Sheep, 8, 1.2f)]
+        [TestCase(MobKind.Rabbit, 9, 0.495f)]
+        [TestCase(MobKind.Fox, 11, 0.77f)]
+        [TestCase(MobKind.Deer, 11, 1.89f)]
+        [TestCase(MobKind.Panda, 10, 1.395f)]
+        [TestCase(MobKind.Penguin, 9, 0.79f)]
+        [TestCase(MobKind.Goat, 11, 1.255f)]
+        [TestCase(MobKind.Raccoon, 14, 0.635f)]
+        [TestCase(MobKind.Hamster, 9, 0.315f)]
+        public void 加载九被动生物json_部位数与整体高与设计一致(
+            MobKind kind, int expectedCount, float expectedHeight)
+        {
+            var parts = LoadNineKindModel(kind);
+            Assert.That(parts, Is.Not.Null, kind + " 造型 JSON 应能加载（kind/结构/字段全走 Parse 防线）");
+            Assert.That(parts.Length, Is.EqualTo(expectedCount),
+                kind + " JSON 部位数与设计一致（实际 " + parts.Length + "）");
+            Assert.That(parts.Length, Is.GreaterThanOrEqualTo(5),
+                kind + " 部位数应 ≥5（与五生物 spec §3 同约束）");
+
+            // 部位名不撞（MobAssembly 按名建 GameObject）；最低部位贴地（底面 ≥0）；
+            // 整体高与设计一致且 ≤1.9（MobModels 坐标约定的硬上限）
+            var seen = new HashSet<string>();
+            float bottom = float.MaxValue;
+            float top = float.MinValue;
+            foreach (var p in parts)
+            {
+                Assert.That(seen.Add(p.Name), Is.True, kind + " 部位名撞名: " + p.Name);
+                bottom = Mathf.Min(bottom, p.LocalPosition.y - p.Size.y * 0.5f);
+                top = Mathf.Max(top, p.LocalPosition.y + p.Size.y * 0.5f);
+            }
+            Assert.That(bottom, Is.GreaterThanOrEqualTo(-0.0001f),
+                kind + " 部位不得低于地面（脚底中心为原点约定），最低底面 " + bottom.ToString("F4"));
+            Assert.That(top, Is.EqualTo(expectedHeight).Within(0.001f),
+                kind + " 整体高与设计一致（实际 " + top.ToString("F4") + "）");
+            Assert.That(top, Is.LessThanOrEqualTo(1.9f), kind + " 整体高 ≤1.9（MobModels 坐标约定）");
+        }
+
+        [TestCase(MobKind.Sheep)]
+        [TestCase(MobKind.Rabbit)]
+        [TestCase(MobKind.Fox)]
+        [TestCase(MobKind.Deer)]
+        [TestCase(MobKind.Panda)]
+        [TestCase(MobKind.Penguin)]
+        [TestCase(MobKind.Goat)]
+        [TestCase(MobKind.Raccoon)]
+        [TestCase(MobKind.Hamster)]
+        public void 加载_九被动生物部位AABB重叠不超过较小者一半(MobKind kind)
+        {
+            // 与五生物同一道加载层守卫：改 JSON 撞出半体积重叠在这里被抓（不靠肉眼）
+            var parts = LoadNineKindModel(kind);
+            for (int i = 0; i < parts.Length; i++)
+            {
+                for (int j = i + 1; j < parts.Length; j++)
+                {
+                    float overlap = OverlapVolume(parts[i], parts[j]);
+                    float smaller = Mathf.Min(Volume(parts[i]), Volume(parts[j]));
+                    Assert.That(overlap, Is.LessThanOrEqualTo(smaller * 0.5f + 0.0001f),
+                        kind + " 部位 " + parts[i].Name + " 与 " + parts[j].Name +
+                        " 重叠超半（重叠 " + overlap.ToString("F4") + "，较小者体积 " + smaller.ToString("F4") + "）");
+                }
+            }
+        }
+
+        [TestCase(MobKind.Sheep, 4)]
+        [TestCase(MobKind.Rabbit, 4)]
+        [TestCase(MobKind.Fox, 4)]
+        [TestCase(MobKind.Deer, 4)]
+        [TestCase(MobKind.Panda, 4)]
+        [TestCase(MobKind.Penguin, 2)]
+        [TestCase(MobKind.Goat, 4)]
+        [TestCase(MobKind.Raccoon, 4)]
+        [TestCase(MobKind.Hamster, 4)]
+        public void 加载_九被动生物腿相位0或π成对(MobKind kind, int expectedLegs)
+        {
+            // 腿数照真实动物：鸟型企鹅 2 腿（legL/legR 交替），四足 4 腿（对角步态）
+            var parts = LoadNineKindModel(kind);
+            var legs = new List<MobPart>();
+            foreach (var part in parts)
+            {
+                if (part.IsLeg) legs.Add(part);
+            }
+            Assert.That(legs.Count, Is.EqualTo(expectedLegs),
+                kind + " 腿数应照真实动物（实际 " + legs.Count + "）");
+
+            foreach (var leg in legs)
+            {
+                bool isZero = Mathf.Approximately(leg.LegPhase, 0f);
+                bool isPi = Mathf.Approximately(leg.LegPhase, Mathf.PI);
+                Assert.That(isZero || isPi, Is.True,
+                    kind + " 腿 " + leg.Name + " 的 LegPhase 应 ∈ {0, π}，实际 " + leg.LegPhase);
+            }
+
+            if (legs.Count == 4)
+            {
+                var legFL = Find(parts, "legFL");
+                var legFR = Find(parts, "legFR");
+                var legBL = Find(parts, "legBL");
+                var legBR = Find(parts, "legBR");
+                Assert.That(legFL.HasValue && legFR.HasValue && legBL.HasValue && legBR.HasValue,
+                    Is.True, kind + " 四腿命名应为 legFL/legFR/legBL/legBR");
+                Assert.That(Mathf.Approximately(legFL.Value.LegPhase, legBR.Value.LegPhase), Is.True,
+                    kind + " 对角步态：legFL 与 legBR 应同相");
+                Assert.That(Mathf.Approximately(legFR.Value.LegPhase, legBL.Value.LegPhase), Is.True,
+                    kind + " 对角步态：legFR 与 legBL 应同相");
+                Assert.That(!Mathf.Approximately(legFL.Value.LegPhase, legFR.Value.LegPhase), Is.True,
+                    kind + " legFL/legFR 应反相");
+            }
+            else
+            {
+                var legL = Find(parts, "legL");
+                var legR = Find(parts, "legR");
+                Assert.That(legL.HasValue && legR.HasValue, Is.True, kind + " 双腿命名应为 legL/legR");
+                Assert.That(!Mathf.Approximately(legL.Value.LegPhase, legR.Value.LegPhase), Is.True,
+                    kind + " 双腿应反相（交替步态）");
+            }
+        }
+
+        [Test]
+        public void 加载_九被动生物配色与图标需求调色板同源()
+        {
+            // 色源同源守卫：模型部位色必须逐字取自 art/requests/entities/<kind 小写>.md
+            // 的「## 调色板」（NineKindPalettes 为其照抄）——模型与图标两套配色不得漂移
+            foreach (var pair in NineKindPalettes)
+            {
+                var allowed = new List<Color>();
+                foreach (var hex in pair.Value)
+                {
+                    Assert.That(ColorUtility.TryParseHtmlString(hex, out var c), Is.True,
+                        pair.Key + " 白名单色值非法: " + hex);
+                    allowed.Add(c);
+                }
+                foreach (var p in LoadNineKindModel(pair.Key))
+                {
+                    bool matched = false;
+                    foreach (var c in allowed)
+                    {
+                        if (Mathf.Abs(p.Color.r - c.r) < 0.0001f &&
+                            Mathf.Abs(p.Color.g - c.g) < 0.0001f &&
+                            Mathf.Abs(p.Color.b - c.b) < 0.0001f)
+                        {
+                            matched = true;
+                            break;
+                        }
+                    }
+                    Assert.That(matched, Is.True,
+                        pair.Key + " 部位 " + p.Name + " 的色值必须在 art/requests/entities/" +
+                        pair.Key.ToString().ToLowerInvariant() + ".md 调色板内（模型与图标配色同源）");
+                }
+            }
+            Assert.That(NineKindPalettes.Count, Is.EqualTo(NinePassiveKinds.Length),
+                "配色白名单应覆盖全部九被动生物");
         }
 
         private static MobPart? Find(MobPart[] parts, string name)

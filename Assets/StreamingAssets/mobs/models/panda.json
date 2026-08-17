@@ -1,0 +1,15 @@
+{
+  "kind": "Panda",
+  "parts": [
+    { "name": "body", "size": [0.8, 0.55, 0.65], "position": [0, 0.62, 0], "color": "#F2F2F2", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.5, 0.44, 0.44], "position": [0, 1.05, 0.25], "color": "#F2F2F2", "isLeg": false, "legPhase": 0 },
+    { "name": "earL", "size": [0.15, 0.15, 0.1], "position": [0.16, 1.32, 0.26], "color": "#2A2A2A", "isLeg": false, "legPhase": 0 },
+    { "name": "earR", "size": [0.15, 0.15, 0.1], "position": [-0.16, 1.32, 0.26], "color": "#2A2A2A", "isLeg": false, "legPhase": 0 },
+    { "name": "eyePatchL", "size": [0.13, 0.16, 0.04], "position": [0.12, 1.08, 0.49], "color": "#2A2A2A", "isLeg": false, "legPhase": 0 },
+    { "name": "eyePatchR", "size": [0.13, 0.16, 0.04], "position": [-0.12, 1.08, 0.49], "color": "#2A2A2A", "isLeg": false, "legPhase": 0 },
+    { "name": "legFL", "size": [0.2, 0.35, 0.2], "position": [0.24, 0.175, 0.18], "color": "#2A2A2A", "isLeg": true, "legPhase": 0 },
+    { "name": "legFR", "size": [0.2, 0.35, 0.2], "position": [-0.24, 0.175, 0.18], "color": "#2A2A2A", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBL", "size": [0.2, 0.35, 0.2], "position": [0.24, 0.175, -0.18], "color": "#2A2A2A", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBR", "size": [0.2, 0.35, 0.2], "position": [-0.24, 0.175, -0.18], "color": "#2A2A2A", "isLeg": true, "legPhase": 0 }
+  ]
+}

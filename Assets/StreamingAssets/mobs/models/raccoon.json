@@ -1,0 +1,19 @@
+{
+  "kind": "Raccoon",
+  "parts": [
+    { "name": "body", "size": [0.5, 0.35, 0.4], "position": [0, 0.36, 0], "color": "#8A8580", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.34, 0.3, 0.3], "position": [0, 0.42, 0.3], "color": "#8A8580", "isLeg": false, "legPhase": 0 },
+    { "name": "maskL", "size": [0.1, 0.07, 0.03], "position": [0.09, 0.44, 0.465], "color": "#262626", "isLeg": false, "legPhase": 0 },
+    { "name": "maskR", "size": [0.1, 0.07, 0.03], "position": [-0.09, 0.44, 0.465], "color": "#262626", "isLeg": false, "legPhase": 0 },
+    { "name": "nose", "size": [0.06, 0.05, 0.04], "position": [0, 0.38, 0.47], "color": "#1A1A1A", "isLeg": false, "legPhase": 0 },
+    { "name": "earL", "size": [0.1, 0.1, 0.06], "position": [0.11, 0.585, 0.24], "color": "#5A5550", "isLeg": false, "legPhase": 0 },
+    { "name": "earR", "size": [0.1, 0.1, 0.06], "position": [-0.11, 0.585, 0.24], "color": "#5A5550", "isLeg": false, "legPhase": 0 },
+    { "name": "tailSeg1", "size": [0.12, 0.12, 0.3], "position": [0, 0.38, -0.33], "color": "#8A8580", "isLeg": false, "legPhase": 0 },
+    { "name": "tailSeg2", "size": [0.12, 0.12, 0.16], "position": [0, 0.38, -0.53], "color": "#5A5550", "isLeg": false, "legPhase": 0 },
+    { "name": "tailSeg3", "size": [0.11, 0.11, 0.14], "position": [0, 0.38, -0.66], "color": "#8A8580", "isLeg": false, "legPhase": 0 },
+    { "name": "legFL", "size": [0.09, 0.22, 0.09], "position": [0.16, 0.11, 0.12], "color": "#5A5550", "isLeg": true, "legPhase": 0 },
+    { "name": "legFR", "size": [0.09, 0.22, 0.09], "position": [-0.16, 0.11, 0.12], "color": "#5A5550", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBL", "size": [0.09, 0.22, 0.09], "position": [0.16, 0.11, -0.12], "color": "#5A5550", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBR", "size": [0.09, 0.22, 0.09], "position": [-0.16, 0.11, -0.12], "color": "#5A5550", "isLeg": true, "legPhase": 0 }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "Sheep",
+  "parts": [
+    { "name": "body", "size": [0.85, 0.65, 0.65], "position": [0, 0.72, 0], "color": "#F2F2F2", "isLeg": false, "legPhase": 0 },
+    { "name": "woolHump", "size": [0.65, 0.2, 0.45], "position": [0, 1.1, -0.1], "color": "#C8C8C8", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.4, 0.4, 0.4], "position": [0, 0.9, 0.48], "color": "#D2A48A", "isLeg": false, "legPhase": 0 },
+    { "name": "woolCrown", "size": [0.48, 0.16, 0.48], "position": [0, 1.12, 0.48], "color": "#F2F2F2", "isLeg": false, "legPhase": 0 },
+    { "name": "legFL", "size": [0.16, 0.4, 0.16], "position": [0.26, 0.2, 0.2], "color": "#C8C8C8", "isLeg": true, "legPhase": 0 },
+    { "name": "legFR", "size": [0.16, 0.4, 0.16], "position": [-0.26, 0.2, 0.2], "color": "#C8C8C8", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBL", "size": [0.16, 0.4, 0.16], "position": [0.26, 0.2, -0.2], "color": "#C8C8C8", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBR", "size": [0.16, 0.4, 0.16], "position": [-0.26, 0.2, -0.2], "color": "#C8C8C8", "isLeg": true, "legPhase": 0 }
+  ]
+}

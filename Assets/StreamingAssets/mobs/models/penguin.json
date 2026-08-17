@@ -1,0 +1,14 @@
+{
+  "kind": "Penguin",
+  "parts": [
+    { "name": "body", "size": [0.34, 0.4, 0.3], "position": [0, 0.32, 0], "color": "#2A2A32", "isLeg": false, "legPhase": 0 },
+    { "name": "belly", "size": [0.24, 0.3, 0.05], "position": [0, 0.34, 0.175], "color": "#F2F2F2", "isLeg": false, "legPhase": 0 },
+    { "name": "collar", "size": [0.28, 0.05, 0.26], "position": [0, 0.545, 0.02], "color": "#E8912E", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.26, 0.22, 0.24], "position": [0, 0.68, 0.02], "color": "#2A2A32", "isLeg": false, "legPhase": 0 },
+    { "name": "beak", "size": [0.09, 0.06, 0.09], "position": [0, 0.66, 0.185], "color": "#F2B03A", "isLeg": false, "legPhase": 0 },
+    { "name": "wingL", "size": [0.05, 0.22, 0.14], "position": [0.185, 0.42, 0], "color": "#1A1A22", "isLeg": false, "legPhase": 0 },
+    { "name": "wingR", "size": [0.05, 0.22, 0.14], "position": [-0.185, 0.42, 0], "color": "#1A1A22", "isLeg": false, "legPhase": 0 },
+    { "name": "legL", "size": [0.08, 0.12, 0.1], "position": [0.09, 0.06, 0], "color": "#E8912E", "isLeg": true, "legPhase": 0 },
+    { "name": "legR", "size": [0.08, 0.12, 0.1], "position": [-0.09, 0.06, 0], "color": "#E8912E", "isLeg": true, "legPhase": 3.141592653589793 }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "kind": "Goat",
+  "parts": [
+    { "name": "body", "size": [0.7, 0.6, 0.6], "position": [0, 0.75, 0], "color": "#DCD6CC", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.32, 0.38, 0.44], "position": [0, 1.01, 0.45], "color": "#DCD6CC", "isLeg": false, "legPhase": 0 },
+    { "name": "hornL", "size": [0.07, 0.07, 0.25], "position": [0.11, 1.22, 0.3], "color": "#8A8378", "isLeg": false, "legPhase": 0 },
+    { "name": "hornR", "size": [0.07, 0.07, 0.25], "position": [-0.11, 1.22, 0.3], "color": "#8A8378", "isLeg": false, "legPhase": 0 },
+    { "name": "earL", "size": [0.14, 0.07, 0.08], "position": [0.22, 1.06, 0.42], "color": "#D8B0A8", "isLeg": false, "legPhase": 0 },
+    { "name": "earR", "size": [0.14, 0.07, 0.08], "position": [-0.22, 1.06, 0.42], "color": "#D8B0A8", "isLeg": false, "legPhase": 0 },
+    { "name": "beard", "size": [0.08, 0.14, 0.08], "position": [0, 0.76, 0.6], "color": "#DCD6CC", "isLeg": false, "legPhase": 0 },
+    { "name": "legFL", "size": [0.14, 0.5, 0.14], "position": [0.21, 0.25, 0.18], "color": "#B0AAA0", "isLeg": true, "legPhase": 0 },
+    { "name": "legFR", "size": [0.14, 0.5, 0.14], "position": [-0.21, 0.25, 0.18], "color": "#B0AAA0", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBL", "size": [0.14, 0.5, 0.14], "position": [0.21, 0.25, -0.18], "color": "#B0AAA0", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBR", "size": [0.14, 0.5, 0.14], "position": [-0.21, 0.25, -0.18], "color": "#B0AAA0", "isLeg": true, "legPhase": 0 }
+  ]
+}
