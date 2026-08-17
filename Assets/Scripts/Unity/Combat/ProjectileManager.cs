@@ -21,6 +21,12 @@ namespace MyWorld.Unity.Combat
     /// 与僵尸近战/苦力怕爆炸同一条唯一伤害入口，本类不重复扣血。
     /// </para>
     /// <para>
+    /// m11 ②C：玩家射的箭（<see cref="ProjectileEntity.OwnerEntityId"/>=0）在宿主侧
+    /// 反向判 <b>mob</b> 命中（骷髅箭只判玩家命中，见 <see cref="TryHitMob"/>）——
+    /// 伤害统一走 Core <see cref="MobAI.TakeHit"/>，击杀的掉落/经验由 MobManager
+    /// 的 Dying 分支按既有死亡序列结算，本类不另写一条。
+    /// </para>
+    /// <para>
     /// 视觉不带悬浮/自转（那是地面掉落物的语义）：只把实体位置映射到 transform，
     /// 并让小方块朝向速度方向——飞行的箭读得出弹道方向。碰撞体必须删
     /// （<see cref="ItemDropView.Create"/> 同因：会挡玩家移动与挖掘射线）。
@@ -31,6 +37,12 @@ namespace MyWorld.Unity.Combat
         /// <summary>箭视觉边长（格），与 <see cref="ItemDropView.VisualSize"/> 同值。</summary>
         public const float VisualSize = 0.25f;
 
+        /// <summary>玩家箭命中 mob 的判定半径（格）：箭心与 mob 锚点
+        /// （<see cref="MyWorld.Core.Entities.Mob.Position"/>，脚底中心）距离小于它即命中。
+        /// 锚点语义与骷髅箭的 <see cref="ProjectileEntity.PlayerHitRadius"/>（玩家 transform
+        /// 根位置）一致；0.9 贴猪碰撞盒宽度（0.9×身高×0.9），从脚底向上罩住躯干。</summary>
+        public const float MobHitRadius = 0.9f;
+
         /// <summary>箭体棕色（木杆+箭羽均值，#8B5C2E）。</summary>
         public static readonly Color ArrowBrown = new Color(0.545f, 0.361f, 0.180f);
 
@@ -38,6 +50,13 @@ namespace MyWorld.Unity.Combat
         private Transform _player;
         private PlayerContext _context;
         private Transform _parent;
+
+        /// <summary>宿主 MobManager（玩家箭 mob 命中判定的数据源）。惰性解析、命中即缓存——
+        /// WorldBootstrap 在同一宿主上挂它（步骤 12 先于本组件的步骤 32），运行时必有，
+        /// 首只玩家箭起飞后第一帧就解析到并缓存。没有宿主的测试场景解析不到时
+        /// 不缓存 null（下帧重试）：玩家箭只飞不中，行为安全；FindObjectOfType 的
+        /// 重试开销只出现在「有玩家箭却没 MobManager」的场景，生产中不存在。</summary>
+        private MobManager _mobManager;
 
         private readonly List<ProjectileEntity> _arrows = new List<ProjectileEntity>();
         private readonly List<Transform> _views = new List<Transform>();
@@ -85,7 +104,8 @@ namespace MyWorld.Unity.Combat
         /// <summary>
         /// 推进一帧弹道（公开供 EditMode 测试注入固定 dt）。终局处理：
         /// 命中方块（Stuck）→ <see cref="ProjectileEntity.ToPickup"/> 转掉落物；
-        /// 命中玩家 / 超时（Dead）→ 直接移除（伤害已在 Tick 内经事件结算）。
+        /// 命中玩家 / 超时（Dead）→ 直接移除（伤害已在 Tick 内经事件结算）；
+        /// 玩家箭命中 mob（m11 ②C）→ <see cref="MobAI.TakeHit"/> 扣血后箭消亡。
         /// </summary>
         public void TickManually(float dt)
         {
@@ -100,6 +120,20 @@ namespace MyWorld.Unity.Combat
                 // 视觉同步（Stuck 后停在命中前一步，继续显示直到转掉落）
                 SyncView(i, arrow);
 
+                // m11 ②C（任务 1）：玩家箭（owner=0）的 mob 命中——只在仍 Flying 时判
+                // （同帧先 Stuck 进墙的箭归方块赢，箭没到 mob 跟前）。命中调
+                // MobAI.TakeHit（mob 受伤唯一入口），伤害读箭的 Damage（玩家弓按蓄力
+                // 注入 1-4）；致死的掉落/经验走 TakeHit 死亡序列 + MobManager 的
+                // Dying 分支（与近战同一条链），本类不另写。命中后箭消亡（Dead，
+                // 不转可拾取——命中实体的箭按折损处理，可捡的箭由 Stuck 路径出）。
+                if (arrow.State == ProjectileState.Flying
+                    && TryHitMob(arrow, playerPos))
+                {
+                    arrow.State = ProjectileState.Dead;
+                    RemoveAt(i);
+                    continue;
+                }
+
                 if (arrow.State == ProjectileState.Dead
                     || (ended && arrow.State == ProjectileState.Stuck))
                 {
@@ -110,6 +144,46 @@ namespace MyWorld.Unity.Combat
                     RemoveAt(i);
                 }
             }
+        }
+
+        /// <summary>
+        /// 玩家箭（<see cref="ProjectileEntity.OwnerEntityId"/>==0）mob 命中判定：
+        /// 直接遍历宿主 <see cref="MobManager.ActiveMobs"/>，箭心与 mob 锚点距离
+        /// &lt; <see cref="MobHitRadius"/> 即命中（首个命中者，插入序确定性）。
+        /// 直接在 <see cref="MobManager"/> 的列表上只读遍历——不复制、零分配
+        /// （热路径纪律）；命中把 mob 交给 <see cref="MobAI.TakeHit"/>，attackerPos
+        /// 传玩家位置（逃跑/击退的方向基准取射手，与近战同语义）。
+        /// 骷髅箭（owner≠0）不进本判定——它打的是玩家（ProjectileEntity.Tick 内），
+        /// 骷髅误伤其它 mob 不在本批范围。
+        /// </summary>
+        /// <returns>true = 命中了一只 mob（调用方应让箭消亡）。</returns>
+        private bool TryHitMob(ProjectileEntity arrow, Float3 attackerPos)
+        {
+            if (arrow.OwnerEntityId != 0) return false;
+
+            if (_mobManager == null)
+            {
+                _mobManager = FindObjectOfType<MobManager>();
+                if (_mobManager == null) return false;
+            }
+            var mobs = _mobManager.ActiveMobs;
+
+            float radiusSq = MobHitRadius * MobHitRadius;
+            for (int i = 0; i < mobs.Count; i++)
+            {
+                var m = mobs[i];
+                if (!m.IsAlive) continue; // 尸体（Dying/Dead）不吃箭，让箭穿过去
+
+                float dx = arrow.Position.X - m.Position.X;
+                float dy = arrow.Position.Y - m.Position.Y;
+                float dz = arrow.Position.Z - m.Position.Z;
+                if (dx * dx + dy * dy + dz * dz < radiusSq)
+                {
+                    MobAI.TakeHit(m, attackerPos, arrow.Damage);
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>Stuck 的箭转可拾取掉落：进 PlayerContext.ItemDrops 即由既有

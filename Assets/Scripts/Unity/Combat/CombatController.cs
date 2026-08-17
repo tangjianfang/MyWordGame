@@ -1,5 +1,6 @@
 using MyWorld.Core.Blocks;
 using MyWorld.Core.Entities;
+using MyWorld.Core.Farming;
 using MyWorld.Core.Items;
 using MyWorld.Core.Math;
 using MyWorld.Core.Physics;
@@ -41,7 +42,20 @@ namespace MyWorld.Unity.Combat
     /// <see cref="MyWorld.Unity.Combat.MobManager.SpawnDropsForMob"/> 消费 LastDrops，
     /// 击杀经验由 <see cref="MyWorld.Unity.Combat.MobManager.KillExperience"/> 入账。
     /// </para>
+    /// <para>
+    /// m11 ②C（任务 2）：右键喂食繁殖路由 <see cref="TryFeedMobInCrosshair"/>——
+    /// 手持对应饲料（<see cref="BreedingSystem.FeedItemFor"/>）+ 准星 4m 内瞄着 mob 时，
+    /// 右键改走 <see cref="PlayerContext.BreedingSystem"/> 的喂食（发情/配对/孕期全在
+    /// Core 系统内），扣 1 个饲料并<b>让出本次右键</b>（置 InputLocked 一帧让
+    /// BlockInteraction 早退——beet/mung_bean 既是玩家食物又是饲料，不让位会被
+    /// 它的「食物优先」分支双扣，见 <see cref="YieldRightClickToFeed"/>）。
+    /// 左键攻击（<see cref="TryAttack"/>）完全不受影响。
+    /// 为保证「喂食置锁一定赶在 BlockInteraction 读锁之前」，本组件挂
+    /// <c>DefaultExecutionOrder(-500)</c>——攻击/喂食路径与其它组件无同帧先后依赖
+    /// （挖矿分流走独立射线 <see cref="IsMobInCrosshair"/>，不读本组件状态），提前无副作用。
+    /// </para>
     /// </summary>
+    [DefaultExecutionOrder(-500)]
     public sealed class CombatController : MonoBehaviour
     {
         /// <summary>攻击范围（米）：准星射线找 mob 的最大距离。m9 A1 提为常量（曾是与
@@ -71,6 +85,11 @@ namespace MyWorld.Unity.Combat
         /// 测试直改本字段模拟冷却流逝；运行时代码只写不读外部值。</summary>
         public float LastAttackTime = float.NegativeInfinity;
 
+        /// <summary>本帧右键已被喂食路由消费（<see cref="TryFeedMobInCrosshair"/> 置位）——
+        /// <see cref="LateUpdate"/> 据此释放 <see cref="MyWorld.Unity.Player.BlockInteraction.InputLocked"/>。
+        /// 一帧一个 bool 的记账，不 new 不闭包。</summary>
+        private bool _yieldedRightClick;
+
         private static int DefaultToolDurability(int miningLevel)
         {
             // 木/石/铁/钻石/下界合金/基岩：35/65/125/156/203/255（取整到 255 上限内）
@@ -95,6 +114,26 @@ namespace MyWorld.Unity.Combat
             {
                 TryAttack();
             }
+            else if (Input.GetMouseButtonDown(1))
+            {
+                // m11 ②C：右键先给喂食路由一次机会——手持对应饲料且准星 4m 内是 mob
+                // 才消费（TryFeedMobInCrosshair 内部自判，不适用返回 false 不拦截）；
+                // 其余右键原样留给 BlockInteraction 的既有路由（吃/弓/锄/种/骨粉/床/放）。
+                // else if 与 BlockInteraction 的「左键优先（同帧双按时不吃也不放）」同约定。
+                TryFeedMobInCrosshair();
+            }
+        }
+
+        /// <summary>
+        /// 喂食让位标记的释放点：所有组件的 Update 都跑完（含 BlockInteraction 读到
+        /// InputLocked 早退）之后，本组件的 LateUpdate 把锁放掉——锁的窗口恰好一帧，
+        /// 下一帧 BlockInteraction 恢复既有行为。EditMode 不自动驱动，测试用反射调。
+        /// </summary>
+        private void LateUpdate()
+        {
+            if (!_yieldedRightClick) return;
+            BlockInteraction.InputLocked = false;
+            _yieldedRightClick = false;
         }
 
         /// <summary>
@@ -151,6 +190,74 @@ namespace MyWorld.Unity.Combat
             }
 
             return hitMob;
+        }
+
+        /// <summary>
+        /// m11 ②C（任务 2）：右键喂食繁殖路由（Update 的右键分流与 EditMode 测试共用，
+        /// 与 <see cref="TryAttack"/> / <see cref="MyWorld.Unity.Player.BlockInteraction.UseAt"/>
+        /// 同款做法——EditMode 驱动不了 <c>Input.GetMouseButtonDown</c>，直接调本方法）。
+        /// 流程：指针门 → 手持物品解析 → 与攻击共用同一条准星射线
+        /// （<see cref="FindMobHit"/>，含视线复核——喂/打看到的是同一只 mob）→
+        /// 手持物品必须恰是这只 mob 的饲料（<see cref="BreedingSystem.FeedItemFor"/>）
+        /// 才进 <see cref="BreedingSystem.TryFeed"/>（发情登记/配对/孕期全在 Core 系统内，
+        /// 幼崽不发情、已发情重复喂都会被它拒掉）。喂成 → 挥手 + 扣 1 个饲料 +
+        /// <see cref="YieldRightClickToFeed"/> 让出本次右键。
+        /// <para>
+        /// 左键攻击（<see cref="TryAttack"/>）与本路由互不影响：TryAttack 仍按攻击冷却
+        /// 照常挥击，本路由不占冷却（喂食可连点，但 TryFeed 自己挡重复喂）。
+        /// </para>
+        /// </summary>
+        /// <returns>true = 本次右键喂成了一只 mob（调用方不应再有其它右键行为）。</returns>
+        public bool TryFeedMobInCrosshair()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || Player == null || Player.Eye == null) return false;
+
+            // 与 TryAttack 同款指针门：模态 UI 开着时点 UI 不隔着界面喂 mob
+            if (BlockInteraction.InputLocked || UiCursorGate.IsOpen) return false;
+
+            // 系统未接好（数据表缺失时 WorldBootstrap 置 null）＝ 右键整体落回既有路由
+            var breeding = ctx.BreedingSystem;
+            if (breeding == null || ctx.Inventory == null) return false;
+
+            var def = ctx.GetSelectedDefinition();
+            if (def == null) return false;
+
+            if (!FindMobHit(Player.Eye, World, Registry, out var hit)) return false;
+            var mob = hit.collider.GetComponent<MobView>().Mob;
+            if (!mob.IsAlive) return false; // 尸体不喂（右键不消费，落回既有路由）
+
+            // 不是这只 mob 的饲料 → 本次右键不归喂食（BlockInteraction 照常吃/放：
+            // 拿小麦对着鸡（要麦种）右键，玩家自己把小麦吃了是合理归宿）
+            if (BreedingSystem.FeedItemFor(mob.Kind) != def.Id) return false;
+
+            if (!breeding.TryFeed(mob.EntityId, mob.Kind, mob.Position, def.Id)) return false;
+
+            // 喂食成立：挥手 + 扣 1 个饲料（与 BlockInteraction 吃食物同款扣法）+ 让出右键
+            if (Hand != null) Hand.TriggerSwing();
+            ctx.Inventory.TryRemoveOne(ctx.Inventory.SelectedHotbarIndex);
+            YieldRightClickToFeed();
+            return true;
+        }
+
+        /// <summary>
+        /// m11 ②C：把本次右键整体让给喂食——置
+        /// <see cref="MyWorld.Unity.Player.BlockInteraction.InputLocked"/>（跨组件共享的
+        /// 静态输入门，语义「玩家组件这一帧不该响应世界交互」）让 BlockInteraction.Update
+        /// 本帧早退：既不会把 beet/mung_bean 这类「既是玩家食物又是饲料」的物品再吃掉一份
+        /// （m7 A3 起右键食物优先，双路并存一次右键双扣），也不会对着 mob 身后放方块。
+        /// <para>
+        /// 时序保障：本组件挂 <c>DefaultExecutionOrder(-500)</c>，Update 先于
+        /// BlockInteraction（默认 order 0）执行，置锁一定赶在它读锁之前；
+        /// <see cref="LateUpdate"/>（所有 Update 之后）释放，锁窗口恰好一帧。
+        /// 已知边角：喂食同帧恰好按 H/Esc 打开帮助/暂停菜单时，菜单置的锁会被
+        /// LateUpdate 误放（一次同帧双输入），菜单关开一次即自愈，接受。
+        /// </para>
+        /// </summary>
+        private void YieldRightClickToFeed()
+        {
+            BlockInteraction.InputLocked = true;
+            _yieldedRightClick = true;
         }
 
         /// <summary>

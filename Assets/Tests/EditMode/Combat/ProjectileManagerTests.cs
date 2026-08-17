@@ -19,6 +19,7 @@ namespace MyWorld.Core.Tests.Combat
         private GameObject _player;
         private GameObject _contextHost;
         private GameObject _parent;
+        private GameObject _mobHost;
         private ProjectileManager _manager;
 
         [SetUp]
@@ -36,6 +37,18 @@ namespace MyWorld.Core.Tests.Combat
                 _contextHost.GetComponent<PlayerContext>(), _parent.transform);
         }
 
+        /// <summary>
+        /// m11 ②C（任务 1）：给 mob 命中测试挂 MobManager（ProjectileManager 惰性
+        /// FindObjectOfType 解析的就是它）。不放在 SetUp——MobManager 订阅
+        /// CombatEvents.OnDamageTaken，既有「命中玩家」测试的 RaiseTaken 会被它接走，
+        /// 走到「无 PlayerController」兜底分支时 ctx.Experience 未初始化会 NRE 串坏老测试。
+        /// </summary>
+        private MobManager SpawnMobManager()
+        {
+            _mobHost = new GameObject("MobManagerHost");
+            return _mobHost.AddComponent<MobManager>();
+        }
+
         [TearDown]
         public void TearDown()
         {
@@ -44,9 +57,12 @@ namespace MyWorld.Core.Tests.Combat
             if (_player != null) Object.DestroyImmediate(_player);
             if (_contextHost != null) Object.DestroyImmediate(_contextHost);
             if (_parent != null) Object.DestroyImmediate(_parent);
+            if (_mobHost != null) Object.DestroyImmediate(_mobHost);
             foreach (var go in Object.FindObjectsOfType<GameObject>())
             {
                 if (go.name == "箭") Object.DestroyImmediate(go);
+                // SpawnMobAt 刷的 mob 视图不挂宿主层级，销毁宿主带不走（FarmingHostTests 同款）
+                if (go.name.StartsWith("Mob_")) Object.DestroyImmediate(go);
             }
         }
 
@@ -105,6 +121,100 @@ namespace MyWorld.Core.Tests.Combat
             Assert.That(_manager.ActiveArrowCount, Is.EqualTo(0), "命中玩家的箭应移除");
             Assert.That(_contextHost.GetComponent<PlayerContext>().ItemDrops.Count, Is.EqualTo(0),
                 "命中玩家的箭不是可拾取掉落（Dead 不转掉落）");
+        }
+
+        // ─── m11 ②C（任务 1）：玩家箭（owner=0）mob 命中 ─────────────────────
+        // 伤害唯一入口 MobAI.TakeHit；击杀的掉落/经验走 TakeHit 死亡序列 + MobManager
+        // 的 Dying 分支（与近战同一条链），宿主不另写。
+
+        [Test]
+        public void 玩家箭命中mob_经TakeHit扣血_箭消亡不掉落()
+        {
+            var pig = SpawnMobManager().SpawnMobAt(
+                MyWorld.Core.Entities.MobKind.Pig, new Float3(0f, 70f, 0f));
+            Assume.That(pig.Health.Current, Is.EqualTo(10f), "前置：猪满血 10");
+
+            // 玩家箭（owner=0）从 -3 格外朝猪平射；Damage=3 是玩家弓蓄力的注入值
+            MobAI.OnProjectileFired?.Invoke(new ProjectileEntity(
+                new Float3(0f, 70f, -3f), new Float3(0f, 0f, 9f), ownerEntityId: 0)
+            {
+                Damage = 3f,
+            });
+
+            for (int i = 0; i < 30; i++)
+            {
+                _manager.TickManually(0.05f);
+                if (_manager.ActiveArrowCount == 0) break;
+            }
+
+            Assert.That(_manager.ActiveArrowCount, Is.EqualTo(0), "命中 mob 的箭应消亡");
+            Assert.That(pig.Health.Current, Is.EqualTo(7f),
+                "伤害应经 MobAI.TakeHit 读箭的 Damage 字段：10 - 3 = 7");
+            Assert.That(pig.IsAlive, Is.True, "3 伤不致死（受击逃跑是 TakeHit 对被动系的既有行为）");
+            Assert.That(pig.LastAttackerPos.X, Is.EqualTo(50f),
+                "TakeHit 的 attackerPos 应传射手（玩家）位置，不是箭落点");
+            Assert.That(_contextHost.GetComponent<PlayerContext>().ItemDrops.Count, Is.EqualTo(0),
+                "命中实体的箭按折损处理，不转可拾取掉落（可捡的箭由 Stuck 路径出）");
+        }
+
+        [Test]
+        public void 玩家箭距离阈值_边界内命中边界外掠过()
+        {
+            var pig = SpawnMobManager().SpawnMobAt(
+                MyWorld.Core.Entities.MobKind.Pig, new Float3(0f, 70f, 0f));
+            Assume.That(pig.Health.Current, Is.EqualTo(10f), "前置：猪满血 10");
+
+            // dt=0：位置积分不动，纯距离判定（MobHitRadius=0.9 两侧各探 0.01）
+            MobAI.OnProjectileFired?.Invoke(new ProjectileEntity(
+                new Float3(0.89f, 70f, 0f), new Float3(0f, 0f, 9f), ownerEntityId: 0));
+            _manager.TickManually(0f);
+            Assert.That(_manager.ActiveArrowCount, Is.EqualTo(0), "0.89 < 0.9：应命中，箭消亡");
+            Assert.That(pig.Health.Current, Is.EqualTo(8f),
+                "箭缺省 Damage=PlayerHitDamage(2)：10 - 2 = 8");
+
+            MobAI.OnProjectileFired?.Invoke(new ProjectileEntity(
+                new Float3(0.91f, 70f, 0f), new Float3(0f, 0f, 9f), ownerEntityId: 0));
+            _manager.TickManually(0f);
+            Assert.That(_manager.ActiveArrowCount, Is.EqualTo(1), "0.91 ≥ 0.9：不命中，箭继续飞");
+            Assert.That(pig.Health.Current, Is.EqualTo(8f), "掠过不扣血");
+        }
+
+        [Test]
+        public void 骷髅箭穿过mob不判命中_掉落与行为不变()
+        {
+            var pig = SpawnMobManager().SpawnMobAt(
+                MyWorld.Core.Entities.MobKind.Pig, new Float3(0f, 70f, 0f));
+
+            // owner=99 的骷髅箭贴着猪锚点（dt=0 位置不动）——mob 判定只对玩家箭开放
+            MobAI.OnProjectileFired?.Invoke(new ProjectileEntity(
+                new Float3(0f, 70f, 0f), new Float3(0f, 0f, 9f), ownerEntityId: 99));
+            _manager.TickManually(0f);
+
+            Assert.That(_manager.ActiveArrowCount, Is.EqualTo(1), "骷髅箭不应被 mob 命中消耗");
+            Assert.That(pig.Health.Current, Is.EqualTo(10f), "骷髅箭不判 mob 命中，猪不掉血");
+        }
+
+        [Test]
+        public void 玩家箭致死_走TakeHit死亡序列_击杀标记与掉落同近战()
+        {
+            var chicken = SpawnMobManager().SpawnMobAt(
+                MyWorld.Core.Entities.MobKind.Chicken, new Float3(0f, 70f, 0f));
+            Assume.That(chicken.Health.Current, Is.EqualTo(4f), "前置：鸡满血 4");
+
+            MobAI.OnProjectileFired?.Invoke(new ProjectileEntity(
+                new Float3(0f, 70f, 0.5f), new Float3(0f, 0f, -1f), ownerEntityId: 0)
+            {
+                Damage = 4f, // 满蓄力一箭带走
+            });
+            _manager.TickManually(0f);
+
+            Assert.That(_manager.ActiveArrowCount, Is.EqualTo(0), "致死箭命中即消亡");
+            Assert.That(chicken.State, Is.EqualTo(MyWorld.Core.Entities.MobState.Dying),
+                "致死应经 MobAI.TakeHit 死亡分支转 Dying（宿主不另写击杀）");
+            Assert.That(chicken.KilledByPlayer, Is.True,
+                "玩家箭致死应置击杀标记——MobManager 的 Dying 分支据此入账经验");
+            Assert.That(chicken.LastDrops, Is.Not.Null,
+                "掉落由 TakeHit 死亡序列写 LastDrops（MobManager 消费，与近战同一条链）");
         }
     }
 }

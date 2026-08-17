@@ -238,7 +238,7 @@ namespace MyWorld.Unity.Persistence
         /// 构造完成即与游戏状态解耦，后台线程写盘期间的状态变化不会混入）。</summary>
         private LevelData CollectLevelData()
         {
-            return new LevelData
+            var data = new LevelData
             {
                 Seed = _seed,
                 TimeTick = _context.Time != null ? _context.Time.CurrentTick : 0f,
@@ -258,6 +258,7 @@ namespace MyWorld.Unity.Persistence
             if (_context.FarmSystem != null) data.FarmStates = _context.FarmSystem.ExportFarmStates();
             _context.ChestSystem?.SaveTo(data);
             _context.BedSystem?.SaveTo(data);
+            return data;
         }
 
         /// <summary>玩家全套快照：位置/速度取 Core 状态（未绑定时为默认值），生命/饥饿/经验/背包取 PlayerContext。</summary>
