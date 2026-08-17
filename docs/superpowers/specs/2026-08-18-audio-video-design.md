@@ -14,9 +14,11 @@
 
 成功标准：孩子进游戏 30 秒内能说出「有音乐了」；昼夜 BGM 自动切换；打猪有叫声；开主菜单有视频背景；放下笔记本电脑方块屏幕在播视频。任何资源缺失都不阻断游戏（沿用 m3 起「音频是 nice-to-have」的错误处理模式）。
 
-## 2. 资源清单（音频 32 条 + 视频 2 条）
+## 2. 资源清单（音频 31 条 + 视频 2 条）
 
-### BGM ×3（music-3.0，氛围钢琴风，60–120s 无缝循环，-18 LUFS，立体声 ogg）
+### BGM ×3（music-2.6 纯音乐，氛围钢琴风，无缝循环，-18 LUFS，立体声 ogg）
+
+> 模型名以 `/v1/music_generation` 端点 enum 为准：只有 `music-2.6` / `music-cover`（+free 变体），概览页的 music-3.0 不在该端点。该接口**无时长参数**，生成时长由模型定（一般 20–60s）——裁静音后 ≥15s 即入库，不设 ±20% 硬卡。模型名留 `MINIMAX_MUSIC_MODEL` env 覆盖（与 `MINIMAX_IMAGE_MODEL` 同模式，默认 music-2.6）。
 
 | 名 | 内容 |
 | --- | --- |
@@ -32,15 +34,17 @@
 | `amb-crickets` | 夜晚虫鸣 |
 | `amb-cave` | 洞穴滴水 + 空旷风 |
 
-### 玩家事件音 ×12（0.5–2s，-14 LUFS，单声道 ogg）
+### 玩家事件音 ×11（0.5–2s，-14 LUFS，单声道 ogg）
 
-`eat` / `hurt` / `die` / `pickup` / `craft` / `door-open` / `door-close` / `chest-open` / `hoe-till` / `plant` / `harvest` / `tool-break`
+`eat` / `hurt` / `die` / `pickup` / `craft` / `door-open` / `door-close` / `hoe-till` / `plant` / `harvest` / `tool-break`
 
-> 无 `levelup`：游戏经验只累计显示、没有升级事件，没有挂点就不造这条音（YAGNI）。
+> 无 `levelup`（经验只累计显示、没有升级事件）、无 `chest-open`（箱子右键目前是 no-op，`BlockInteraction.cs:258` 注释「UI 第 2 波接」——箱子 UI 落地时再补这条音）。文件名一律连字符（`door-open.ogg`），与图片需求命名同规。
+>
+> **SFX 来源策略（music-2.6 是歌曲模型，产不出 1–2s 拟声）**：事件音先试「AI 生成器乐短素材 → ffmpeg 裁剪出目标段」，裁不出合格段（时长 0.3–3s 内、无突兀旋律）则用 **ffmpeg 确定性程序合成**兜底——每条事件音在需求文件里声明合成模板（thud/pop/click/chirp/swoosh 参数化），脚本能零 API 复现。生物叫声不走程序合成（合成动物叫难听），AI 失败则该生物回退 generic 叫声（Unity 侧已有回退链）。
 
 ### 生物叫声 ×14
 
-- 首批专属 6 种（`spawn_rules.json` 的 PascalCase kind 转小写做文件名）：`pig` / `cow` / `chicken` / `zombie` / `villager` / `sheep`，每种 2 条（`<mob>_idle` + `<mob>_hurt`）= 12 条，-14 LUFS 单声道
+- 首批专属 6 种（`MobKind` 枚举名转小写做文件名）：`pig` / `cow` / `chicken` / `zombie` / `villager` / `sheep`，每种 2 条（`<mob>-idle` + `<mob>-hurt`，连字符）= 12 条，-14 LUFS 单声道
 - 通用回退 2 条：`generic-small` / `generic-large`（其余 11 种生物先共用，后续按需补需求文件）
 
 ### 视频 ×2（视频模型 768P、4–6s 循环、H.264 无音轨、mp4）
@@ -63,19 +67,19 @@
 
 ### 3.2 音频链路
 
-music-3.0 生成（API 端点与请求格式以官方文档 / mmx-cli 实测为准，不在本文写死）→ 产物 `art/incoming/audio/<名>.mp3` → ffmpeg 后处理（本机已有 8.1.1）：
+`POST https://api.minimaxi.com/v1/music_generation`（Bearer key，`is_instrumental: true`，`prompt` ≤2000 字符，`audio_setting: {sample_rate: 44100, bitrate: 256000, format: mp3}`，`output_format: "hex"` 同步返回 hex mp3；`base_resp.status_code` 0=成功、1002=限流重试、1004=鉴权失败；`data.status` 2=已完成；`extra_info.music_duration` 毫秒用于时长校验）→ 产物 `art/incoming/audio/<名>.mp3` → ffmpeg 后处理（本机已有 8.1.1）：
 
 1. 静音首尾裁剪（`silenceremove`）
 2. 响度归一（`loudnorm` 到需求文件目标 LUFS）
-3. 循环类做首尾交叉淡化接缝（`acrossfade` 自身对折）保证无缝
+3. 循环类做首尾交叉淡化接缝（尾部 cross 秒 `acrossfade` 拼回头部，取前 dur 秒）保证无缝
 4. 转码 ogg 44.1kHz（Vorbis q5），事件音 mono
-5. 时长校验：超出需求文件声明 ±20% 判不合格、退出码非 0
+5. 时长校验：BGM/环境裁静音后 ≥15s；SFX 裁剪段 0.3–3s；不合格判失败、退出码非 0（SFX 失败触发程序合成兜底，见 §2）
 
 `--install` 入库 `Assets/Resources/Audio/`（与现有 footstep/place/break 同目录同加载模式）， Unity 导入由既有流程处理。**替换风险**：`hit` 不生成 AI 版（程序生成已有且达标），避免无谓占用。
 
 ### 3.3 视频链路（受每日配额约束）
 
-视频模型 768P 生成（同样不写死端点）→ `art/incoming/video/<名>.mp4` → ffmpeg 后处理（剥音轨、`-pix_fmt yuv420p`、`-movflags +faststart`）→ 入库 `Assets/StreamingAssets/video/`（视频不走 Resources，走 streamingAssetsPath，与 UI 贴图同模式——standalone build 必须可读）。
+视频生成走三步（均 Bearer key）：`POST /v1/video_generation`（model `MiniMax-Hailuo-2.3`——H3 在 V2 接口且按量付费，Token Plan 用不了；`duration: 6`、`resolution: "768P"`、`prompt_optimizer: false` 保像素风精确控制、`aigc_watermark: false`）→ 返回 `task_id` → 轮询 `GET /v1/query/video_generation?task_id=`（status Preparing/Queueing/Processing/Success/Fail，成功给 `file_id`）→ `GET /v1/files/retrieve?file_id=` 取 `download_url`（**1 小时有效**，拿到立即下载）。产物 `art/incoming/video/<名>.mp4` → ffmpeg 后处理（剥音轨、`-pix_fmt yuv420p`、`-movflags +faststart`）→ 入库 `Assets/StreamingAssets/video/`（视频不走 Resources，走 streamingAssetsPath，与 UI 贴图同模式——standalone build 必须可读）。
 
 ## 4. 视频每日配额队列（核心机制）
 
@@ -127,22 +131,24 @@ music-3.0 生成（API 端点与请求格式以官方文档 / mmx-cli 实测为�
 
 | 事件 | 挂点（均已核实存在） |
 | --- | --- |
-| eat | `BlockInteraction.UseAt` 右键食物分支（`HungerSystem.Eat` 的 Unity 接线处） |
-| hurt / die | `PlayerController.TakeDamage`（唯一受伤入口）；die 挂其致死分支 |
-| pickup | `PlayerController` 掉落物 tick 循环里 `TickPickup` 返回 true 处 |
-| craft | `CraftingPocketUi` / `CraftingWorkbenchUi` / `CraftingFurnaceUi` 取结果分支 |
-| door-open/close、chest-open、hoe-till、plant、harvest | `BlockInteraction.UseAt`/`BreakAt` 相应分支 |
-| tool-break | 镐碎裂触发处（m10 耐久尽） |
+| eat | `BlockInteraction.TryEatSelectedFood`（`HungerSystem.Eat` 后） |
+| hurt / die | `PlayerController.TakeDamage` 扣血后 / 其 `IsDead` 分支 |
+| pickup | `PlayerController.PickupNearbyDrops` 入包成功处 |
+| craft | `CraftingPocketUi.TryTakeCraftOutput` / `CraftingWorkbenchUi.TryTakeCraftOutput` / `CraftingFurnaceUi.TryTakeOutput` 取到产出时（熔炉共用 craft 音） |
+| door-open/close | `RedstoneSystem.HandleHit` 门分支（`BlockInteraction.UseAt` 对门只挡放置，开关真源在红石系统） |
+| hoe-till / plant | `TryTillWithHoe` / `TryPlantSeeds`（现在误用 `PlayPlace`，改为专属音） |
+| harvest | `BlockInteraction.BreakAt`：`FarmSystem.TryParseStageBlock` 且 `stage == FarmSystem.MatureStage` 时播 harvest，否则 break |
+| tool-break | `BlockInteraction.ApplyDigDurability` 耐久尽分支 |
 
 ### 5.4 `MobAudioSystem`（新，`SpawnMob` 自动挂，与 `MobHitFeedback` 同模式）
 
 - idle：每 mob 随机间隔 8–20s（**整数哈希掷骰**定间隔，不持有随机数对象——项目铁律），距玩家 >16 格不播（省性能防吵）
 - hurt：`MobHitFeedback` 受击时调用
-- 查表：`Resources.Load("Audio/Mobs/<kind小写>_idle")`，缺文件回退 `generic-small`（鸡/兔/仓鼠类）或 `generic-large`（其余），再缺则静默——**新生物加专属叫声 = 放两个 ogg，零代码**
+- 查表：`Resources.Load("Audio/Mobs/<kind小写>-idle")`，缺文件回退 `generic-small`（鸡/兔/仓鼠类）或 `generic-large`（其余），再缺则静默——**新生物加专属叫声 = 放两个 ogg，零代码**
 
 ### 5.5 音量设置
 
-`SettingsPanelUi` 加第四滑条「音乐音量」（0–100，PlayerPrefs key `m6.bgmVolume`，与 `m6.volume` 同前缀惯例），只管 BGM+环境两类 AudioSource；音效仍走原音量滑条；`AudioListener.volume` 保持全局总闸。同步更新面板高度常量与既有测试。
+`SettingsPanelUi` 加第四滑条「音乐音量」（0–100，PlayerPrefs key `m6.musicVolume`，与 `m6.volume` 同前缀惯例），经静态 `MusicVolumeBus.Volume`（0–1）只管 BGM+环境两类 AudioSource；音效仍走原音量滑条；`AudioListener.volume` 保持全局总闸。同步更新面板高度常量（220→300）与既有测试。
 
 ## 6. 视频接入（两处）
 
@@ -156,7 +162,7 @@ music-3.0 生成（API 端点与请求格式以官方文档 / mmx-cli 实测为�
 
 ### 6.2 `VideoScreenSystem`（新，`Unity/Rendering/`）——笔记本屏幕
 
-- `laptop_block` / `hacker_pc_block` 的 JSON 改专用屏幕面：`textures` 拆 `top: laptop_screen`（其余面维持现状），**两方块共用 `laptop_screen` 贴图名与同一段视频**（未来要区分再拆独立贴图名）；屏幕贴图先程序占位一张静态图（`art/scripts/` 确定性生成，m6/m10 占位同模式）
+- `laptop_block` / `hacker_pc_block` 的 JSON 改专用屏幕面：`textures` 由 `all` 改为 **top/bottom/side 三键全写**（schema 要求三键齐备，`_format.md`），top 填 `laptop-screen`（连字符，与家具贴图 `hacker-pc`/`office-desk` 同规），其余面维持原贴图名；**两方块共用 `laptop-screen` 贴图名与同一段视频**（未来要区分再拆独立贴图名）；屏幕贴图先程序占位一张静态图（`art/scripts/` 确定性生成，m6/m10 占位同模式），同步改 `BlockDefinitionFilesTests.M11FurnitureBlocks` 对照表断言（六面统一 → 顶面 screen + 其余原贴图）
 - `BlockMaterialLibrary` 材质按贴图名共享 → `VideoScreenSystem` 启动时创建一个 VideoPlayer+RenderTexture 循环播 `laptop-loop.mp4`，并把 `laptop_screen` 贴图名对应材质的 `mainTexture` 指到 RenderTexture——**贪心网格零改动**，全世界同款笔记本播同一段（可接受且实现最省）
 - 降级方案（实机若发现网格/图标渲染异常）：改为方块位置挂附加 quad 播视频（`ItemDropView` 同款做法），破坏时销毁
 - 已知副作用接受：hotbar 里笔记本图标是等距渲染真实方块，图标里屏幕面会拍到视频某一帧——视觉上等同「屏幕亮着」，不处理
@@ -189,11 +195,11 @@ music-3.0 生成（API 端点与请求格式以官方文档 / mmx-cli 实测为�
 1. `dotnet test` + Unity EditMode 双链全绿
 2. `generate_media.py --self-test` 过；`--audio` 全量生成、后处理、入库一次跑通
 3. `--videos` 首日：2 条视频用掉 2/3 配额、队列文件状态正确；人为再入队 2 条测试边界——第 3 条照常生成（3/3），第 4 条被正确拒绝并提示次日再跑
-4. 实机剧本（孩子操作）：开游戏见主菜单视频+听见菜单曲 → 开始游戏 BGM 切白天曲 → 挖洞到 y<40 听见滴水声 → 过夜听 BGM/环境切换 → 打猪听叫声、猪受伤有 hurt 音 → 吃面包/开门/开箱子/锄地/收麦各有一音 → 放笔记本电脑方块屏幕播视频 → 设置面板音乐音量拉零 BGM 静而音效在
+4. 实机剧本（孩子操作）：开游戏见主菜单视频+听见菜单曲 → 开始游戏 BGM 切白天曲 → 挖洞到 y<40 听见滴水声 → 过夜听 BGM/环境切换 → 打猪听叫声、猪受伤有 hurt 音 → 吃面包/开门/锄地/收麦各有一音 → 放笔记本电脑方块屏幕播视频 → 设置面板音乐音量拉零 BGM 静而音效在
 
 ## 10. 文件清单
 
-**新增**：`tools/generate_media.py`；`art/requests/audio/`（bgm/ambient/events/mobs 四个 md）；`art/requests/video/`（menu-bg、laptop-loop 两个 md）；`Assets/Resources/Audio/**`（32 ogg）；`Assets/StreamingAssets/video/**`（2 mp4）；`Unity/Audio/{BgmAudioSystem,AmbientAudioSystem,MobAudioSystem}.cs`；`Unity/UI/TitleScreenUi.cs`；`Unity/Rendering/VideoScreenSystem.cs`；`art/scripts/gen_laptop_screen_placeholder.py`；对应 EditMode 测试若干
+**新增**：`tools/generate_media.py`；`art/requests/audio/`（bgm/ambient/events/mobs 四个 md）；`art/requests/video/`（menu-bg、laptop-loop 两个 md）；`Assets/Resources/Audio/**`（31 ogg）；`Assets/StreamingAssets/video/**`（2 mp4）；`Unity/Audio/{BgmAudioSystem,AmbientAudioSystem,MobAudioSystem}.cs`；`Unity/UI/TitleScreenUi.cs`；`Unity/Rendering/VideoScreenSystem.cs`；`art/scripts/gen_laptop_screen_placeholder.py`；对应 EditMode 测试若干
 
 **修改**：`PlayerAudioSystem.cs`（13 事件方法）；`SettingsPanelUi.cs`（+测试，第四滑条）；`MobHitFeedback.cs`（hurt 音接线）；`laptop_block.json` / `hacker_pc_block.json`（textures.top 拆分 + 占位贴图）；`BlockInteraction.cs` / `WorldBootstrap.cs` / `PlayerController.cs` / `HungerSystem` 接线处（集成点串行批）；`art/README.md`（音频/视频需求索引段）；`BlockDefinitionFilesTests` 若新贴图引用需要同步（占位贴图走 `art/requests/` 立需求保贴图引用差集恒为空）
 
