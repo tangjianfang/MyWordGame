@@ -482,6 +482,11 @@ namespace MyWorld.Unity.Combat
                 kind = MobKind.Passive; // 仅占位，MobView.Attach 用 MobTypeId 染色
             }
 
+            // m11 W3-5：和平模式门——开关开时敌对 kind 全不刷（被动照刷）。
+            // 简化：只挡「新增」，已在场的敌对 mob 不因开关被删除（让它们自然
+            // despawn / 被玩家击杀），关掉开关后下一轮夜间刷新立即恢复。
+            if (PeaceMode.Enabled && IsHostileSpawn(kind, type)) return;
+
             SpawnMob(type, kind, new Float3(wx + 0.5f, surfaceY + 1f, wz + 0.5f));
         }
 
@@ -569,6 +574,9 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Skeleton:
                 case MobKind.Spider:
                 case MobKind.Creeper:
+                // m11 W3-3：Boss 走部位表拼装（2.5 格紫金机甲，mobs/models/machine_guardian.json）。
+                // 不进上面的昼夜候选数组——只经图腾召唤（BlockInteraction 召唤路由）
+                case MobKind.MachineGuardian:
                     return true;
                 default:
                     return false;
@@ -603,7 +611,30 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Skeleton: return (int)MobKind.Skeleton;
                 case MobKind.Spider: return (int)MobKind.Spider;
                 case MobKind.Creeper: return (int)MobKind.Creeper;
+                // m11 W3-3：Boss typeId = 枚举数值 27（只经图腾召唤，不经 TickSpawn）
+                case MobKind.MachineGuardian: return (int)MobKind.MachineGuardian;
                 default: return 1;
+            }
+        }
+
+        /// <summary>
+        /// m11 W3-5：这次刷怪结果是否敌对（和平模式门 <see cref="TickSpawn"/> 用）。
+        /// 数据驱动路径看 kind（四敌对枚举 + 旧 Hostile）；旧路径 kind 恒为
+        /// <see cref="MobKind.Passive"/> 占位，改看 mobTypeId 3/4/5（与
+        /// <see cref="SpawnMob"/> 里「敌对细高体型」同一组判定值，两条路径都覆盖）。
+        /// </summary>
+        private static bool IsHostileSpawn(MobKind kind, int mobTypeId)
+        {
+            switch (kind)
+            {
+                case MobKind.Hostile:
+                case MobKind.Zombie:
+                case MobKind.Skeleton:
+                case MobKind.Spider:
+                case MobKind.Creeper:
+                    return true;
+                default:
+                    return mobTypeId == 3 || mobTypeId == 4 || mobTypeId == 5;
             }
         }
 
@@ -634,6 +665,8 @@ namespace MyWorld.Unity.Combat
         /// m9 A3：击杀经验常量表（spec §3「击杀经验」）——猪 3 / 牛 5 / 鸡 2 / 僵尸 10。
         /// m11 W1-1 扩 12 新生物：敌对照卡片（骷髅 8 / 蜘蛛 6 / 苦力怕 9，量级贴僵尸 10）；
         /// 被动照猪/牛/鸡量级按血量缩放（羊2 兔1 狐2 鹿2 熊猫4 企鹅1 山羊2 浣熊1 仓鼠1）。
+        /// m11 W3-3 扩 Boss：机元守卫 50（血 60 的对手局 + netherite 链守门人，
+        /// 量级 = 全部自然生物之冠——僵尸 10 的 5 倍）。
         /// 不在表内的 kind（旧 Passive/Hostile、Villager）为 0。
         /// </summary>
         public static int KillExperience(MobKind kind)
@@ -648,6 +681,8 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Skeleton: return 8;
                 case MobKind.Spider: return 6;
                 case MobKind.Creeper: return 9;
+                // m11 W3-3 Boss（血 60 / 伤 6 / 三招 + 半血召唤——经验照卡片 50）
+                case MobKind.MachineGuardian: return 50;
                 // m11 W1-1 九被动（血量量级：仓鼠 2 血最不值钱、熊猫 15 血与牛同档）
                 case MobKind.Sheep: return 2;
                 case MobKind.Rabbit: return 1;

@@ -194,9 +194,10 @@ namespace MyWorld.Core.Tests.UI
         public void 面板高度_常量与内容行匹配()
         {
             // 宿主按 PanelHeight 预留区域并在其下排列后续内容（如「保存并退出」按钮）——
-            // av W1-7：四行滑条各 70 + 提示行 20 = 300；旧三滑条是 220，改布局时这个常量要跟着动
-            Assert.That(SettingsPanelUi.PanelHeight, Is.EqualTo(300f),
-                "四滑条 70×4 + 提示行 20 = 300");
+            // av W1-7：四行滑条各 70 + 提示行 20 = 300；旧三滑条是 220，改布局时这个常量要跟着动。
+            // m11 W3-5：追加和平模式开关行 +70 → 370
+            Assert.That(SettingsPanelUi.PanelHeight, Is.EqualTo(370f),
+                "四滑条 70×4 + 开关行 70 + 提示行 20 = 370");
         }
     }
 }

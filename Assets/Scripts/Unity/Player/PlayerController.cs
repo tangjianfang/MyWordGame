@@ -171,6 +171,12 @@ namespace MyWorld.Unity.Player
             _audio?.PlayHurt();
             if (ctx.Health.IsDead)
             {
+                // m11 W3-5（和平模式契约钉住处）：本项目自 m7 起**所有模式**死亡都
+                // 不掉背包、不清物品（m7 spec 非目标「死了不掉东西，保持宽容」，
+                // grep 全仓无任何死亡清空/倒包路径），所以「和平模式开 → 死亡不掉落」
+                // 天然成立，无需开关分支。未来若实现普通模式的死亡掉落，必须先判
+                // MyWorld.Unity.Gameplay.PeaceMode.Enabled 绕过——和平模式下掉落物
+                // 直接回背包不清空（EditMode 守卫：PeaceModeTests.死亡_*）。
                 _audio?.PlayDie();  // av W3-13：死亡音
                 ctx.DeathScreen?.Show();
             }
