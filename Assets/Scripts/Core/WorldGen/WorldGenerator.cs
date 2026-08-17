@@ -19,6 +19,10 @@ namespace MyWorld.Core.WorldGen
     /// m11 W1-3 起地表植被按 <c>StreamingAssets/vegetation/</c> 的植被表投放：
     /// oak 走旧路径（行为逐格不变），其余 7 树种按 species 密度通道投放，
     /// 12 种花草按 <see cref="FlowerFeature"/> 散布在草方块上方。
+    ///
+    /// m11 W3-2 起平原/森林低密度出村（<see cref="VillageFeature"/>，约每 400×400 格一村）：
+    /// 植被阶段前收集与本区块重叠的村庄计划，树/花草在村结构（外扩 1 格）内让位，
+    /// 植被铺完后阶段 4 盖楼——蓝图显式写满 4 层（含室内空气），邻近树冠探进来的叶子一并清掉。
     /// </summary>
     public sealed class WorldGenerator
     {
@@ -43,6 +47,9 @@ namespace MyWorld.Core.WorldGen
         private VegetationTable _vegetationTable;
         private BlockRegistry _vegetationBlockRegistry;
         private bool _vegetationLoadAttempted;
+
+        // m11 W3-2：村庄计划查询用的地表采样委托（真源 SurfaceHeightAt，方法组转换只建一次）
+        private Func<int, int, int> _surfaceAt;
 
         public WorldGenerator(int seed)
             : this(seed, LoadBiomeConfigsOrNull(), null, null)
@@ -121,11 +128,18 @@ namespace MyWorld.Core.WorldGen
                 }
             }
 
+            // 阶段 2.5（m11 W3-2）：收集与本区块重叠的村庄计划。树/花草让位与阶段 4 盖楼
+            // 共用同一批计划（每区块重派生，跨区块恒一致）。返回 null = 本区块无村，
+            // 后续判断全部短路，无村区块零额外开销。
+            List<VillagePlan> villages = CollectVillages(pos);
+
             // 阶段 3：地表铺好后再长植被（m11 W1-3 起按植被表投放）。
             //   · oak 走旧路径：不查植被表、不限声明群系（Mountains/Snow 等密度>0 的群系照旧长橡树），
             //     密度判定仍用旧通道——oak 行为逐格不变是铁律，I2/W1-3 守卫测试锁定；
             //   · 其余树种按 VegetationTable 的 species 密度通道投放，只在 trees.json 声明的群系出现；
             //   · 花草在树之后散布（树先占地表判定，花草让位），只落在草方块上方的空格。
+            //   · 村结构（外扩 1 格）内树/花草一律让位（m11 W3-2）——oak 旧路径也只在这一圈让位，
+            //     让位判定纯位置比较，不影响村外任何格子的既有行为。
             // TreeDensity=0 一直是「无植被」的开关（沙漠 + 测试纯地形断言），新树种与花草同样遵守。
             EnsureVegetationLoaded();
             var vegetation = _vegetationTable;
@@ -137,6 +151,9 @@ namespace MyWorld.Core.WorldGen
                     int worldZ = originZ + localZ;
                     Biome biome = BiomeAt(worldX, worldZ);
                     _biomeConfigs.TryGetValue((int)biome, out var config);
+
+                    // 村结构（含 1 格让位圈）内不长树也不长花草
+                    if (villages != null && InVillageStructure(villages, worldX, worldZ)) continue;
 
                     // oak 旧路径：保持与接入植被表之前完全一致
                     TreeFeature.TryGenerate(column, config, _seed, worldX, worldZ);
@@ -160,7 +177,108 @@ namespace MyWorld.Core.WorldGen
                 }
             }
 
+            // 阶段 4（m11 W3-2）：村庄盖楼。放在植被之后——蓝图显式写满 4 层
+            // （含室内/门洞空气），邻近树冠探进楼体的叶子会在盖章时被覆盖回空气。
+            if (villages != null)
+            {
+                for (int i = 0; i < villages.Count; i++)
+                {
+                    VillageFeature.StampIntoChunk(column, villages[i], originX, originZ);
+                }
+            }
+
             return column;
+        }
+
+        /// <summary>
+        /// 收集与本区块 16×16 方块重叠的村庄计划（m11 W3-2）。村中心抖动下限
+        /// <see cref="VillageFeature.CenterJitterMin"/> 大于村最大半径，村庄永不越出所属
+        /// 村格，因此只查覆盖本区块方块的 ≤4 个村格即可完备。无村返回 null（调用方以
+        /// null 短路，避免无村区块分配列表）。
+        /// </summary>
+        public List<VillagePlan> CollectVillages(ChunkPos pos)
+        {
+            int originX = pos.X * VoxelCoords.ChunkSize;
+            int originZ = pos.Z * VoxelCoords.ChunkSize;
+
+            List<VillagePlan> villages = null;
+            for (int cellZ = VillageFeature.CellOf(originZ);
+                 cellZ <= VillageFeature.CellOf(originZ + VoxelCoords.ChunkSize - 1);
+                 cellZ++)
+            {
+                for (int cellX = VillageFeature.CellOf(originX);
+                     cellX <= VillageFeature.CellOf(originX + VoxelCoords.ChunkSize - 1);
+                     cellX++)
+                {
+                    VillagePlan plan = TryPlanVillageInCell(cellX, cellZ);
+                    if (plan == null) continue;
+                    villages ??= new List<VillagePlan>(1);
+                    villages.Add(plan);
+                }
+            }
+
+            return villages;
+        }
+
+        /// <summary>
+        /// 对单个村格做完整村庄判定（m11 W3-2）：<see cref="VillageFeature.TryPlanVillage"/>
+        /// 的存在哈希 + 水井/楼群守卫之上，再叠村庄的群系门槛——村中心必须是
+        /// 平原或森林（气候噪声在这里，<see cref="VillageFeature"/> 保持纯哈希形态）。
+        /// <see cref="CollectVillages"/> / <see cref="IsInVillageRadius"/> / Preview 村庄普查
+        /// 共用这一条路径，三处见到的「有没有村」永远一致。
+        /// </summary>
+        public VillagePlan TryPlanVillageInCell(int cellX, int cellZ)
+        {
+            VillagePlan plan = VillageFeature.TryPlanVillage(cellX, cellZ, _seed, SurfaceSampler);
+            if (plan == null) return null;
+
+            Biome biome = BiomeAt(plan.CenterX, plan.CenterZ);
+            return biome == Biome.Plains || biome == Biome.Forest ? plan : null;
+        }
+
+        /// <summary>
+        /// （m11 W3-2，Core 侧查询 API）(worldX, worldZ) 是否落在某个真实村庄的
+        /// <see cref="VillageFeature.VillageRadius"/> 半径内。村民 spawn 偏向的接线点：
+        /// MobManager.TickSpawn 在选出落点 (wx, wz) 后调用本方法，命中时 Villager 权重 ×3
+        /// （建议做法：命中时把 Villager 提到 DayCandidates 候选首位的专用候选数组重试 PickKind）。
+        /// 半径预筛用便宜的 <see cref="VillageFeature.TryGetVillageCenter"/>（纯哈希），
+        /// 过筛才做完整守卫 + 群系判定，普通野外查询几乎零成本。
+        /// </summary>
+        public bool IsInVillageRadius(int worldX, int worldZ)
+        {
+            int cellX = VillageFeature.CellOf(worldX);
+            int cellZ = VillageFeature.CellOf(worldZ);
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (!VillageFeature.TryGetVillageCenter(cellX + dx, cellZ + dz, _seed,
+                            out int centerX, out int centerZ))
+                    {
+                        continue;
+                    }
+                    int ddx = worldX - centerX;
+                    int ddz = worldZ - centerZ;
+                    if (ddx * ddx + ddz * ddz > VillageFeature.VillageRadiusSq) continue;
+
+                    // 半径预筛过了再做完整判定（守卫 + 群系），保证查询结果与生成一致
+                    if (TryPlanVillageInCell(cellX + dx, cellZ + dz) != null) return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>村庄计划用的地表采样委托（缓存方法组，避免每次查询重复分配）。</summary>
+        private Func<int, int, int> SurfaceSampler => _surfaceAt ??= SurfaceHeightAt;
+
+        /// <summary>(worldX, worldZ) 是否落在任一村庄结构（含 1 格让位圈）内。</summary>
+        private static bool InVillageStructure(List<VillagePlan> villages, int worldX, int worldZ)
+        {
+            for (int i = 0; i < villages.Count; i++)
+            {
+                if (villages[i].HasStructureAt(worldX, worldZ, margin: 1)) return true;
+            }
+            return false;
         }
 
         /// <summary>

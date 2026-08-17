@@ -48,6 +48,8 @@ namespace MyWorld.Preview
             PrintMeshStats(generator);
             Console.WriteLine();
             PrintVegetationStats(generator);
+            Console.WriteLine();
+            PrintVillageStats(generator, seed);
         }
 
         /// <summary>纵向剖面：直观展示地表起伏、土层厚度、水面与地下矿层（m10 起下探到 y=-24）。</summary>
@@ -394,6 +396,86 @@ namespace MyWorld.Preview
                     $"     {biome,-10}: {trees}；花草 {biomeFlowerCount[biome]} 株" +
                     $"（列 {biomeColumnCount[biome]}，地表 草{biomeGrassColumns[biome]}/雪{biomeSnowColumns[biome]}/沙{biomeSandColumns[biome]}）");
             }
+        }
+
+        /// <summary>
+        /// 村庄普查（m11 W3-2）：自适应扩张村格窗口直到命中村庄，列出各村的
+        /// 中心/群系/楼数/井口高度与实测密度；再对首村做真实区块生成，
+        /// 按楼足印与井 3×3 统计村庄材料块数——是村庄接线与密度的目检依据。
+        /// </summary>
+        private static void PrintVillageStats(WorldGenerator generator, int seed)
+        {
+            Console.WriteLine($"── 村庄统计 (村格 {VillageFeature.CellSize}×{VillageFeature.CellSize} 格, 出村率 {VillageFeature.PresencePercent}%, 窗口自适应 ±1..±4 村格) ──");
+
+            var found = new List<VillagePlan>();
+            int radius = 1;
+            for (; radius <= 4; radius++)
+            {
+                found.Clear();
+                for (int cellX = -radius; cellX <= radius; cellX++)
+                {
+                    for (int cellZ = -radius; cellZ <= radius; cellZ++)
+                    {
+                        VillagePlan plan = generator.TryPlanVillageInCell(cellX, cellZ);
+                        if (plan != null) found.Add(plan);
+                    }
+                }
+                if (found.Count > 0) break;
+            }
+
+            if (found.Count == 0)
+            {
+                Console.WriteLine("     命中 0 村（±4 村格 = 3600×3600 格内无村）——平原/森林占比与水/悬崖守卫叠加后属小概率，请人工复核");
+                return;
+            }
+
+            double windowMillionBlocks = (2 * radius + 1) * (double)VillageFeature.CellSize
+                                         * (2 * radius + 1) * VillageFeature.CellSize / 1e6;
+            Console.WriteLine($"     命中 {found.Count} 村（窗口 {2 * radius + 1}×{2 * radius + 1} 村格 = {windowMillionBlocks:F1}M 格），"
+                              + $"实测密度 ≈ {found.Count / windowMillionBlocks:F2} 村/百万格");
+            foreach (VillagePlan plan in found)
+            {
+                Console.WriteLine($"     村 @ ({plan.CenterX,5}, {plan.CenterZ,5}) {generator.BiomeAt(plan.CenterX, plan.CenterZ),-7} "
+                                  + $"{plan.Buildings.Length} 栋 井口 y={plan.WellY} 包围盒 [{plan.MinX}..{plan.MaxX}]×[{plan.MinZ}..{plan.MaxZ}]");
+            }
+
+            // 首村实检：真实生成覆盖区块，按楼足印与井 3×3 数材料块
+            VillagePlan first = found[0];
+            var world = new World();
+            for (int chunkX = VoxelCoords.WorldToChunk(first.MinX); chunkX <= VoxelCoords.WorldToChunk(first.MaxX); chunkX++)
+            {
+                for (int chunkZ = VoxelCoords.WorldToChunk(first.MinZ); chunkZ <= VoxelCoords.WorldToChunk(first.MaxZ); chunkZ++)
+                {
+                    LoadChunkInto(generator, world, new ChunkPos(chunkX, chunkZ));
+                }
+            }
+
+            long planks = 0, glass = 0, logs = 0;
+            foreach (VillageBuilding building in first.Buildings)
+            {
+                for (int dx = 0; dx < 5; dx++)
+                for (int dz = 0; dz < 5; dz++)
+                for (int y = building.BaseY; y <= building.BaseY + 4; y++)
+                {
+                    ushort id = world.GetBlock(building.OriginX + dx, y, building.OriginZ + dz);
+                    if (id == VillageFeature.PlanksId) planks++;
+                    else if (id == VillageFeature.GlassId) glass++;
+                    else if (id == TreeFeature.LogId) logs++;
+                }
+            }
+
+            long wellStone = 0, wellWater = 0;
+            for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+            for (int y = first.WellY - 3; y <= first.WellY + 1; y++)
+            {
+                ushort id = world.GetBlock(first.CenterX + dx, y, first.CenterZ + dz);
+                if (id == BlockIds.Stone) wellStone++;
+                else if (id == BlockIds.Water) wellWater++;
+            }
+
+            Console.WriteLine($"     首村实检 @ ({first.CenterX}, {first.CenterZ})："
+                              + $"木板 {planks} / 玻璃 {glass} / 原木 {logs} / 井圈石 {wellStone} / 井水 {wellWater}");
         }
 
         /// <summary>从真实注册表 + 植被表建「numericId → 剖面字形」映射（见 Main 里的字形说明）。</summary>
