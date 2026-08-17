@@ -9,7 +9,7 @@ using MyWorld.Unity.Lighting;
 using NUnit.Framework;
 using UnityEngine;
 
-namespace MyWorld.Core.Tests.World
+namespace MyWorld.Core.Tests.Lighting
 {
     [TestFixture]
     public class ChunkLightSystemTests
