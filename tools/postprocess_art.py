@@ -626,8 +626,8 @@ def _m11_a1_blocks() -> list[Asset]:
     a1 = [
         K("torch", HANDLE_WOOD + ["#8A2400", "#F79B22", "#FFD24A"]),
         X("chest-front", chest_pal), X("chest-side", chest_pal), X("chest-top", chest_pal),
-        K("wooden-door-upper", door_pal, alpha_range=(0.40, 0.65)),
-        K("wooden-door-lower", door_pal, alpha_range=(0.40, 0.65)),
+        K("wooden-door-upper", door_pal, alpha_range=(0.08, 0.22)),
+        X("wooden-door-lower", door_pal, tiling="none"),
         X("bed-head-top", bed_pal, tiling="none"),
         X("bed-foot-top", bed_pal, tiling="none"),
         X("bed-side", bed_pal + [OUTLINE_DARK], tiling="none"),
