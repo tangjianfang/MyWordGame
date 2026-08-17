@@ -147,6 +147,101 @@ namespace MyWorld.Core.Tests.Combat
                 $"MaxMobs=2 时 ActiveMobs 不应超过 2（实际 {_mgr.ActiveMobs.Count}）");
         }
 
+        /// <summary>m11 P0：12 新生物（值 15-26，名字/数值与 Core MobKindWiringTests 同一份契约）。</summary>
+        private static readonly MobKind[] M11NewKinds =
+        {
+            MobKind.Sheep, MobKind.Rabbit, MobKind.Fox, MobKind.Deer, MobKind.Panda,
+            MobKind.Penguin, MobKind.Goat, MobKind.Raccoon, MobKind.Hamster,
+            MobKind.Skeleton, MobKind.Spider, MobKind.Creeper,
+        };
+
+        /// <summary>m11 P0：9 个新被动 kind（进白天候选组）。</summary>
+        private static readonly MobKind[] M11PassiveKinds =
+        {
+            MobKind.Sheep, MobKind.Rabbit, MobKind.Fox, MobKind.Deer, MobKind.Panda,
+            MobKind.Penguin, MobKind.Goat, MobKind.Raccoon, MobKind.Hamster,
+        };
+
+        /// <summary>m11 P0：3 个新敌对 kind（进夜晚候选组）。</summary>
+        private static readonly MobKind[] M11HostileKinds =
+        {
+            MobKind.Skeleton, MobKind.Spider, MobKind.Creeper,
+        };
+
+        /// <summary>
+        /// m11 P0：12 新生物的 UsesPartTable 预接线守卫（反射直调私有静态，模式抄
+        /// InvokeDriveWalkPhase 先例）。P0 只接线：spawn_rules.json 尚未加这 12 个
+        /// 名字的条目，所以接线后不会真的刷出（部位表拼装路径不会被走到）；
+        /// 等 W1 代理补条目 + mobs/models/*.json 后自然生效。
+        /// </summary>
+        [Test]
+        public void UsesPartTable_M11TwelveNewKinds_AllTrue()
+        {
+            var method = typeof(MobManager).GetMethod("UsesPartTable",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(method, Is.Not.Null, "MobManager 应有私有静态 UsesPartTable 方法");
+            foreach (var kind in M11NewKinds)
+            {
+                Assert.That((bool)method.Invoke(null, new object[] { kind }), Is.True,
+                    $"{kind} P0 预接线后应走部位表拼装路径（模型 JSON 由 W1-1/W1-2 补齐）");
+            }
+        }
+
+        /// <summary>
+        /// m11 P0：12 新生物的 MobKindToTypeId 映射守卫——typeId 取枚举数值（P0 约定，
+        /// 与 Core 侧测试实体的 MobTypeId=(int)kind 同款）。
+        /// </summary>
+        [Test]
+        public void MobKindToTypeId_M11TwelveNewKinds_EqualsEnumValue()
+        {
+            var method = typeof(MobManager).GetMethod("MobKindToTypeId",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(method, Is.Not.Null, "MobManager 应有私有静态 MobKindToTypeId 方法");
+            foreach (var kind in M11NewKinds)
+            {
+                Assert.That((int)method.Invoke(null, new object[] { kind }), Is.EqualTo((int)kind),
+                    $"{kind} 的 mobTypeId 应取枚举数值 {(int)kind}（P0 约定）");
+            }
+        }
+
+        /// <summary>
+        /// m11 P0：昼夜候选表分组守卫——既有 5 kind 分组不回退（断言只增不减），
+        /// 9 被动 kind 进 DayCandidates、骷髅/蜘蛛/苦力怕进 NightCandidates。
+        /// 候选表是私有静态字段，反射读取。
+        /// </summary>
+        [Test]
+        public void DayNightCandidates_M11NewKinds_GroupedCorrectly()
+        {
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+            var dayField = typeof(MobManager).GetField("DayCandidates", flags);
+            var nightField = typeof(MobManager).GetField("NightCandidates", flags);
+            Assert.That(dayField, Is.Not.Null, "MobManager 应有私有静态 DayCandidates 字段");
+            Assert.That(nightField, Is.Not.Null, "MobManager 应有私有静态 NightCandidates 字段");
+            var day = (MobKind[])dayField.GetValue(null);
+            var night = (MobKind[])nightField.GetValue(null);
+
+            // 既有分组不回退：猪/牛/鸡/村民在白天组，僵尸在夜晚组
+            Assert.That(day, Does.Contain(MobKind.Pig), "Pig 应保留在白天候选组");
+            Assert.That(day, Does.Contain(MobKind.Cow), "Cow 应保留在白天候选组");
+            Assert.That(day, Does.Contain(MobKind.Chicken), "Chicken 应保留在白天候选组");
+            Assert.That(day, Does.Contain(MobKind.Villager), "Villager 应保留在白天候选组");
+            Assert.That(night, Does.Contain(MobKind.Zombie), "Zombie 应保留在夜晚候选组");
+
+            // 9 被动 kind 进白天组、不进夜晚组
+            foreach (var kind in M11PassiveKinds)
+            {
+                Assert.That(day, Does.Contain(kind), $"{kind} 应在白天候选组（被动生物）");
+                Assert.That(night, Does.Not.Contain(kind), $"{kind} 不应在夜晚候选组");
+            }
+
+            // 骷髅/蜘蛛/苦力怕进夜晚组、不进白天组
+            foreach (var kind in M11HostileKinds)
+            {
+                Assert.That(night, Does.Contain(kind), $"{kind} 应在夜晚候选组（敌对生物）");
+                Assert.That(day, Does.Not.Contain(kind), $"{kind} 不应在白天候选组");
+            }
+        }
+
         /// <summary>
         /// m8 A2：部位表全权负责视觉——刷出的 host cube Renderer 应禁用（拼装部位已覆盖
         /// host 体积，双份渲染只会重合）、缩放归一（部位表以格为单位，host 缩放会拉伸部件）、

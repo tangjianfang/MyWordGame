@@ -35,10 +35,22 @@ namespace MyWorld.Unity.Combat
         /// </summary>
         public const float DespawnDistance = 40f;
 
-        // 白天候选 mob（按优先级排序：先猪，后牛/鸡、村民）
-        private static readonly MobKind[] DayCandidates = { MobKind.Pig, MobKind.Cow, MobKind.Chicken, MobKind.Villager };
-        // 夜晚候选 mob（只有 Zombie）
-        private static readonly MobKind[] NightCandidates = { MobKind.Zombie };
+        // 白天候选 mob（按优先级排序：先猪，后牛/鸡、村民；m11 P0 追加 9 新被动 kind——
+        // 列表顺序即优先级，新 kind 排既有四类之后）。安全性依据：spawn_rules.json 尚未加
+        // 这 12 个新名字的条目，PickKind 对未配置 kind 恒 false → 接线后不会真的刷出，
+        // 等 W1 代理补条目 + mobs/models/*.json 后自然生效
+        private static readonly MobKind[] DayCandidates =
+        {
+            MobKind.Pig, MobKind.Cow, MobKind.Chicken, MobKind.Villager,
+            MobKind.Sheep, MobKind.Rabbit, MobKind.Fox, MobKind.Deer, MobKind.Panda,
+            MobKind.Penguin, MobKind.Goat, MobKind.Raccoon, MobKind.Hamster,
+        };
+        // 夜晚候选 mob（m11 P0 追加骷髅/蜘蛛/苦力怕，Zombie 保持最高优先级；
+        // P0 三新敌对 AI 暂等价僵尸，W1-1 替换专属行为）
+        private static readonly MobKind[] NightCandidates =
+        {
+            MobKind.Zombie, MobKind.Skeleton, MobKind.Spider, MobKind.Creeper,
+        };
 
         private readonly List<Mob> _mobs = new List<Mob>();
         private readonly Dictionary<int, GameObject> _views = new Dictionary<int, GameObject>();
@@ -424,7 +436,11 @@ namespace MyWorld.Unity.Combat
             _viewComponents[mob.EntityId] = view; // m8 A2：walk phase 驱动直接取视图组件
         }
 
-        /// <summary>五生物（m8）走 MobModels 部位表拼装；旧三类保持单 cube 既有路径。</summary>
+        /// <summary>
+        /// 五生物（m8）+ m11 12 新生物走 MobModels 部位表拼装；旧三类保持单 cube 既有路径。
+        /// m11 P0 预接线：spawn_rules.json 未加新名条目前不会真的刷出，部位表拼装路径
+        /// （依赖 mobs/models/*.json，由 W1-1/W1-2 补齐）不会被走到。
+        /// </summary>
         private static bool UsesPartTable(MobKind kind)
         {
             switch (kind)
@@ -434,6 +450,19 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Chicken:
                 case MobKind.Zombie:
                 case MobKind.Villager:
+                // m11 P0：12 新生物（9 被动 + 骷髅/蜘蛛/苦力怕）
+                case MobKind.Sheep:
+                case MobKind.Rabbit:
+                case MobKind.Fox:
+                case MobKind.Deer:
+                case MobKind.Panda:
+                case MobKind.Penguin:
+                case MobKind.Goat:
+                case MobKind.Raccoon:
+                case MobKind.Hamster:
+                case MobKind.Skeleton:
+                case MobKind.Spider:
+                case MobKind.Creeper:
                     return true;
                 default:
                     return false;
@@ -443,6 +472,8 @@ namespace MyWorld.Unity.Combat
         /// <summary>
         /// Phase D MobKind → Mob.Create 用的 int mobTypeId。
         /// 旧 mobTypeId 1-5 由 SetBlock 反向分支处理。
+        /// m11 P0：12 新 kind 的 typeId 直接取枚举数值（15-26）——与 Core 测试实体
+        /// MobTypeId=(int)kind 同款约定；Mob.Create 的新分支由 W1 代理随 spawn 条目补齐。
         /// </summary>
         private static int MobKindToTypeId(MobKind kind)
         {
@@ -453,6 +484,19 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Chicken: return 8;
                 case MobKind.Zombie: return 9;
                 case MobKind.Villager: return 10;
+                // m11 P0：新 kind typeId = 枚举数值（15-26）
+                case MobKind.Sheep: return (int)MobKind.Sheep;
+                case MobKind.Rabbit: return (int)MobKind.Rabbit;
+                case MobKind.Fox: return (int)MobKind.Fox;
+                case MobKind.Deer: return (int)MobKind.Deer;
+                case MobKind.Panda: return (int)MobKind.Panda;
+                case MobKind.Penguin: return (int)MobKind.Penguin;
+                case MobKind.Goat: return (int)MobKind.Goat;
+                case MobKind.Raccoon: return (int)MobKind.Raccoon;
+                case MobKind.Hamster: return (int)MobKind.Hamster;
+                case MobKind.Skeleton: return (int)MobKind.Skeleton;
+                case MobKind.Spider: return (int)MobKind.Spider;
+                case MobKind.Creeper: return (int)MobKind.Creeper;
                 default: return 1;
             }
         }

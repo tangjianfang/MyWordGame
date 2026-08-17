@@ -122,9 +122,24 @@ namespace MyWorld.Core.Entities
                 case "Chicken": return MobKind.Chicken;
                 case "Zombie": return MobKind.Zombie;
                 case "Villager": return MobKind.Villager;
+
+                // m11 P0：12 新生物名字预接线。spawn_rules.json 尚未加这些名字的条目，
+                // 所以解析就绪后不会真的刷出；等 W1 代理补条目 + 模型 JSON 后自然生效
+                case "Sheep": return MobKind.Sheep;
+                case "Rabbit": return MobKind.Rabbit;
+                case "Fox": return MobKind.Fox;
+                case "Deer": return MobKind.Deer;
+                case "Panda": return MobKind.Panda;
+                case "Penguin": return MobKind.Penguin;
+                case "Goat": return MobKind.Goat;
+                case "Raccoon": return MobKind.Raccoon;
+                case "Hamster": return MobKind.Hamster;
+                case "Skeleton": return MobKind.Skeleton;
+                case "Spider": return MobKind.Spider;
+                case "Creeper": return MobKind.Creeper;
                 default:
                     throw new System.ArgumentException(
-                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Villager）");
+                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Villager/Sheep/Rabbit/Fox/Deer/Panda/Penguin/Goat/Raccoon/Hamster/Skeleton/Spider/Creeper）");
             }
         }
     }

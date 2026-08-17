@@ -21,6 +21,11 @@ namespace MyWorld.Core.Entities
     /// 速度 <see cref="FleeSpeed"/>=4.0（追得上但不轻松）——「打一下→追→再打」的节奏。
     /// 既有 mobTypeId 1-5（Passive/Hostile/Neutral 分类）行为同步此语义。
     /// </para>
+    /// <para>
+    /// m11 P0：12 新生物只做枚举与分派预接线——9 被动 kind（Sheep…Hamster）并入
+    /// 猪组（wander + 受击逃 3s），骷髅/蜘蛛/苦力怕暂走 Zombie 组（夜里追白天不追）；
+    /// 专属 AI 由 W1 代理替换。spawn_rules.json 未加这 12 个名字的条目前不会真的刷出。
+    /// </para>
     /// </summary>
     public static class MobAI
     {
@@ -106,10 +111,27 @@ namespace MyWorld.Core.Entities
                 case MobKind.Pig:
                 case MobKind.Cow:
                 case MobKind.Chicken:
+                // m11 P0：9 新被动 kind 预接线进猪组（wander + 受击逃，专属节奏待 W1-2；
+                // spawn_rules.json 未加条目前不会真的刷出，安全）
+                case MobKind.Sheep:
+                case MobKind.Rabbit:
+                case MobKind.Fox:
+                case MobKind.Deer:
+                case MobKind.Panda:
+                case MobKind.Penguin:
+                case MobKind.Goat:
+                case MobKind.Raccoon:
+                case MobKind.Hamster:
                     // 友好动物：wander + 受击逃跑（m9 A2 起靠近不再惊跑），不追玩家
                     TickPassive(mob, dt);
                     break;
                 case MobKind.Zombie:
+                // m11 P0：骷髅/蜘蛛/苦力怕暂等价僵尸（夜里追白天 wander），专属 AI 由 W1-1 替换。
+                // 注意 MobKind.Creeper ≠ 旧 mobTypeId=5（Mob.IsCreeper 判 MobTypeId），
+                // 新 kind 不走 TickCreeper 引信分支——本组只接 Zombie 的昼夜语义
+                case MobKind.Skeleton:
+                case MobKind.Spider:
+                case MobKind.Creeper:
                     // m7 A2：白天（isNight=false）不追——与友好动物一样走 wander（TickPassive），
                     // 威胁只在夜里成立。isNight 由宿主传入（MobManager.IsNightPhase 单一真源），
                     // 不在此读第二套时钟。chase/attack 半径由 mob.ChaseRadius / mob.AttackRange 控制。
@@ -177,10 +199,21 @@ namespace MyWorld.Core.Entities
                 case MobKind.Pig:
                 case MobKind.Cow:
                 case MobKind.Chicken:
+                // m11 P0：9 新被动 kind 同进逃跑组（与 Tick 的猪组行为分派保持同构）
+                case MobKind.Sheep:
+                case MobKind.Rabbit:
+                case MobKind.Fox:
+                case MobKind.Deer:
+                case MobKind.Panda:
+                case MobKind.Penguin:
+                case MobKind.Goat:
+                case MobKind.Raccoon:
+                case MobKind.Hamster:
                     mob.State = MobState.FleeingFromAttacker;
                     mob.FleeUntil = FleeDuration;
                     break;
-                // Hostile / Zombie / Villager / Neutral：不逃，保持既有行为
+                // Hostile / Zombie / Skeleton / Spider / Creeper / Villager / Neutral：
+                // 敌对受击不逃，保持既有行为（m11 P0 三新敌对与 Zombie 同语义）
             }
             return false;
         }
