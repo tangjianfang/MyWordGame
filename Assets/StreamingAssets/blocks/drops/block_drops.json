@@ -78,7 +78,8 @@
     "blockId": "machine_essence_ore",
     "blockNumericId": 1012,
     "drops": [
-      { "itemId": "machine_essence", "countMin": 1, "countMax": 1 }
+      { "itemId": "machine_essence", "countMin": 1, "countMax": 1 },
+      { "itemId": "machine_essence_ore", "countMin": 1, "countMax": 1, "chance": 0.15 }
     ]
   },
   {

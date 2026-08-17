@@ -10,7 +10,7 @@ MyWordGame 是一个自研体素沙盒游戏（Unity 6 + 纯 C# Core 层），�
 全部在**仓库根目录**执行，**不需要安装 Unity**：
 
 ```bash
-dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 dotnet 573 / EditMode 996，双链同源只增不减）
+dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 dotnet 933 / EditMode 1625，双链同源只增不减）
 dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTests"   # 单个测试类
 dotnet build tools/dotnet/MyWorld.Tools.sln              # 编译三个工程
 
@@ -164,7 +164,9 @@ StreamingAssets 下还有其余 JSON 数据表，模式与方块一致（`_forma
 | `mobs/spawn_rules.json` | 各生物在哪些 biome/光照生成 | `MobSpawnRulesLoader` → `MobManager` / `VillagerManager` | 生成一律走 `MobSpawnRules.PickKind`，**不要在 Unity 侧写 `UnityEngine.Random`** |
 | `mobs/drop_tables.json` | 生物死亡掉落（`countMin`/`countMax` 区间 + `chance` 概率） | `MobDropTable.Load` → `MobAI.DropTable` | 掉落走 `MobDropTable.RollAll`（每条 entry 独立掷骰，整数哈希，确定性） |
 | `blocks/drops/block_drops.json` | 挖方块掉落 | `BlockDropsLoader` → `BlockInteraction` | 同样确定性哈希掷 count |
-| `quests/chapter1.json` | 引导任务链（首章 8 步：挖→合→烧→活过夜，链式解锁） | `QuestChainLoader` → Core `QuestSystem` | 事件由 Unity 侧 `QuestEventBus` 转发（游戏逻辑不感知任务系统）；CraftItem/SmeltItem 按**任务激活以来累计**、ObtainItem 看**背包现存量**；进度进 `level.dat`，旧档无字段 = 全新开始 |
+| `quests/chapter1.json`、`quests/chapter2.json` | 引导任务链双章（首章 挖→合→烧→活过夜；二章 床→农→羊→铁甲→附魔→弓骷髅→退苦力怕，链式解锁） | `QuestChainLoader` → Core `QuestCampaign`/`QuestSystem` | 事件由 Unity 侧 `QuestEventBus` 转发（游戏逻辑不感知任务系统）；CraftItem/SmeltItem 按**任务激活以来累计**、ObtainItem 看**背包现存量**；进度进 `level.dat`，旧档无字段 = 全新开始 |
+| `mobs/models/*.json` | 生物部位造型表（m11 I1 外置；脚底原点/面朝 +Z 约定不变） | `MobModelLibrary` → `MobModels` 门面 | **加生物 = 1 份 JSON + spawn_rules 一行，不动 C#**；`MobKind` 数值 1-27 已固定（存档按值序列化），新 kind 从 28 起
+| `vegetation/trees.json`、`vegetation/flowers.json` | 植被特征表（m11 I2 外置：8 树种/12 花草，树形参数+群系绑定） | `VegetationTable` → `TreeFeature`/`FlowerFeature` | 树种哈希通道互相独立（世界坐标 + species 序号派生），oak 与旧常量逐格一致有守卫 |
 
 **改这些 JSON 时两条铁律**：掉落/生成数量一律用整数哈希掷骰（参考 `BlockDrops.RollCount`），不持有
 随机数对象；itemId/biome 名等跨表引用改完必须跑 `dotnet test`，集成测试会抓住悬空引用。
@@ -250,6 +252,22 @@ Newtonsoft Json 包是必需的，缺了 Core 编译失败。
   保持 0，**依赖 timeScale 的系统别用 `unscaledDeltaTime`**（退出停留窗用 `unscaledTime` 是例外）
 - 三滑条设置面板是公共组件 `UI/SettingsPanelUi`，帮助菜单（H）与暂停菜单共用同一实例——
   调灵敏度/音量/FOV 别再建第二套
+
+**完整游戏与并行开发约定（milestone-11 起）**：
+
+- 内容量产走**数据驱动注册表**（mobs/models、vegetation、blocks/items/recipes/drops）——加生物/树种/花草/家具
+  基本是 JSON + 贴图，C# 只在开新系统时动；三个注册表外置（I1 生物造型 / I2 植被 / I3 存档字段）是并行开发的前提
+- 生物编号 `MobKind` 1-27 已被占用（5 旧 + 9 被动 + 3 敌对 + 村民 + Boss=27），新 kind 从 28 起；
+  敌对 AI 加 `MobAI` 分支、远程弹道走 `ProjectileManager`（玩家箭 owner=0 走 `MobAI.TakeHit` 唯一入口）
+- **放置路由是通用的**：物品 JSON 带 `blockId` 字段即可放置（床/门自动双格原子放置）；死亡**天然不掉落**
+  （m7 设计，和平模式 `PeaceMode` 只是钉死该契约）
+- 附魔存 `EnchantStore`（独立于 `ItemStack.Metadata`——16 位全归耐久，a1fb425 教训）；附魔书编码占自身
+  Metadata 低 8 位；掉落可带 `chance`（BlockDrops 千分比整数哈希掷骰）
+- Boss（机元守卫）只召唤不自然刷：2×2 机元矿石图腾右键触发；图腾已用进 `LevelData.UsedBossTotems`
+- 多子代理并行开发的纪律：代理**不 commit**（主会话评审后按域顺序提交）、热点文件按任务卡独占、
+  共享工作区并发写有瞬断风险（完成后必须复核文件存在性）；EditMode 链不编译 `#if UNITY_EDITOR` 外的
+  Unity 侧文件，dotnet 绿≠Unity 编译过——集成点必跑 EditMode 批处理
+- UI 验证走 `--ui-shot`；美术走 art 管线（238 项 ASSETS 注册 + `--tree` 覆盖率 + `--variants` 程序换色）
 
 **战斗约定（milestone-9 起）**：
 

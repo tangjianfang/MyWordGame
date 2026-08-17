@@ -1,0 +1,8 @@
+{
+  "id": "machine_essence_ore",
+  "numericId": 1606,
+  "name": "机元矿石",
+  "texture": "machine-essence-ore",
+  "blockId": "machine_essence_ore",
+  "maxStack": 64
+}

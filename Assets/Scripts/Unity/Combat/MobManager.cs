@@ -459,6 +459,15 @@ namespace MyWorld.Unity.Combat
                 var picked = _rules.PickKind(biome, light, candidates, seed);
                 if (!picked.HasValue) return;
                 kind = picked.Value;
+                // m11 集成点④：村庄半径内村民偏向——首次没挑中村民就重掷一次且
+                // 只认 Villager（等价权重×3 的简化实现，白天村庄附近村民成群）
+                if (!isNight && kind != MobKind.Villager
+                    && _generator != null && _generator.IsInVillageRadius(wx, wz))
+                {
+                    var retry = _rules.PickKind(biome, light,
+                        new[] { MobKind.Villager }, seed ^ 0x5EED);
+                    if (retry.HasValue) kind = retry.Value;
+                }
                 type = MobKindToTypeId(kind);
             }
             else
