@@ -1,0 +1,82 @@
+[
+  {
+    "id": "oak",
+    "logBlock": "log",
+    "leavesBlock": "leaves",
+    "trunkMin": 5,
+    "trunkMax": 7,
+    "leafLayers": 3,
+    "leafRadius": 2,
+    "biomes": ["Plains", "Forest"]
+  },
+  {
+    "id": "birch",
+    "logBlock": "birch_log",
+    "leavesBlock": "birch_leaves",
+    "trunkMin": 6,
+    "trunkMax": 8,
+    "leafLayers": 3,
+    "leafRadius": 2,
+    "biomes": ["Forest"]
+  },
+  {
+    "id": "pine",
+    "logBlock": "pine_log",
+    "leavesBlock": "pine_leaves",
+    "trunkMin": 7,
+    "trunkMax": 9,
+    "leafLayers": 4,
+    "leafRadius": 1,
+    "biomes": ["Snow", "Mountains"]
+  },
+  {
+    "id": "cedar",
+    "logBlock": "cedar_log",
+    "leavesBlock": "cedar_leaves",
+    "trunkMin": 6,
+    "trunkMax": 8,
+    "leafLayers": 2,
+    "leafRadius": 2,
+    "biomes": ["Snow"]
+  },
+  {
+    "id": "jungle",
+    "logBlock": "jungle_log",
+    "leavesBlock": "jungle_leaves",
+    "trunkMin": 9,
+    "trunkMax": 12,
+    "leafLayers": 3,
+    "leafRadius": 2,
+    "biomes": []
+  },
+  {
+    "id": "bush",
+    "logBlock": "log",
+    "leavesBlock": "bush_leaves",
+    "trunkMin": 1,
+    "trunkMax": 2,
+    "leafLayers": 1,
+    "leafRadius": 1,
+    "biomes": ["Forest"]
+  },
+  {
+    "id": "sequoia",
+    "logBlock": "sequoia_log",
+    "leavesBlock": "sequoia_leaves",
+    "trunkMin": 8,
+    "trunkMax": 11,
+    "leafLayers": 4,
+    "leafRadius": 2,
+    "biomes": ["Mountains"]
+  },
+  {
+    "id": "cherry",
+    "logBlock": "cherry_log",
+    "leavesBlock": "cherry_leaves",
+    "trunkMin": 4,
+    "trunkMax": 5,
+    "leafLayers": 3,
+    "leafRadius": 2,
+    "biomes": ["Plains"]
+  }
+]

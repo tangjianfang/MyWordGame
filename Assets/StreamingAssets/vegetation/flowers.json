@@ -1,0 +1,14 @@
+[
+  { "id": "poppy",         "block": "flower_poppy",     "biomes": ["Plains", "Forest"], "densityPerChunk": 4 },
+  { "id": "dandelion",     "block": "flower_dandelion", "biomes": ["Plains"],           "densityPerChunk": 6 },
+  { "id": "orchid",        "block": "flower_orchid",    "biomes": ["Forest"],           "densityPerChunk": 2 },
+  { "id": "cornflower",    "block": "flower_cornflower","biomes": ["Plains", "Forest"], "densityPerChunk": 3 },
+  { "id": "rose",          "block": "flower_rose",      "biomes": ["Forest"],           "densityPerChunk": 2 },
+  { "id": "sunflower",     "block": "flower_sunflower", "biomes": ["Plains"],           "densityPerChunk": 3 },
+  { "id": "lilac",         "block": "flower_lilac",     "biomes": ["Forest"],           "densityPerChunk": 3 },
+  { "id": "daisy",         "block": "flower_daisy",     "biomes": ["Plains", "Forest"], "densityPerChunk": 5 },
+  { "id": "tall_grass",    "block": "tall_grass",       "biomes": ["Plains", "Forest"], "densityPerChunk": 8 },
+  { "id": "fern",          "block": "fern",             "biomes": ["Forest"],           "densityPerChunk": 6 },
+  { "id": "mushroom_red",  "block": "mushroom_red",     "biomes": ["Forest"],           "densityPerChunk": 2 },
+  { "id": "mushroom_brown","block": "mushroom_brown",   "biomes": ["Forest"],           "densityPerChunk": 3 }
+]
