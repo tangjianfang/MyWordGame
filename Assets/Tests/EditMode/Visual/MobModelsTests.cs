@@ -1,8 +1,11 @@
 #if UNITY_EDITOR
 // m8 A1：MobModels 五生物部位表的纯数据断言（不建 GameObject，A2 才拼装）。
+// m11 I1 迁移：五生物真值外置 Assets/StreamingAssets/mobs/models/*.json，
+// MobModels.Build 退为门面委托 MobModelLibrary——本套断言全部经 Build 走 JSON 加载验证
+// （旧 C# 常量表已删，断言本身一条不减，改守 JSON 真值；加载层另有 MobModelLibraryTests）。
 // 坐标约定：脚底中心为原点、面朝 +Z，整体高 ≤1.9（spec §1）。
 //
-// 断言集（brief Step 1）：
+// 断言集（brief Step 1，m11 起新增 10/11 两条守卫）：
 //   1) 部位数：五生物按 spec §1 表逐部位求和——猪 7（body+head+snout+4 腿）、
 //      牛 8（+双角）、鸡 6（+嘴+冠）、僵尸 6、村民 5；且 ≥5（spec §3）。
 //      注：计划文案写「猪 8/牛 9/鸡 7」，但 spec 非目标明确「尾巴/翅膀/耳朵不做」，
@@ -18,7 +21,9 @@
 //   7) 旧三类（Passive/Hostile/Neutral）保底 body+head 两部位不倒退
 //   8) 体型序：鸡 ≈0.8 且 < 猪 < 牛（评审 I-1，鸡「最小」辨识点守卫）
 //   9) 非 body/head 的 9 处附属部位色逐个比对 + Hex 非法字面量报错返品红（评审 I-2）
-// UNITY_EDITOR 包裹确保 dotnet 链不参与（dotnet 基线 473 不变）。
+//  10) m11 I1 守卫：五生物 Build 与 MobModelLibrary 加载逐部位一致（门面与 JSON 真值不分叉）
+//  11) m11 I1 守卫：腿部位数符合 spec 步态（猪/牛 4 腿、鸡/僵尸 2 腿、村民长袍 0 腿）
+// UNITY_EDITOR 包裹确保 dotnet 链不参与（依赖 MyWorld.Unity 程序集与 StreamingAssets）。
 using System.Collections.Generic;
 using MyWorld.Core.Entities;
 using MyWorld.Unity.Rendering;
@@ -293,13 +298,65 @@ namespace MyWorld.Core.Tests.Visual
         [Test]
         public void Hex_IllegalLiteral_LogsErrorAndReturnsMagenta()
         {
-            // 评审 I-2：色值字面量写错不能静默透明（部位隐形看不见）——必须报错并返品红立刻暴露
-            var hex = typeof(MobModels).GetMethod("Hex",
+            // 评审 I-2：色值字面量写错不能静默透明（部位隐形看不见）——必须报错并返品红立刻暴露。
+            // m11 I1：Hex 检查随 JSON 解析迁到 MobModelLibrary（五生物色值 + 旧三类保底色共用一条路径）
+            var hex = typeof(MobModelLibrary).GetMethod("Hex",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-            Assert.That(hex, Is.Not.Null, "MobModels 应有私有的 Hex 封装");
-            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("MobModels\\.Hex"));
+            Assert.That(hex, Is.Not.Null, "MobModelLibrary 应有私有的 Hex 封装");
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("MobModelLibrary\\.Hex"));
             var color = (Color)hex.Invoke(null, new object[] { "#ZZZZZZ" });
             Assert.That(color, Is.EqualTo(Color.magenta), "非法色值应返品红（magenta）暴露问题");
+            // 防分叉：MobModels 不再私留第二份 Hex（两份实现迟早漂移出两条容错路径）
+            Assert.That(typeof(MobModels).GetMethod("Hex",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static),
+                Is.Null, "Hex 检查应只在 MobModelLibrary 一处（MobModels 门面不自留副本）");
+        }
+
+        [TestCase(MobKind.Pig)]
+        [TestCase(MobKind.Cow)]
+        [TestCase(MobKind.Chicken)]
+        [TestCase(MobKind.Zombie)]
+        [TestCase(MobKind.Villager)]
+        public void Build_FiveMobs_MatchesMobModelLibraryJsonSource(MobKind kind)
+        {
+            // m11 I1：真值唯一源是 mobs/models/*.json——Build（门面）与 Library（加载器）
+            // 逐部位相等，防止门面里私留第二份表把「改 JSON 生效」变成空话
+            var viaFacade = MobModels.Build(kind);
+            var viaLibrary = MobModelLibrary.Load(kind);
+            Assert.That(viaFacade.Length, Is.EqualTo(viaLibrary.Length),
+                kind + " 门面与 Library 部位数应一致");
+            for (int i = 0; i < viaLibrary.Length; i++)
+            {
+                Assert.That(viaFacade[i].Name, Is.EqualTo(viaLibrary[i].Name),
+                    kind + " 部位 " + i + " 名应与 JSON 一致");
+                Assert.That(viaFacade[i].Size, Is.EqualTo(viaLibrary[i].Size),
+                    kind + " 部位 " + i + " 尺寸应与 JSON 一致");
+                Assert.That(viaFacade[i].LocalPosition, Is.EqualTo(viaLibrary[i].LocalPosition),
+                    kind + " 部位 " + i + " 位置应与 JSON 一致");
+                Assert.That(viaFacade[i].Color, Is.EqualTo(viaLibrary[i].Color),
+                    kind + " 部位 " + i + " 色应与 JSON 一致");
+                Assert.That(viaFacade[i].IsLeg, Is.EqualTo(viaLibrary[i].IsLeg),
+                    kind + " 部位 " + i + " 腿标记应与 JSON 一致");
+                Assert.That(viaFacade[i].LegPhase, Is.EqualTo(viaLibrary[i].LegPhase),
+                    kind + " 部位 " + i + " 相位应与 JSON 一致");
+            }
+        }
+
+        [TestCase(MobKind.Pig, 4)]      // 四腿对角步态
+        [TestCase(MobKind.Cow, 4)]      // 四腿对角步态
+        [TestCase(MobKind.Chicken, 2)]  // 双腿交替步态
+        [TestCase(MobKind.Zombie, 2)]   // 双腿交替步态（双臂 IsLeg=false，不参与摆动）
+        [TestCase(MobKind.Villager, 0)] // 长袍到脚，无独立腿
+        public void Build_FiveMobs_LegPartCountMatchesSpecGait(MobKind kind, int expectedLegs)
+        {
+            // m11 I1 守卫：JSON 表把臂误标 isLeg、或腿多写/漏写一条，步态配对全乱——按 spec 步态数腿
+            int legs = 0;
+            foreach (var part in MobModels.Build(kind))
+            {
+                if (part.IsLeg) legs++;
+            }
+            Assert.That(legs, Is.EqualTo(expectedLegs),
+                kind + " 腿部位数应为 " + expectedLegs + "（实际 " + legs + "，检查 JSON 的 isLeg 字段）");
         }
 
         private static float HeightOf(MobKind kind)

@@ -1,0 +1,11 @@
+{
+  "kind": "Zombie",
+  "parts": [
+    { "name": "body", "size": [0.5, 0.75, 0.3], "position": [0, 1.125, 0], "color": "#5A8A4A", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.4, 0.4, 0.4], "position": [0, 1.7, 0], "color": "#6FA05C", "isLeg": false, "legPhase": 0 },
+    { "name": "armL", "size": [0.2, 0.2, 0.7], "position": [0.13, 1.35, 0.5], "color": "#6FA05C", "isLeg": false, "legPhase": 0 },
+    { "name": "armR", "size": [0.2, 0.2, 0.7], "position": [-0.13, 1.35, 0.5], "color": "#6FA05C", "isLeg": false, "legPhase": 0 },
+    { "name": "legL", "size": [0.2, 0.75, 0.2], "position": [0.13, 0.375, 0], "color": "#5A8A4A", "isLeg": true, "legPhase": 0 },
+    { "name": "legR", "size": [0.2, 0.75, 0.2], "position": [-0.13, 0.375, 0], "color": "#5A8A4A", "isLeg": true, "legPhase": 3.141592653589793 }
+  ]
+}

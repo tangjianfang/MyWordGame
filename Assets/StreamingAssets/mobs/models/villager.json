@@ -1,0 +1,10 @@
+{
+  "kind": "Villager",
+  "parts": [
+    { "name": "body", "size": [0.5, 1.2, 0.3], "position": [0, 0.6, 0], "color": "#7A5C3E", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.4, 0.4, 0.4], "position": [0, 1.4, 0], "color": "#E8B88A", "isLeg": false, "legPhase": 0 },
+    { "name": "armLower", "size": [0.4, 0.12, 0.12], "position": [0, 0.84, 0.18], "color": "#7A5C3E", "isLeg": false, "legPhase": 0 },
+    { "name": "armUpper", "size": [0.4, 0.12, 0.12], "position": [0, 0.98, 0.21], "color": "#7A5C3E", "isLeg": false, "legPhase": 0 },
+    { "name": "nose", "size": [0.1, 0.16, 0.12], "position": [0, 1.36, 0.26], "color": "#C8986A", "isLeg": false, "legPhase": 0 }
+  ]
+}

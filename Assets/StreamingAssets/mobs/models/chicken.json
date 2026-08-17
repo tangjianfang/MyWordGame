@@ -1,0 +1,11 @@
+{
+  "kind": "Chicken",
+  "parts": [
+    { "name": "body", "size": [0.4, 0.38, 0.45], "position": [0, 0.41, 0], "color": "#F0EDE5", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.26, 0.26, 0.26], "position": [0, 0.6, 0.16], "color": "#D94F3D", "isLeg": false, "legPhase": 0 },
+    { "name": "beak", "size": [0.14, 0.09, 0.09], "position": [0, 0.57, 0.335], "color": "#D9A03D", "isLeg": false, "legPhase": 0 },
+    { "name": "comb", "size": [0.08, 0.09, 0.18], "position": [0, 0.745, 0.16], "color": "#C03028", "isLeg": false, "legPhase": 0 },
+    { "name": "legL", "size": [0.08, 0.22, 0.08], "position": [0.08, 0.11, 0], "color": "#D9A03D", "isLeg": true, "legPhase": 0 },
+    { "name": "legR", "size": [0.08, 0.22, 0.08], "position": [-0.08, 0.11, 0], "color": "#D9A03D", "isLeg": true, "legPhase": 3.141592653589793 }
+  ]
+}
