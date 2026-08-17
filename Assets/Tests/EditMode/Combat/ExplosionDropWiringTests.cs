@@ -30,6 +30,11 @@ namespace MyWorld.Core.Tests.Combat
             _host = new GameObject("ExplosionHost");
             _contextHost = new GameObject("ContextHost");
             _context = _contextHost.AddComponent<PlayerContext>();
+            // EditMode 修复（EditMode 首跑暴露）：AddComponent 不触发 MonoBehaviour.Awake
+            // （无 [ExecuteAlways]），PlayerContext.Instance 单例在那里建立；而
+            // TickExplosionDrops 读的是 Instance——不显式调用的话掉落永远进不了
+            // ItemDrops。反射直调私有 Awake，DeathScreenUiWireTests.InvokeAwake 同款。
+            InvokeAwake(_context);
             _manager = _host.AddComponent<MobManager>();
 
             // 集成点② WorldBootstrap 同款注入（stub 表：teststone → testitem ×1）
@@ -44,8 +49,32 @@ namespace MyWorld.Core.Tests.Combat
             // 静态注入还原，防串档到其它 EditMode 测试（生产侧由 WorldBootstrap 每次启动注入）
             Explosion.BoundRegistry = null;
             Explosion.BoundDrops = null;
+            // Instance 同理要手动还原：EditMode 下销毁宿主不回调 OnDestroy，
+            // 不清的话静态单例挂着已销毁对象（fake-null）串给后续测试
+            if (_context != null) InvokeOnDestroy(_context);
             if (_host != null) Object.DestroyImmediate(_host);
             if (_contextHost != null) Object.DestroyImmediate(_contextHost);
+        }
+
+        /// <summary>EditMode 下 AddComponent 不会触发 MonoBehaviour.Awake
+        /// （PlayerContext.Instance 单例在这里建立），反射显式调用
+        /// （DeathScreenUiWireTests 同款）。</summary>
+        private static void InvokeAwake(MonoBehaviour mb)
+        {
+            var method = mb.GetType().GetMethod("Awake",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, mb.GetType().Name + " 应有私有 Awake");
+            method.Invoke(mb, null);
+        }
+
+        /// <summary>EditMode 下 DestroyImmediate 不会触发 MonoBehaviour.OnDestroy
+        /// （PlayerContext 在其中清 Instance），反射显式调用。</summary>
+        private static void InvokeOnDestroy(MonoBehaviour mb)
+        {
+            var method = mb.GetType().GetMethod("OnDestroy",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, mb.GetType().Name + " 应有私有 OnDestroy");
+            method.Invoke(mb, null);
         }
 
         private static BlockRegistry StubRegistry()

@@ -148,15 +148,20 @@ namespace MyWorld.Core.Tests.Combat
             Assert.That(MobManager.DespawnDistance, Is.EqualTo(40f),
                 "m7 A2：despawn 阈值应为 40 格");
 
-            // 夜晚 + 真实规则：候选只有 Zombie，种子扫到第一只即停（保持「恰好 1 只」，
-            // 下面的计数断言才可读；同 MobManagerSpawnTests 的 100 种子扫描模式）
+            // 夜晚 + 真实规则：种子扫到第一只即停（保持「恰好 1 只」，下面的计数断言
+            // 才可读；同 MobManagerSpawnTests 的 100 种子扫描模式）。
+            // EditMode 修复（m11 打挂）：m7 时代夜晚候选只有 Zombie，m11 W1-1 起扩为
+            // 僵尸/骷髅/蜘蛛/苦力怕四敌对（MobManager.NightCandidates + spawn_rules.json
+            // 的既定产品变更）——前置改为四敌对之一，despawn 本身与 kind 无关不受影响
             for (int seed = 1; seed <= 100 && _mgr.ActiveMobs.Count == 0; seed++)
             {
                 _mgr.TickSpawn(seed, dayNightPhase: 0.7f);
             }
             Assert.That(_mgr.ActiveMobs.Count, Is.EqualTo(1), "前置：应已刷出 1 只 mob");
             var mob = _mgr.ActiveMobs[0];
-            Assert.That(mob.Kind, Is.EqualTo(MobKind.Zombie), "前置：夜晚候选只有 Zombie");
+            Assert.That(mob.Kind, Is.EqualTo(MobKind.Zombie).Or.EqualTo(MobKind.Skeleton)
+                .Or.EqualTo(MobKind.Spider).Or.EqualTo(MobKind.Creeper),
+                "前置：夜晚候选是四敌对之一（m11 W1-1 起不再 Zombie 独占）");
 
             // 控制组：玩家挪到距 mob 10 格（<40）→ 不 despawn
             // （按实际出生点相对定位，与种子换算出的绝对坐标解耦）

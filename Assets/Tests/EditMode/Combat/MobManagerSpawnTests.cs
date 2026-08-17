@@ -232,18 +232,21 @@ namespace MyWorld.Core.Tests.Combat
             Assert.That(day, Does.Contain(MobKind.Villager), "Villager 应保留在白天候选组");
             Assert.That(night, Does.Contain(MobKind.Zombie), "Zombie 应保留在夜晚候选组");
 
-            // 9 被动 kind 进白天组、不进夜晚组
+            // 9 被动 kind 进白天组、不进夜晚组。
+            // EditMode 修复（首跑暴露）：候选表是 MobKind[]，Contains 按元素类型相等比较——
+            // 原来的 kind.ToString() 传的是 string，与枚举元素永不相等，列表明明含
+            // Sheep 断言也挂。改成直接传枚举值，与上方 Pig/Cow/Chicken 断言同型。
             foreach (var kind in M11PassiveKinds)
             {
-                Assert.That(day, Does.Contain(kind.ToString()), $"{kind} 应在白天候选组（被动生物）");
-                Assert.That(night, Does.Not.Contain(kind.ToString()), $"{kind} 不应在夜晚候选组");
+                Assert.That(day, Does.Contain(kind), $"{kind} 应在白天候选组（被动生物）");
+                Assert.That(night, Does.Not.Contain(kind), $"{kind} 不应在夜晚候选组");
             }
 
-            // 骷髅/蜘蛛/苦力怕进夜晚组、不进白天组
+            // 骷髅/蜘蛛/苦力怕进夜晚组、不进白天组（同上：传枚举值不传字符串）
             foreach (var kind in M11HostileKinds)
             {
-                Assert.That(night, Does.Contain(kind.ToString()), $"{kind} 应在夜晚候选组（敌对生物）");
-                Assert.That(day, Does.Not.Contain(kind.ToString()), $"{kind} 不应在白天候选组");
+                Assert.That(night, Does.Contain(kind), $"{kind} 应在夜晚候选组（敌对生物）");
+                Assert.That(day, Does.Not.Contain(kind), $"{kind} 不应在白天候选组");
             }
         }
 

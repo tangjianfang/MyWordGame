@@ -35,6 +35,34 @@ namespace MyWorld.Core.Tests.Combat
             _manager = _host.AddComponent<ProjectileManager>();
             _manager.Bind(new World(), _player.transform,
                 _contextHost.GetComponent<PlayerContext>(), _parent.transform);
+
+            // EditMode 修复（EditMode 首跑暴露）：AddComponent 不触发 MonoBehaviour.
+            // OnEnable（订阅 MobAI.OnProjectileFired 的唯一入口在那里，组件无
+            // [ExecuteAlways]），不显式调用的话箭永远进不了 tick 列表——六测全挂
+            // 同因。反射直调私有 OnEnable，RespawnSafetyTests.InvokeOnEnable 同款。
+            InvokeOnEnable(_manager);
+        }
+
+        /// <summary>EditMode 下 AddComponent 不会触发 MonoBehaviour.OnEnable
+        /// （ProjectileManager 订阅 MobAI.OnProjectileFired 的入口在那里），
+        /// 反射显式调用（RespawnSafetyTests 同款）。</summary>
+        private static void InvokeOnEnable(MonoBehaviour mb)
+        {
+            var method = mb.GetType().GetMethod("OnEnable",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, mb.GetType().Name + " 应有私有 OnEnable");
+            method.Invoke(mb, null);
+        }
+
+        /// <summary>EditMode 下 DestroyImmediate 不触发 MonoBehaviour.OnDisable
+        /// （无 [ExecuteAlways]），解绑 MobAI.OnProjectileFired 也要反射显式调用，
+        /// 否则静态事件订阅泄漏给后续测试。</summary>
+        private static void InvokeOnDisable(MonoBehaviour mb)
+        {
+            var method = mb.GetType().GetMethod("OnDisable",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, mb.GetType().Name + " 应有私有 OnDisable");
+            method.Invoke(mb, null);
         }
 
         /// <summary>
@@ -52,7 +80,10 @@ namespace MyWorld.Core.Tests.Combat
         [TearDown]
         public void TearDown()
         {
-            // 清空静态事件订阅，防串档到其它测试（OnDisable 里解绑，销毁宿主即触发）
+            // 清空静态事件订阅，防串档到其它测试：EditMode 下销毁宿主不回调
+            // OnDisable（无 [ExecuteAlways]），解绑须反射显式调用（OnDisable 顺带
+            // ClearAll 销毁箭视觉，与下面的全场景清扫双保险）
+            if (_manager != null) InvokeOnDisable(_manager);
             if (_host != null) Object.DestroyImmediate(_host);
             if (_player != null) Object.DestroyImmediate(_player);
             if (_contextHost != null) Object.DestroyImmediate(_contextHost);
