@@ -204,6 +204,45 @@ namespace MyWorld.Core.Tests.Player
             Assert.That(_ctx.HungerSystem.Hunger, Is.EqualTo(6), "Hunger 2→6");
             Assert.That(_ctx.HungerSystem.Saturation, Is.EqualTo(2f).Within(0.0001f), "Saturation 0→2");
         }
+
+        [Test]
+        public void UseAt_DeathScreenVisible_RightClickYieldsToRespawn()
+        {
+            // m10 C2 fix1（I1）：死亡画面激活期间右键已等效复活按钮——
+            // 同一次右键绝不能再顺手吃掉手持食物 / 放方块（双触发）
+            _ctx.Inventory.SetSlot(0, new ItemStack(100, 3)); // 3 个 apple（healAmount=4）
+            _ctx.Inventory.SelectedHotbarIndex = 0;
+            _ctx.HungerSystem.Hunger = 5;
+            _ctx.HungerSystem.Saturation = 0f;
+
+            var deathGo = new GameObject("DeathUI");
+            try
+            {
+                var ui = deathGo.AddComponent<MyWorld.Unity.UI.DeathScreenUi>();
+                InvokeAwake(ui);   // 挂到 ctx.DeathScreen
+                ui.OnPlayerDied(); // IsVisible = true
+
+                var hit = CastDownAtTarget();
+                Assert.That(hit.Hit, Is.True, "前置条件：射线应命中石头");
+
+                _block.UseAt(hit);
+
+                Assert.That(_ctx.Inventory.GetSlot(0).Count, Is.EqualTo(3),
+                    "死亡画面右键只复活：apple 一个都不吃");
+                Assert.That(_ctx.HungerSystem.Hunger, Is.EqualTo(5), "饥饿不动");
+                Assert.That(_ctx.HungerSystem.Saturation, Is.EqualTo(0f).Within(0.0001f), "饱和不动");
+                Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Air),
+                    "也不放方块——本次右键整个让位给复活");
+            }
+            finally
+            {
+                Object.DestroyImmediate(deathGo); // ctx.DeathScreen 变 fake-null，不污染后续用例
+            }
+
+            // 对照：死亡画面不在（DeathScreen 引用失效视同无）右键恢复吃
+            _block.UseAt(CastDownAtTarget());
+            Assert.That(_ctx.Inventory.GetSlot(0).Count, Is.EqualTo(2), "对照：无死亡画面时右键照常吃 1 个");
+        }
 #endif
     }
 }

@@ -71,6 +71,13 @@ namespace MyWorld.Core.Items
         /// <summary>剩余燃料燃烧时间（秒）。Tick 每秒扣 1，归零后停止烧炼（只读，改值走 <see cref="Restore"/>）。</summary>
         public float FuelRemaining => _fuelRemaining;
 
+        /// <summary>当前输入的烧炼时长（秒）：粗矿 <see cref="RawOreSmeltSeconds"/>，
+        /// 其余（圆石/透传）按构造时长，无输入也按构造时长（UI 空闲时不除零不乱跳）。
+        /// m10 C2 fix1（I2）：熔炉 UI 进度条以此为分母——旧实现拿 Progress 秒数直接当
+        /// 比例，10s 粗矿配方下 1s 就假满格后空等 9s。</summary>
+        public float CurrentSmeltDuration
+            => TryGetRawOreIngot(Input?.ItemId ?? 0, out _) ? RawOreSmeltSeconds : _smeltTimeSeconds;
+
         /// <summary>存档恢复专用：直接覆写三个槽位、烧炼进度与剩余燃料（运行时不要调用）。</summary>
         public void Restore(ItemStack? input, ItemStack? fuel, ItemStack? output, float progress, float fuelRemaining)
         {
@@ -98,28 +105,25 @@ namespace MyWorld.Core.Items
             _fuelRemaining -= dt;
             Progress += dt;
 
-            // 烧炼时长按输入物品分流：粗矿 10s（m10 C2），其余（圆石/透传）按构造时长
-            float duration = _smeltTimeSeconds;
-            int outputId = Input.Value.ItemId;
-            if (Input.Value.ItemId == SmeltInputItemId)
+            // 时长与产物都按输入物品分流（CurrentSmeltDuration 同一判定，UI 与 Tick 不漂移）：
+            // 粗金 → 金锭 / 粗铁 → 铁锭（m10 C2，10s）；圆石 → 铁锭（m6 C2 修正 m3 占位
+            // 映射 1→2，构造时长）；其它物品照旧原样「烧成自己」（旧 passthrough 行为不变）
+            if (Progress >= CurrentSmeltDuration)
             {
-                // 圆石 → 铁锭（真实物品 id，m6 C2 修正 m3 占位映射 1→2）
-                outputId = SmeltOutputItemId;
-            }
-            else if (TryGetRawOreIngot(Input.Value.ItemId, out int ingotId))
-            {
-                // 粗金 → 金锭 / 粗铁 → 铁锭（m10 C2 矿物链的熔炉一环）
-                outputId = ingotId;
-                duration = RawOreSmeltSeconds;
-            }
-
-            if (Progress >= duration)
-            {
-                // 命中映射用映射产物，其它物品照旧原样「烧成自己」（旧 passthrough 行为不变）
-                Output = new ItemStack(outputId, 1);
+                Output = new ItemStack(ResolveSmeltOutput(Input.Value.ItemId), 1);
                 Input = (Input.Value.Count > 1) ? new ItemStack(Input.Value.ItemId, Input.Value.Count - 1) : (ItemStack?)null;
                 Progress = 0f;
             }
+        }
+
+        /// <summary>输入→产物映射：圆石→铁锭 / 粗金→金锭 / 粗铁→铁锭，其余原样透传。</summary>
+        private int ResolveSmeltOutput(int inputItemId)
+        {
+            if (inputItemId == SmeltInputItemId)
+            {
+                return SmeltOutputItemId;
+            }
+            return TryGetRawOreIngot(inputItemId, out int ingotId) ? ingotId : inputItemId;
         }
 
         /// <summary>粗矿→锭映射（m10 C2）。返回 false = 非粗矿，走圆石/透传路径。</summary>

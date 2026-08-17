@@ -136,6 +136,38 @@ namespace MyWorld.Core.Tests.Items
         }
 
         [Test]
+        public void FindMatch_DamagedGear_DoesNotCraftUpgrade_AntiDurabilityLaundering()
+        {
+            // m10 C2 fix1（I3）：残血装备 ×2 合成出满耐久 *_plus = 无限洗耐久漏洞。
+            // 规则：带耐久编码的材料必须满耐久；未启用编码（旧档/刚合成，Metadata=0）
+            // 按满耐久放行（ItemStack 既有语义）
+            int ironPick = _items.GetById("iron_pickaxe").NumericId;
+            const int max = 250;
+
+            var damaged = new ItemStack[9];
+            damaged[0] = new ItemStack(ironPick, 1).WithMaxDurability(max);
+            damaged[8] = new ItemStack(ironPick, 1).WithMaxDurability(max).WithDurabilityUsed(max);  // 挖过一下：249/250
+            Assert.That(_recipes.FindMatch(damaged, 3, 3), Is.Null,
+                "残血镐 ×2 不该合出升级件——升级不是免费维修机");
+            Assert.That(CraftingMatrix.HasDamagedMaterial(damaged), Is.True,
+                "网格里有残血材料，UI 提示的判定源应为真");
+
+            var full = new ItemStack[9];
+            full[0] = new ItemStack(ironPick, 1).WithMaxDurability(max);
+            full[8] = new ItemStack(ironPick, 1).WithMaxDurability(max);
+            Recipe fullMatch = _recipes.FindMatch(full, 3, 3);
+            Assert.That(fullMatch?.Id, Is.EqualTo("iron_pickaxe_upgrade"), "两把满耐久镐照常升级");
+            Assert.That(CraftingMatrix.HasDamagedMaterial(full), Is.False);
+
+            // 未启用耐久编码的镐（刚合成 / 旧档）视同满耐久，不因缺编码被拒
+            var unencoded = new ItemStack[9];
+            unencoded[0] = new ItemStack(ironPick, 1);
+            unencoded[8] = new ItemStack(ironPick, 1);
+            Assert.That(_recipes.FindMatch(unencoded, 3, 3)?.Id, Is.EqualTo("iron_pickaxe_upgrade"),
+                "Metadata=0（未启用耐久）按满耐久放行——与 m10 B1 的存量兼容语义一致");
+        }
+
+        [Test]
         public void RealRecipes_SixBaseGearRecipes_CraftNewGearFromMaterials()
         {
             // (配方 id, 产物, 材料, 材料数, 柄数)：剑 1x3 竖排两材一柄 / 镐 3x2 三材两柄，

@@ -19,6 +19,16 @@ namespace MyWorld.Unity.UI
         public KeyCode ToggleKey = KeyCode.F;
         public float CurrentProgress { get; private set; }
 
+        /// <summary>当前输入的烧炼时长快照（秒）——<see cref="ProgressFillFraction"/> 的分母。
+        /// m10 C2 fix1（I2）：粗矿 10s / 圆石 1s 分流后，分母不能再用固定的构造时长，
+        /// 否则粗矿 1s 就假满格后空等 9s。</summary>
+        public float CurrentSmeltDuration { get; private set; } = 1f;
+
+        /// <summary>进度条填充比例（0..1）：Progress / 当前输入的烧炼时长。
+        /// OnGUI 画条与测试断言共用这一份计算，保证「所见即所测」。</summary>
+        public float ProgressFillFraction =>
+            CurrentSmeltDuration > 0f ? Mathf.Clamp01(CurrentProgress / CurrentSmeltDuration) : 0f;
+
         /// <summary>是否打开显示。默认关闭（fix2 起）。</summary>
         public bool IsOpen => _open;
 
@@ -54,7 +64,11 @@ namespace MyWorld.Unity.UI
 
         public void TickForTest()
         {
-            if (_furnace != null) CurrentProgress = _furnace.Progress;
+            if (_furnace != null)
+            {
+                CurrentProgress = _furnace.Progress;
+                CurrentSmeltDuration = _furnace.CurrentSmeltDuration;
+            }
         }
 
         /// <summary>玩家上下文：优先单例（运行时），EditMode 下退回同物体组件（Awake 不跑）。</summary>
@@ -124,6 +138,7 @@ namespace MyWorld.Unity.UI
         {
             if (!_open || _furnace == null) return;
             CurrentProgress = _furnace.Progress;
+            CurrentSmeltDuration = _furnace.CurrentSmeltDuration;
             var items = PlayerContext.Instance != null ? PlayerContext.Instance.Items : null;
 
             // 背景：160(左) 宽 200、高 170，三槽 + 进度条全部框在内
@@ -139,10 +154,11 @@ namespace MyWorld.Unity.UI
             ItemSlotDrawer.Draw(fuelRect, _furnace.Fuel ?? ItemStack.Empty, items, false);
             ItemSlotDrawer.Draw(outputRect, _furnace.Output ?? ItemStack.Empty, items, false);
 
-            // 烧炼进度条：输出槽下方，宽度按进度填充（Progress 达到烧炼时长即重置，clamp 防瞬时越界）
+            // 烧炼进度条：输出槽下方，宽度按进度填充——分母是**当前输入**的烧炼时长
+            // （m10 C2 fix1 I2：粗矿 10s，用固定 1s 分母会 1s 假满格后空等 9s）
             var bar = new Rect(110, 190, 84, 10);
             GUI.Box(bar, GUIContent.none);
-            float fillW = bar.width * Mathf.Clamp01(CurrentProgress);
+            float fillW = bar.width * ProgressFillFraction;
             if (fillW > 0.5f) GUI.DrawTexture(new Rect(bar.x, bar.y, fillW, bar.height), Texture2D.whiteTexture);
 
             // m6 C2：三槽点击交互（与口袋合成同款左键取/放）

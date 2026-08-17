@@ -178,6 +178,14 @@ namespace MyWorld.Unity.UI
                 Event.current.Use();
             }
 
+            // m10 C2 fix1（I3）：残血装备不能当合成材料（升级不是免费维修机）——
+            // 匹配层已拒合（输出格空着），这里给孩子一句为什么，不然只会干瞪眼
+            if (recipe == null && CraftingMatrix.HasDamagedMaterial(_craft))
+            {
+                GUI.Label(new Rect(220, 274, 400, 18),
+                    "装备耐久不满，不能合成（升级要两件完好的同款装备）", ItemSlotDrawer.WhiteStyle());
+            }
+
             // 主背包缩影
             for (int i = 0; i < 9; i++)
             {

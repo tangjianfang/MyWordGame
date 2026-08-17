@@ -140,6 +140,16 @@ namespace MyWorld.Unity.Player
         /// </summary>
         public void UseAt(VoxelRayHit hit)
         {
+            // m10 C2 fix1（I1）：死亡画面可见时右键整次让位给复活——同一次右键不能再
+            // 顺手吃掉手持食物 / 放方块（双触发）。与模态 UI 的指针门同思路，但死亡画面
+            // 不开指针门，单独看 DeathScreen.IsVisible（DestroyImmediate 后为 fake-null，
+            // 视同「没有死亡画面」，不影响正常游戏）。
+            var gateCtx = PlayerContext.Instance;
+            if (gateCtx != null && gateCtx.DeathScreen != null && gateCtx.DeathScreen.IsVisible)
+            {
+                return;
+            }
+
             if (TryEatSelectedFood())
             {
                 return; // 食物优先，不再放方块

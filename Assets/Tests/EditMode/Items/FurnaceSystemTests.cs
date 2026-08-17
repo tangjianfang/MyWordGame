@@ -114,5 +114,24 @@ namespace MyWorld.Core.Tests.Items
                 "粗铁（1024）应烧成 iron_ingot（1004）——与圆石冶炼殊途同归");
             Assert.That(f.Input.Value.Count, Is.EqualTo(1), "烧掉一个，输入槽还剩一个粗铁");
         }
+
+        // ---- m10 C2 fix1（I2）：烧炼时长跟输入走——UI 进度条的真分母 ----
+
+        [Test]
+        public void CurrentSmeltDuration_FollowsCurrentInput()
+        {
+            var f = new FurnaceSystem(coalFuelValue: 8, smeltTimeSeconds: 1f);
+            Assert.That(f.CurrentSmeltDuration, Is.EqualTo(1f),
+                "空炉（无输入）按构造时长——UI 空闲时不除零也不乱跳");
+
+            Assert.That(f.AddInput(new ItemStack(FurnaceSystem.RawGoldItemId, 1)), Is.True);
+            Assert.That(f.CurrentSmeltDuration, Is.EqualTo(FurnaceSystem.RawOreSmeltSeconds),
+                "粗金在炉：烧炼时长 10s");
+
+            var f2 = new FurnaceSystem(coalFuelValue: 8, smeltTimeSeconds: 1f);
+            Assert.That(f2.AddInput(new ItemStack(FurnaceSystem.SmeltInputItemId, 1)), Is.True);
+            Assert.That(f2.CurrentSmeltDuration, Is.EqualTo(1f),
+                "圆石照旧按构造时长（1s）——旧映射行为不动");
+        }
     }
 }

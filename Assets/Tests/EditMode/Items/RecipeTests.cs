@@ -106,5 +106,36 @@ namespace MyWorld.Core.Tests.Items
             int sum = consumed.Sum();
             Assert.That(sum, Is.EqualTo(3), "1+1+1=3 个输入被消耗");
         }
+
+        // ---- m10 C2 fix1（I3）：带耐久的材料必须满耐久才能参与合成 ----
+
+        [Test]
+        public void MaterialsWithDurability_MustBeFullToCraft()
+        {
+            var plank = _db.ById["plank"];
+            var stick = _db.ById["stick"];
+            var sword = _recipes.All.First(r => r.Id == "wooden_sword_recipe");
+
+            // 满耐久（cur=max 编码）照常匹配
+            var full = new[] {
+                new ItemStack(plank.NumericId, 1).WithMaxDurability(5),
+                new ItemStack(plank.NumericId, 1),
+                new ItemStack(stick.NumericId, 1),
+            };
+            Assert.That(CraftingMatrix.Matches(sword, full, 1), Is.True,
+                "满耐久材料（含 Metadata=0 未启用编码的普通栈）不受影响");
+
+            // 残血材料（cur<max）拒绝匹配——shaped 与 shapeless 两条路都要拦
+            var damaged = new[] {
+                new ItemStack(plank.NumericId, 1).WithMaxDurability(5).WithDurabilityUsed(5),  // 4/5
+                new ItemStack(plank.NumericId, 1),
+                new ItemStack(stick.NumericId, 1),
+            };
+            Assert.That(CraftingMatrix.Matches(sword, damaged, 1), Is.False,
+                "shaped：残血材料所在格不匹配");
+            Assert.That(CraftingMatrix.HasDamagedMaterial(damaged), Is.True,
+                "HasDamagedMaterial 是 UI「装备耐久不满不能合成」提示的判定源");
+            Assert.That(CraftingMatrix.HasDamagedMaterial(full), Is.False);
+        }
     }
 }

@@ -53,6 +53,46 @@ namespace MyWorld.Core.Tests.UI
             Assert.That(ui.IsOpen, Is.False, "SetOpen(false) 应回到关闭状态");
             Object.DestroyImmediate(go);
         }
+
+        // ---- m10 C2 fix1（I2）：进度条分母用当前输入的真实烧炼时长 ----
+
+        [Test]
+        public void ProgressFillFraction_RawOre_HalfwayAtFiveSeconds()
+        {
+            var go = new GameObject("FurnaceUI");
+            var ui = go.AddComponent<CraftingFurnaceUi>();
+            var f = new FurnaceSystem(coalFuelValue: 8, smeltTimeSeconds: 1f);
+            f.AddInput(new ItemStack(FurnaceSystem.RawGoldItemId, 1));  // 粗金 10s
+            f.AddFuel(new ItemStack(FurnaceSystem.CoalItemId, 2));
+            ui.Bind(f);
+
+            f.Tick(5f);
+            ui.TickForTest();
+
+            Assert.That(ui.CurrentSmeltDuration, Is.EqualTo(10f),
+                "UI 应取到当前输入（粗金）的 10s 烧炼时长");
+            Assert.That(ui.ProgressFillFraction, Is.EqualTo(0.5f).Within(0.01f),
+                "粗矿 10s：5s 处进度条应半满——旧实现分母写死 1s，1s 就假满格后空等 9s");
+            Object.DestroyImmediate(go);
+        }
+
+        [Test]
+        public void ProgressFillFraction_Cobblestone_KeepsOldBasis()
+        {
+            var go = new GameObject("FurnaceUI");
+            var ui = go.AddComponent<CraftingFurnaceUi>();
+            var f = new FurnaceSystem(coalFuelValue: 8, smeltTimeSeconds: 1f);
+            f.AddInput(new ItemStack(FurnaceSystem.SmeltInputItemId, 1));  // 圆石 1s
+            f.AddFuel(new ItemStack(FurnaceSystem.CoalItemId, 1));
+            ui.Bind(f);
+
+            f.Tick(0.5f);
+            ui.TickForTest();
+
+            Assert.That(ui.ProgressFillFraction, Is.EqualTo(0.5f).Within(0.01f),
+                "圆石（1s）半程处照旧半满——修复不得改变旧映射的进度观感");
+            Object.DestroyImmediate(go);
+        }
     }
 }
 #endif
