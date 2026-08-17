@@ -114,7 +114,7 @@ _KIND_BY_DIR = {
     ("audio", "ambient"): "ambient",
     ("audio", "events"): "sfx",
     ("audio", "mobs"): "mob",
-    ("video",): "video",
+    ("video", "videos"): "video",  # av W0-3 修订：视频需求统一放 art/requests/video/videos/*.md
 }
 
 
@@ -138,7 +138,7 @@ def parse_entries(root: Path) -> list[Entry]:
             continue
         if len(rel) < 2:
             continue
-        key = (rel[0],) if rel[0] == "video" else (rel[0], rel[1])
+        key = (rel[0], rel[1]) if rel[0] == "audio" else (rel[0], rel[1])
         if key not in _KIND_BY_DIR:
             continue
         kind = _KIND_BY_DIR[key]
@@ -707,21 +707,24 @@ def self_test() -> None:
             "### bgm-night\n夜\n\n## AI 提示词\n```\nQuiet piano.\n```\n\n## 参数\n- 循环: 是\n",
             encoding="utf-8",
         )
-        (root / "video").mkdir(parents=True)
-        (root / "video" / "menu-bg.md").write_text(
+        (root / "video" / "videos").mkdir(parents=True)
+        (root / "video" / "videos" / "menu-bg.md").write_text(
             "# 视频\n\n### menu-bg\n\n## AI 提示词\n```\nVoxel landscape.\n```\n\n## 参数\n- 时长: 6\n",
             encoding="utf-8",
         )
 
         entries = parse_entries(root)
-        assert [e.name for e in entries] == ["bgm-day", "bgm-night", "menu-bg"], entries
-        day = entries[0]
+        names = [e.name for e in entries]
+        # 顺序不固定（rglob 按路径字母序）——断言三种名都在，且每个条目字段正确
+        assert set(names) == {"bgm-day", "bgm-night", "menu-bg"}, names
+        by_name = {e.name: e for e in entries}
+        day = by_name["bgm-day"]
         assert day.prompt == "Gentle piano.", day.prompt
         assert day.kind == "bgm" and day.media == "audio"
         assert day.params["循环"] == "是" and day.params["响度"] == "-18"
-        night = entries[1]
+        night = by_name["bgm-night"]
         assert night.kind == "bgm" and night.params.get("循环") == "是"
-        menu = entries[2]
+        menu = by_name["menu-bg"]
         assert menu.kind == "video" and menu.media == "video" and menu.params["时长"] == "6"
 
     # ── Task 2 扩展 ──
