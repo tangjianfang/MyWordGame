@@ -117,7 +117,7 @@ if [[ -f Builds/Windows/MyWordGame.exe ]]; then
         sleep 1
     done
     kill "$UI_SHOT_PID" 2>/dev/null || true
-    for f in ui-hotbar.png ui-inventory.png ui-workbench.png ui-pause.png ui-help.png; do
+    for f in ui-title.png ui-hotbar.png ui-inventory.png ui-workbench.png ui-pause.png ui-help.png; do
         if [[ ! -f "Builds/screenshots/$f" ]]; then
             fail "UI 截图缺失: $f（看 $LOG_UI_SHOT）"
         fi

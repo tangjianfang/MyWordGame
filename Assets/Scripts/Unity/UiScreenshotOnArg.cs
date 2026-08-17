@@ -10,9 +10,10 @@ namespace MyWorld.Unity
     /// 但 <see cref="ScreenCapture.CaptureScreenshot"/> 抓完整 backbuffer，含 IMGUI。
     /// <para>
     /// standalone 跑 <c>MyWordGame.exe --ui-shot -screen-width 1280 -screen-height 720</c>：
-    /// 自动截 hotbar / 背包 / 工作台 / 暂停菜单 / 帮助菜单 五张 PNG 到 <c>Builds/screenshots/</c>，
-    /// 写 <c>ui.done</c> 哨兵文件后退出。由 <see cref="Bootstrap.WorldBootstrap"/> 在
-    /// Awake 末尾按启动参数条件挂载——无参数时零开销（启动读一次 args 即返回）。
+    /// 自动截 主菜单 / hotbar / 背包 / 工作台 / 暂停菜单 / 帮助菜单 六张 PNG 到
+    /// <c>Builds/screenshots/</c>，写 <c>ui.done</c> 哨兵文件后退出。由
+    /// <see cref="Bootstrap.WorldBootstrap"/> 在 Awake 末尾按启动参数条件挂载——
+    /// 无参数时零开销（启动读一次 args 即返回）。
     /// </para>
     /// <para>
     /// m6 终审修 M5：ui-help.png 让帮助菜单的视觉项（按键表双栏 + 进度区）也进
@@ -22,6 +23,10 @@ namespace MyWorld.Unity
     /// m8 B3：工作台之后加拍第 4 张 ui-pause.png（Esc 暂停菜单，居中三按钮面板）——
     /// 经 <see cref="UI.PauseMenuUi.SetOpen(bool)"> 与 Esc 按键同一条路径打开，
     /// 顺带把「timeScale=0 下 IMGUI 照常绘制 / 截图流程不被真暂停卡住」也验了。
+    /// </para>
+    /// <para>
+    /// av W2-12：第 0 张新增 ui-title.png（主菜单视频背景 + 开始 / 退出按钮），
+    /// 第 1 张才是原 hotbar；原 5 张顺延为 2–6，总 6 张。
     /// </para>
     /// </summary>
     public sealed class UiScreenshotOnArg : MonoBehaviour
@@ -50,15 +55,24 @@ namespace MyWorld.Unity
             _frames++;
             switch (_phase)
             {
-                case 0: // 等 60 帧稳定后截 hotbar（hotbar 常驻，无需开关）
+                case 0: // av W2-12：等 60 帧稳定后先截主菜单（mp4 背景 + 开始 / 退出按钮）
                     if (_frames >= WarmupFrames)
                     {
+                        Capture("ui-title.png");
+                        NextPhase();
+                    }
+                    break;
+
+                case 1: // 关主菜单（恢复输入锁 / 指针），截 hotbar
+                    if (_frames >= CaptureSettleFrames)
+                    {
+                        FindTitleScreenUi()?.StartGame();
                         Capture("ui-hotbar.png");
                         NextPhase();
                     }
                     break;
 
-                case 1: // 等 PNG 落盘，再开背包截图
+                case 2: // 等 PNG 落盘，再开背包截图
                     if (_frames >= CaptureSettleFrames)
                     {
                         FindInventoryUi()?.SetOpen(true);
@@ -67,7 +81,7 @@ namespace MyWorld.Unity
                     }
                     break;
 
-                case 2: // 关背包、开工作台，截图
+                case 3: // 关背包、开工作台，截图
                     if (_frames >= CaptureSettleFrames)
                     {
                         var inv = FindInventoryUi();
@@ -78,7 +92,7 @@ namespace MyWorld.Unity
                     }
                     break;
 
-                case 3: // 关工作台、开暂停菜单（m8 B3 第 4 张），截图
+                case 4: // 关工作台、开暂停菜单（m8 B3 第 5 张），截图
                     if (_frames >= CaptureSettleFrames)
                     {
                         var wb = FindWorkbenchUi();
@@ -89,7 +103,7 @@ namespace MyWorld.Unity
                     }
                     break;
 
-                case 4: // 关暂停（恢复 timeScale=1）、开帮助菜单（m6 终审修 M5），截图
+                case 5: // 关暂停（恢复 timeScale=1）、开帮助菜单（m6 终审修 M5），截图
                     if (_frames >= CaptureSettleFrames)
                     {
                         var pause = FindPauseMenuUi();
@@ -100,14 +114,14 @@ namespace MyWorld.Unity
                     }
                     break;
 
-                case 5: // 等最后一张 PNG 落盘 → 写哨兵 → 退出
+                case 6: // 等最后一张 PNG 落盘 → 写哨兵 → 退出
                     if (_frames >= CaptureSettleFrames
                         && (File.Exists(OutputPath("ui-help.png")) || _frames >= FlushTimeoutFrames))
                     {
                         File.WriteAllText(OutputPath("ui.done"), string.Empty);
-                        Debug.Log("[UiScreenshotOnArg] 五张 UI 截图完成，退出。");
+                        Debug.Log("[UiScreenshotOnArg] 六张 UI 截图完成，退出。");
                         Application.Quit();
-                        _phase = 6;
+                        _phase = 7;
                     }
                     break;
             }
@@ -130,6 +144,10 @@ namespace MyWorld.Unity
 
         private static PauseMenuUi FindPauseMenuUi() =>
             FindObjectOfType<PauseMenuUi>();
+
+        // av W2-12：主菜单（开局遮罩）——开始游戏时销毁遮罩解锁输入。
+        private static TitleScreenUi FindTitleScreenUi() =>
+            FindObjectOfType<TitleScreenUi>();
 
         private void Capture(string fileName)
         {
