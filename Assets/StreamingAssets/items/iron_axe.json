@@ -6,5 +6,6 @@
   "texture": "iron_axe",
   "attackDamage": 9,
   "isTool": true,
-  "miningLevel": 3
+  "miningLevel": 3,
+  "gearBonus": { "stat": "defense", "amount": 1 }
 }

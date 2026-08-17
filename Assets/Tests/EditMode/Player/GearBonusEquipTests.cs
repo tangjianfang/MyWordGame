@@ -212,8 +212,8 @@ namespace MyWorld.Core.Tests.Player
         [Test]
         public void 真实物品表_四系装备加成字段齐全()
         {
-            // 铁系（既有两件补字段）：防御 +1
-            foreach (string id in new[] { "iron_sword", "iron_pickaxe" })
+            // 铁系（既有三件补字段，fix1：spec §3 点名的剑/镐/斧全齐）：防御 +1
+            foreach (string id in new[] { "iron_sword", "iron_pickaxe", "iron_axe" })
             {
                 var def = _db.GetById(id);
                 Assert.That(def.GearStat, Is.EqualTo(GearStat.Defense), $"{id} 应带 defense 加成");
