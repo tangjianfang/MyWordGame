@@ -36,11 +36,15 @@ namespace MyWorld.Core.Player
         /// <summary>
         /// 水平速度朝目标速度收敛。地面上响应快、空中打折，没有输入时按摩擦衰减到零。
         /// 用“朝目标线性逼近”而不是直接赋值，起步和松手才不会是硬切换。
+        /// m10 C1：目标速度再乘 (1 + <see cref="PlayerMotorSettings.MoveSpeedBonus"/>)——
+        /// 手持夏季合金装备的移速加成（比例乘在速度上限上，疾跑倍率照旧先乘后乘无差）。
         /// </summary>
         private static Float3 StepHorizontal(PlayerState state, PlayerInput input,
             PlayerMotorSettings settings, float dt)
         {
-            float speedLimit = settings.WalkSpeed * (input.Sprint ? settings.SprintMultiplier : 1f);
+            float speedLimit = settings.WalkSpeed
+                               * (input.Sprint ? settings.SprintMultiplier : 1f)
+                               * (1f + settings.MoveSpeedBonus);
             float targetX = input.MoveX * speedLimit;
             float targetZ = input.MoveZ * speedLimit;
 

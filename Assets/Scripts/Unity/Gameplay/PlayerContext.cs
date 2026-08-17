@@ -35,6 +35,45 @@ namespace MyWorld.Unity.Gameplay
             new System.Collections.Generic.List<ItemDropEntity>();
         public MyWorld.Unity.UI.DeathScreenUi DeathScreen;
 
+        // ─── m10 C1：手持装备三属性（手持即生效，切走失效） ─────────────────────
+        //
+        // 简化模型（spec §3）：不做穿戴栏，加成只看**选中物品一件**——
+        // 金系攻击走物品表 attackDamage（既有通道），防御/移速/生命上限三新属性
+        // 走 items/*.json 的 gearBonus，由 RefreshGearBonuses 每帧从选中物品重建。
+
+        /// <summary>防御点数：受伤时伤害 - 本值（下限 1 伤不无敌，
+        /// <see cref="GearBonusMath.MitigateDamage"/>）。</summary>
+        public int Defense { get; private set; }
+
+        /// <summary>移速加成（比例，0.05 = +5%）：PlayerMotor 水平目标速度乘 (1 + 本值)。</summary>
+        public float MoveSpeedBonus { get; private set; }
+
+        /// <summary>生命上限加成（点数）：有效血上限 = <see cref="Health"/>.Max + 本值。</summary>
+        public int MaxHealthBonus { get; private set; }
+
+        /// <summary>有效血上限（m10 C1）：基础 <see cref="Health"/>.Max + 手持装备加成。
+        /// <see cref="MyWorld.Unity.Player.PlayerController.Respawn"/> 回满到这里而不是基础值。</summary>
+        public float EffectiveMaxHealth =>
+            GearBonusMath.EffectiveMaxHealth(Health.Max, MaxHealthBonus);
+
+        /// <summary>
+        /// 从选中物品刷新三属性（m10 C1）。本组件挂 DefaultExecutionOrder(-1000)，
+        /// Update 先于 PlayerController 执行，运行时每帧自动刷；EditMode 测试
+        /// 改完选中格后手动调。刷新末尾把 <see cref="Health"/>.Current 钳到有效上限内——
+        /// 切走生命上限装备的瞬间，多出来的血当场收回（血量刷新处钳制，只收不加）。
+        /// </summary>
+        public void RefreshGearBonuses()
+        {
+            var bonuses = GearBonuses.FromDefinition(GetSelectedDefinition());
+            Defense = bonuses.Defense;
+            MoveSpeedBonus = bonuses.MoveSpeedBonus;
+            MaxHealthBonus = bonuses.MaxHealthBonus;
+            Health.Current = GearBonusMath.ClampCurrentToEffectiveMax(
+                Health.Current, Health.Max, MaxHealthBonus);
+        }
+
+        private void Update() => RefreshGearBonuses();
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -57,7 +96,9 @@ namespace MyWorld.Unity.Gameplay
 
         public ItemDefinition GetSelectedDefinition()
         {
-            if (Items == null) return null;
+            // 读容忍：Inventory 为 null（EditMode 测试没显式初始化 / 早期场景）视同空手，
+            // 不抛——m10 C1 起 Respawn 也会经 RefreshGearBonuses 走到这里
+            if (Items == null || Inventory == null) return null;
             var stack = Inventory.GetSelected();
             if (stack.IsEmpty) return null;
             return Items.TryGetByNumericId(stack.ItemId, out var def) ? def : null;

@@ -12,6 +12,12 @@ namespace MyWorld.Core.Player
 
         public float WalkSpeed { get; set; } = 4.3f;
         public float SprintMultiplier { get; set; } = 1.3f;
+
+        /// <summary>m10 C1：手持装备移速加成（比例，0.05 = +5%）。夏季合金系装备
+        /// 经 <c>PlayerContext.RefreshGearBonuses</c> 每帧刷新、<c>PlayerController.Tick</c>
+        /// 同步进来，<see cref="PlayerMotor"/> 的水平目标速度乘 (1 + 本值)。0 = 无加成（默认）。</summary>
+        public float MoveSpeedBonus { get; set; } = 0f;
+
         public float JumpSpeed { get; set; } = 8.4f;
 
         /// <summary>比现实的 −9.8 大得多——体素游戏里现实重力显得"飘"。</summary>

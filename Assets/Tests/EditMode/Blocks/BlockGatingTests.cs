@@ -141,8 +141,10 @@ namespace MyWorld.Core.Tests.Blocks
         // ─── 真实数据文件端到端（spec §1 矩阵全量） ─────────────────────────
 
         /// <summary>
-        /// 真实 items/*.json 里六把镐的 toolTier 与 spec §1 门槛矩阵一致。
-        /// 注意：本仓库没有金镐（金系装备走剑/斧，spec §3），下界合金镐按 MC 惯例
+        /// 真实 items/*.json 里九把镐的 toolTier 与 spec §1 门槛矩阵一致。
+        /// m10 C1 起金镐从零建（A3 fix1 勘误：spec §3「既有金装备」不实），按 MC 惯例
+        /// 金镐等同石镐（2）；夏季合金镐与铁镐同级（3，合金矿石本就要铁镐才挖得到）；
+        /// 机元镐与钻石镐同级（4，机元矿石要钻镐）。下界合金镐按 MC 惯例
         /// 与钻石镐同级（挖掘门槛 4，只是耐久/属性更好）。
         /// </summary>
         [Test]
@@ -159,6 +161,9 @@ namespace MyWorld.Core.Tests.Blocks
                 ("diamond_pickaxe", 4),
                 ("netherite_pickaxe", 4),
                 ("bedrock_pickaxe", 99),
+                ("gold_pickaxe", 2),
+                ("summer_alloy_pickaxe", 3),
+                ("machine_essence_pickaxe", 4),
             };
 
             foreach ((string id, int expectedTier) in expected)
@@ -194,9 +199,10 @@ namespace MyWorld.Core.Tests.Blocks
                 .OrderBy(id => id, StringComparer.Ordinal)
                 .ToArray();
 
-            Assert.That(pickaxeIds.Length, Is.EqualTo(6),
-                "当前仓库应有 6 个 *_pickaxe 物品（木/石/铁/钻/下界合金/基岩）。数目变了请同步本断言、" +
-                "RealItems_PickaxeToolTiers_MatchTheGatingMatrix 与门槛矩阵——特别地，加新镐必须显式写 toolTier");
+            Assert.That(pickaxeIds.Length, Is.EqualTo(9),
+                "当前仓库应有 9 个 *_pickaxe 物品（木/石/铁/钻/下界合金/基岩 + m10 C1 的金/夏季合金/机元）。" +
+                "数目变了请同步本断言、RealItems_PickaxeToolTiers_MatchTheGatingMatrix 与门槛矩阵——" +
+                "特别地，加新镐必须显式写 toolTier");
 
             foreach (string id in pickaxeIds)
             {
@@ -207,9 +213,11 @@ namespace MyWorld.Core.Tests.Blocks
         }
 
         /// <summary>
-        /// m10 B1：真实 items/*.json 六把镐的耐久阶梯。木/石/铁照 MC 原值（59/131/250，
+        /// m10 B1：真实 items/*.json 九把镐的耐久阶梯。木/石/铁照 MC 原值（59/131/250，
         /// 恰好放得进 Metadata 的 8 位上限）；钻 1561 / 下界合金 2031 超 255 放不下，封顶 255
         /// （顶级镐的进阶差异在 toolTier/攻击力，不在耐久）；基岩镐是彩蛋终局镐，同样 255。
+        /// m10 C1 三把新镐：金 32（MC 原值，出名的脆）；夏季合金与铁同档 250；
+        /// 机元与钻同档封顶 255。
         /// 改任何一把的耐久这里立刻红。
         /// </summary>
         [Test]
@@ -226,6 +234,9 @@ namespace MyWorld.Core.Tests.Blocks
                 ("diamond_pickaxe", 255),
                 ("netherite_pickaxe", 255),
                 ("bedrock_pickaxe", 255),
+                ("gold_pickaxe", 32),
+                ("summer_alloy_pickaxe", 250),
+                ("machine_essence_pickaxe", 255),
             };
 
             foreach ((string id, int durability) in expected)

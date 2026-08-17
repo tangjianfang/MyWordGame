@@ -1,6 +1,27 @@
 namespace MyWorld.Core.Items
 {
     /// <summary>
+    /// m10 C1 装备加成作用的属性类别。取值来自 items/*.json 的
+    /// <c>gearBonus.stat</c>（受控词表：defense / moveSpeed / maxHealth，
+    /// 写错 <see cref="ItemDatabase"/> 加载即抛）。金系的攻击加成**不在此列**——
+    /// 它叠加在武器既有 <see cref="ItemDefinition.AttackDamage"/> 上，不走 gearBonus 通道。
+    /// </summary>
+    public enum GearStat
+    {
+        /// <summary>无加成（绝大多数物品的缺省值）。</summary>
+        None = 0,
+
+        /// <summary>防御 +N 点：受伤减伤（<see cref="MyWorld.Core.Player.GearBonusMath.MitigateDamage"/>）。铁系。</summary>
+        Defense,
+
+        /// <summary>移速 +N 比例（0.05 = +5%）：行走目标速度乘 (1 + N)。夏季合金系。</summary>
+        MoveSpeed,
+
+        /// <summary>生命上限 +N 点：有效血上限 = 基础 + N。机元系。</summary>
+        MaxHealth,
+    }
+
+    /// <summary>
     /// 物品元数据。从 <c>items/*.json</c> 解析得到。
     /// 数值 ID 由 <see cref="ItemDatabase"/> 分配，与 <see cref="MyWorld.Core.Blocks.BlockRegistry"/> 互不干扰。
     /// </summary>
@@ -48,6 +69,20 @@ namespace MyWorld.Core.Items
         /// （BlockGatingTests 有守卫），剑/斧/锹 m10 暂不启用（保持 0）。
         /// </summary>
         public int MaxDurability;
+
+        /// <summary>
+        /// m10 C1 手持装备属性加成的类别；<see cref="GearStat.None"/> = 无加成
+        /// （绝大多数物品）。简化模型：手持该物品即生效、切走即失效
+        /// （<see cref="MyWorld.Core.Player.GearBonuses.FromDefinition"/> 消费）。
+        /// </summary>
+        public GearStat GearStat = GearStat.None;
+
+        /// <summary>
+        /// m10 C1 手持该物品时的属性加成量：<see cref="GearStat.Defense"/> /
+        /// <see cref="GearStat.MaxHealth"/> 按点数，<see cref="GearStat.MoveSpeed"/>
+        /// 按比例（0.05 = +5%）。类别为 None 时无意义（保持 0）。
+        /// </summary>
+        public float GearAmount;
 
         public override string ToString() => $"Item({Id}, id={NumericId})";
     }

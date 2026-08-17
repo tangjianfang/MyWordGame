@@ -143,6 +143,11 @@ namespace MyWorld.Unity.Player
         /// m10 B2：小数伤害入口（镐碎块扎脚 0.5 点）。<see cref="Health.Current"/> 本就是
         /// float，旧 int 重载从 B2 起委托到这里——复活无敌帧、≤0 忽略、死亡判定、
         /// 「玩家伤害唯一入口」的语义对两条重载完全一致，各伤害源不必关心精度。
+        /// <para>
+        /// m10 C1 起扣血前先过手持防御减伤：max(1, amount - <see cref="PlayerContext.Defense"/>)。
+        /// 防御为 0（空手 / 非防御装备）时伤害**原样通过**——下限只防「减穿到 0」，
+        /// 不把 B2 碎块的 0.5 抬成 1。
+        /// </para>
         /// </summary>
         public void TakeDamage(float amount, object attacker)
         {
@@ -153,7 +158,7 @@ namespace MyWorld.Unity.Player
             if (amount <= 0) return;
             var ctx = GetComponent<PlayerContext>();
             if (ctx == null) return;
-            ctx.Health.Damage(amount);
+            ctx.Health.Damage(GearBonusMath.MitigateDamage(amount, ctx.Defense));
             if (ctx.Health.IsDead)
             {
                 ctx.DeathScreen?.Show();
@@ -309,14 +314,20 @@ namespace MyWorld.Unity.Player
         /// 实际由 <see cref="PlayerState"/> 驱动，所以这里必须重建 _state 让其 Velocity.Y=0、IsGrounded=true；
         /// 只写私有 _default* 字段（未绑定时的 fallback）会被覆盖回原值，导致生产环境 Respawn 失败。
         /// 生命回满写 <see cref="PlayerContext.Health"/>（m5 A2 起唯一真源）；
-        /// 场景里没有 PlayerContext 时跳过（与 TakeDamage 的容忍策略一致）。
+        /// m10 C1 起回满到**有效上限**（Health.Max + 手持生命上限装备加成）——
+        /// 手持机元件复活是 22 血，切走后下一次 <see cref="PlayerContext.RefreshGearBonuses"/>
+        /// 自然钳回 20。场景里没有 PlayerContext 时跳过（与 TakeDamage 的容忍策略一致）。
         /// Core 的 <see cref="PlayerState"/> 字段（Hunger / Saturation）暂不写回——B8 接 pickup 时
         /// 再决定是否把 HungerSystem.Hunger 同步到 PlayerState.Hunger。</summary>
         public void Respawn(Vector3 spawnPoint)
         {
             transform.position = spawnPoint;
             var ctx = GetComponent<PlayerContext>();
-            ctx?.Health.ResetToFull();
+            if (ctx != null)
+            {
+                ctx.RefreshGearBonuses();
+                ctx.Health.Current = ctx.EffectiveMaxHealth;
+            }
 
             if (_world != null)
             {
@@ -392,6 +403,13 @@ namespace MyWorld.Unity.Player
             {
                 return;
             }
+
+            // m10 C1：手持移速装备——把 PlayerContext 每帧刷新的加成同步进运动参数，
+            // Core 的 PlayerMotor 目标速度乘 (1 + bonus)。PlayerContext 挂
+            // DefaultExecutionOrder(-1000)，其 Update 先于本组件跑，同帧拿到的必是新值；
+            // 场景里没有 PlayerContext（纯逻辑测试）时视同 0，行为与旧版一致。
+            var gearCtx = GetComponent<PlayerContext>();
+            _settings.MoveSpeedBonus = gearCtx != null ? gearCtx.MoveSpeedBonus : 0f;
 
             var source = new WorldSolidSource(_world, _registry);
             _state = PlayerMotor.Step(source, _state, input, _settings, dt);

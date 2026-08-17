@@ -1,0 +1,13 @@
+{
+  "id": "summer_alloy_pickaxe",
+  "displayName": "夏季合金镐",
+  "numericId": 1407,
+  "maxStack": 1,
+  "texture": "summer_alloy_pickaxe",
+  "attackDamage": 4,
+  "isTool": true,
+  "miningLevel": 3,
+  "toolTier": 3,
+  "maxDurability": 250,
+  "gearBonus": { "stat": "moveSpeed", "amount": 0.05 }
+}

@@ -129,5 +129,64 @@ namespace MyWorld.Core.Tests.Items
                 Throws.InstanceOf<System.IO.InvalidDataException>(),
                 "maxDurability 超过 8 位编码上限 255 应在加载时抛，不能静默截断");
         }
+
+        // ─── m10 C1：gearBonus 解析（手持装备三属性） ─────────────────────────
+
+        [Test]
+        public void GearBonus_ParsedFromJson_AllThreeStats()
+        {
+            var db = ItemDatabase.FromJson(new[]
+            {
+                @"{ ""id"": ""iron_sword"", ""numericId"": 1102,
+                    ""gearBonus"": { ""stat"": ""defense"", ""amount"": 1 } }",
+                @"{ ""id"": ""summer_alloy_sword"", ""numericId"": 1107,
+                    ""gearBonus"": { ""stat"": ""moveSpeed"", ""amount"": 0.05 } }",
+                @"{ ""id"": ""machine_essence_sword"", ""numericId"": 1108,
+                    ""gearBonus"": { ""stat"": ""maxHealth"", ""amount"": 2 } }",
+            });
+
+            var iron = db.GetById("iron_sword");
+            Assert.That(iron.GearStat, Is.EqualTo(GearStat.Defense), "stat=defense 应解析成 Defense");
+            Assert.That(iron.GearAmount, Is.EqualTo(1f), "amount 原样进 GearAmount");
+
+            Assert.That(db.GetById("summer_alloy_sword").GearStat, Is.EqualTo(GearStat.MoveSpeed));
+            Assert.That(db.GetById("summer_alloy_sword").GearAmount, Is.EqualTo(0.05f).Within(1e-6f));
+
+            Assert.That(db.GetById("machine_essence_sword").GearStat, Is.EqualTo(GearStat.MaxHealth));
+            Assert.That(db.GetById("machine_essence_sword").GearAmount, Is.EqualTo(2f));
+        }
+
+        [Test]
+        public void GearBonus_Missing_DefaultsToNone()
+        {
+            var def = ItemDatabase.FromJson(new[] { SwordJson }).GetById("wooden_sword");
+            Assert.That(def.GearStat, Is.EqualTo(GearStat.None),
+                "绝大多数物品没有 gearBonus——缺省 = 无加成");
+            Assert.That(def.GearAmount, Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void GearBonus_UnknownStat_Throws()
+        {
+            Assert.That(() => ItemDatabase.FromJson(new[]
+                {
+                    @"{ ""id"": ""bad_gear"", ""numericId"": 1199,
+                        ""gearBonus"": { ""stat"": ""luck"", ""amount"": 1 } }",
+                }),
+                Throws.InstanceOf<System.IO.InvalidDataException>(),
+                "stat 是受控词表（defense/moveSpeed/maxHealth），写错立刻报——与 toolTier 同态度");
+        }
+
+        [Test]
+        public void GearBonus_NonPositiveAmount_Throws()
+        {
+            Assert.That(() => ItemDatabase.FromJson(new[]
+                {
+                    @"{ ""id"": ""zero_gear"", ""numericId"": 1198,
+                        ""gearBonus"": { ""stat"": ""defense"", ""amount"": 0 } }",
+                }),
+                Throws.InstanceOf<System.IO.InvalidDataException>(),
+                "amount <= 0 没有意义（写了 gearBonus 却不给加成），加载层就拦下");
+        }
     }
 }

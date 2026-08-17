@@ -1,0 +1,11 @@
+{
+  "id": "machine_essence_sword",
+  "displayName": "机元剑",
+  "numericId": 1108,
+  "maxStack": 1,
+  "texture": "machine_essence_sword",
+  "attackDamage": 19,
+  "isTool": true,
+  "miningLevel": 4,
+  "gearBonus": { "stat": "maxHealth", "amount": 2 }
+}

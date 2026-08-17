@@ -36,9 +36,13 @@ namespace MyWorld.Core.Tests.Items
             // 剑
             "wooden_sword", "stone_sword", "iron_sword", "diamond_sword",
             "netherite_sword", "bedrock_sword",
+            // m10 C1 三系新剑（金=攻击走 attackDamage；合金=移速；机元=生命上限）
+            "gold_sword", "summer_alloy_sword", "machine_essence_sword",
             // 镐
             "wooden_pickaxe", "stone_pickaxe", "iron_pickaxe", "diamond_pickaxe",
             "netherite_pickaxe", "bedrock_pickaxe",
+            // m10 C1 三系新镐（金镐 toolTier=2 耐久 32；合金镐铁档；机元镐钻档）
+            "gold_pickaxe", "summer_alloy_pickaxe", "machine_essence_pickaxe",
             // 斧
             "wooden_axe", "stone_axe", "iron_axe",
             // 锹

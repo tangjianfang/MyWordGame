@@ -143,6 +143,31 @@ namespace MyWorld.Core.Items
                     "MC 原值如钻石镐 1561 放不下，请按比例缩写，如 255=顶级封顶）。");
             }
 
+            // m10 C1 装备加成：gearBonus { "stat": "defense", "amount": 1 }——手持该物品即生效。
+            // stat 是受控词表（写错立刻抛，与 toolTier 同态度）；amount 必须 > 0
+            // （写了 gearBonus 却给 0 / 负数没有意义）。金系攻击加成不走这里，叠在 attackDamage 上。
+            GearStat gearStat = GearStat.None;
+            float gearAmount = 0f;
+            JToken gearToken = root["gearBonus"];
+            if (gearToken != null)
+            {
+                string stat = (string)gearToken["stat"];
+                gearStat = stat switch
+                {
+                    "defense" => GearStat.Defense,
+                    "moveSpeed" => GearStat.MoveSpeed,
+                    "maxHealth" => GearStat.MaxHealth,
+                    _ => throw new InvalidDataException(
+                        $"物品 {id} 的 gearBonus.stat 为「{stat}」，只认 defense / moveSpeed / maxHealth。"),
+                };
+                gearAmount = gearToken["amount"] != null ? (float)gearToken["amount"] : 0f;
+                if (gearAmount <= 0f)
+                {
+                    throw new InvalidDataException(
+                        $"物品 {id} 的 gearBonus.amount 为 {gearAmount}，必须 > 0（不想要加成就别写 gearBonus）。");
+                }
+            }
+
             var def = new ItemDefinition
             {
                 Id = id,
@@ -156,6 +181,8 @@ namespace MyWorld.Core.Items
                 MiningLevel = (int?)root["miningLevel"] ?? 0,
                 ToolTier = toolTier,
                 MaxDurability = maxDurability,
+                GearStat = gearStat,
+                GearAmount = gearAmount,
             };
 
             return (def, numericIdToken != null);

@@ -1,0 +1,10 @@
+{
+  "id": "gold_sword",
+  "displayName": "金剑",
+  "numericId": 1106,
+  "maxStack": 1,
+  "texture": "gold_sword",
+  "attackDamage": 5,
+  "isTool": true,
+  "miningLevel": 2
+}

@@ -8,5 +8,6 @@
   "isTool": true,
   "miningLevel": 3,
   "toolTier": 3,
-  "maxDurability": 250
+  "maxDurability": 250,
+  "gearBonus": { "stat": "defense", "amount": 1 }
 }

@@ -1,0 +1,13 @@
+{
+  "id": "machine_essence_pickaxe",
+  "displayName": "机元镐",
+  "numericId": 1408,
+  "maxStack": 1,
+  "texture": "machine_essence_pickaxe",
+  "attackDamage": 5,
+  "isTool": true,
+  "miningLevel": 4,
+  "toolTier": 4,
+  "maxDurability": 255,
+  "gearBonus": { "stat": "maxHealth", "amount": 2 }
+}
