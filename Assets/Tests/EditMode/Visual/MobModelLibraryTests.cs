@@ -481,7 +481,7 @@ namespace MyWorld.Core.Tests.Visual
         }
 
         [Test]
-        public void 集成点②接线_九被动走Load与Build门面_与直读JSON同源()
+        public void 集成点二接线_九被动走Load与Build门面_与直读JSON同源()
         {
             // m11 集成点②：FileNameOf 补了 9 被动映射、MobModels.Build 门面同步转调——
             // 此前测试只能绕过 Load 直读文件（LoadNineKindModel），接线后主链路
