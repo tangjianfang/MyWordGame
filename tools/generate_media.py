@@ -38,6 +38,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -270,10 +271,12 @@ TRIM_AF = (
 def postprocess_audio(raw_mp3: Path, out_dir: Path, entry: Entry) -> Path:
     """裁静音 → 响度归一 → （循环类）首尾交叉淡化 → ogg 44.1k。
 
-    时长不达标抛 RuntimeError。
+    时长不达标抛 RuntimeError。每条 Entry 走独立的临时子目录（并发安全）。
     """
-    out_dir.mkdir(parents=True, exist_ok=True)
-    trimmed = out_dir / "_trim.wav"
+    # 用 entry.name + pid 建独立工作目录，避免并发时 _trim.wav / _seg.wav 冲突
+    work = out_dir / f"_work_{entry.name}_{os.getpid()}"
+    work.mkdir(parents=True, exist_ok=True)
+    trimmed = work / "_trim.wav"
     dst = out_dir / f"{entry.name}.ogg"
     lufs = int(entry.params.get("响度", "-14"))
     run_ff([
@@ -290,7 +293,7 @@ def postprocess_audio(raw_mp3: Path, out_dir: Path, entry: Entry) -> Path:
                 f"（要求 ≥{entry.params.get('时长下限', 15)}s）"
             )
         cross = min(CROSSFADE_SECONDS, dur / 4)
-        looped = out_dir / "_loop.wav"
+        looped = work / "_loop.wav"
         # 写法 B：头段 atrim=0..dur-cross + 尾段 atrim=end=cross，
         # 各自 asetpts 重置时间戳后再 acrossfade —— 输出长度 = dur - cross ≈ 原时长，
         # 写法 A（各自 atrim 头尾再 af）会输出 dur - 2*cross，丢了时长。
@@ -311,7 +314,7 @@ def postprocess_audio(raw_mp3: Path, out_dir: Path, entry: Entry) -> Path:
         ])
     else:
         target = float(entry.params.get("目标时长", "1.2"))
-        seg = out_dir / "_seg.wav"
+        seg = work / "_seg.wav"
         run_ff([
             "-i", str(trimmed),
             "-t", f"{target:.2f}",
@@ -330,6 +333,11 @@ def postprocess_audio(raw_mp3: Path, out_dir: Path, entry: Entry) -> Path:
             "-c:a", "libvorbis", "-q:a", "5",
             str(dst),
         ])
+    # 清理工作目录
+    try:
+        shutil.rmtree(work, ignore_errors=True)
+    except OSError:
+        pass
     return dst
 
 
@@ -410,7 +418,10 @@ def _process_entry(entry: Entry) -> Path | None:
 
 
 def cmd_audio(only: list[str] | None) -> int:
-    """--audio 主流程：遍历所有音频 Entry，生成/后处理/兜底。"""
+    """--audio 主流程：遍历所有音频 Entry，生成/后处理/兜底。
+
+    默认串行（API 限流友好）。`--jobs N` 走并发。
+    """
     entries = [e for e in parse_entries(REQUESTS_ROOT) if e.kind != "video"]
     if only:
         entries = [e for e in entries if e.name in only]
@@ -420,17 +431,40 @@ def cmd_audio(only: list[str] | None) -> int:
     if not entries:
         print("（无音频需求文件）")
         return 0
-    print(f"生成 {len(entries)} 条音频…")
+
+    jobs = int(os.environ.get("AV_JOBS", "1"))
+    print(f"生成 {len(entries)} 条音频（jobs={jobs}）…")
     ok = fail = skip = 0
-    for e in entries:
+    lock = threading.Lock()
+
+    def _run(e: Entry) -> tuple[str, bool]:
         result = _process_entry(e)
-        if result is None:
-            fail += 1
-        elif result.exists():
-            ok += 1
-        else:
-            skip += 1
-    print(f"\n完成：OK {ok} / 失败 {fail} / 跳过 {skip}")
+        with lock:
+            return e.name, result is None
+
+    if jobs <= 1:
+        for e in entries:
+            _, none_result = _run(e)
+            if none_result:
+                fail += 1
+            else:
+                ok += 1
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=jobs) as ex:
+            futures = [ex.submit(_run, e) for e in entries]
+            for f in futures:
+                try:
+                    _, none_result = f.result()
+                    if none_result:
+                        fail += 1
+                    else:
+                        ok += 1
+                except Exception as ex_:
+                    print(f"  [异常] {ex_}")
+                    fail += 1
+
+    print(f"\n完成：OK {ok} / 失败 {fail}")
     print(f"入库跑: python tools/generate_media.py --install")
     return 0 if fail == 0 else 1
 
@@ -758,6 +792,7 @@ def main() -> int:
     parser.add_argument("--list", action="store_true", help="列出所有需求条目")
     parser.add_argument("--audio", action="store_true", help="生成音频（music-2.6 + ffmpeg）")
     parser.add_argument("--only", nargs="*", default=None, help="只跑指定名（用于重试单条）")
+    parser.add_argument("--jobs", type=int, default=None, help="并发数（默认 1，环境变量 AV_JOBS 也可）")
     parser.add_argument("--videos", action="store_true", help="生成视频（Hailuo-2.3，配额队列）")
     parser.add_argument("--install", action="store_true", help="拷贝产物入库")
     args = parser.parse_args()
@@ -768,6 +803,8 @@ def main() -> int:
     if args.list:
         return _cmd_list(args)
     if args.audio:
+        if args.jobs is not None:
+            os.environ["AV_JOBS"] = str(args.jobs)
         return cmd_audio(args.only)
     if args.videos:
         return cmd_videos()
