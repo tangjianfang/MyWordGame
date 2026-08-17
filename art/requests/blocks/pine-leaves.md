@@ -42,26 +42,26 @@
 ## AI 提示词
 
 ```
-A seamless tileable pixel art texture of dark pine needles, flat front view,
+A seamless tileable pixel art texture of pine needles, flat front view,
 1024x1024, designed to be downscaled to 32x32 pixel art.
 
 Style: retro voxel game block texture, flat shading, no perspective, even
-illumination. Base color is a deep cold forest green filling most of the
-canvas — dark cool green, NOT black, NOT navy, NOT teal, not bright lawn
-green.
+illumination. Base color is a clearly readable forest green filling most of the canvas —
+medium bright, fresh pine needles in daylight, like a lit greenhouse conifer;
+NEVER dark, NEVER near-black, NEVER navy.
 
-Content: densely packed clusters of short pine needle tufts, irregular 2 to 4
-pixel bundles with slightly prickly edges, but never a single recognizable
-needle, no veins, no stems. Dark and mid greens interleave randomly for depth.
+Content: dense clusters of short pine needle tufts, 2 to 4 pixel
+bundles with prickly edges, never a single recognizable needle, no veins, no
+stems. Greens interleave randomly for depth.
 
-Divide the canvas into an 8x8 grid of 128x128 cells. Pick roughly 11 cells,
-scattered evenly (not clustered), and fill each ENTIRELY with one LARGE solid
-magenta blob the size of that whole cell — at least 100 pixels across, never a
-small speck, never a thin line, never a tiny dot. Gap edges look like organic
-rounded holes, not perfect squares.
+Divide the canvas into an 8x8 grid of 64 cells. Mark 16 to 18 cells, one in
+every four, scattered evenly across the whole canvas. In each marked cell
+paint a big hole — a chunk of open sky seen through the foliage, but filled
+pure vivid NEON magenta #FF00FF instead of sky — at least 128 pixels across,
+ENORMOUS, unmissable, with organic rounded edges.
 
-Every gap is pure magenta #FF00FF, flat, fully saturated, hard edges, no
-anti-aliasing. Magenta gaps cover roughly 18 percent of the total image area.
+Every hole is flat, fully saturated, hard-edged pure magenta, no
+anti-aliasing. Holes cover roughly 25 percent of the image.
 
 Needle palette strictly limited to: #1E3B2A, #2A5038, #356647, #448059,
 #56996B.
@@ -69,8 +69,7 @@ Needle palette strictly limited to: #1E3B2A, #2A5038, #356647, #448059,
 CRITICAL: tiles seamlessly on all four edges, including the magenta gaps.
 
 No border, no frame, no branches, no pine cones, no snow, no text, no
-watermark, no gradient, no dark background, no navy, no teal, no tiny dots, no
-thin lines.
+watermark, no gradient, no dark background, no navy, no teal, no tiny dots, no specks, no thin lines, fully opaque leaves only in the remaining area.
 ```
 
 ## 负面提示词
@@ -79,7 +78,7 @@ thin lines.
 gradient, drop shadow, border, frame, dark outline, branches, twigs, pine
 cones, snow, frost, autumn colors, yellow leaves, bright green, teal, navy,
 single needle, leaf veins, text, watermark, blur, 3D render, perspective,
-glossy, tiny scattered dots, thin lines, small specks
+glossy, tiny scattered dots, thin lines, small specks, night forest, near-black foliage, unbroken foliage, dense wall without holes
 ```
 
 ## 后处理

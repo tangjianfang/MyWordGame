@@ -11,8 +11,8 @@
 | 最终尺寸 | 32 × 32 像素 |
 | 生成尺寸 | 1024 × 1024（再降采样） |
 | 平铺 | 否 |
-| Alpha | 无（完全不透明） |
-| 背景 | 统一深色底 `#2A2620` |
+| Alpha | 有（仅 0 / 255，洋红键控） |
+| 背景 | 整片纯洋红 `#FF00FF`，后处理键控为透明 |
 
 ## 调色板
 
@@ -23,7 +23,7 @@
 | 木塞 | `#9C7549` |
 | 液暗（青） | `#1E7C7C` |
 | 液主（青） | `#4CC6C4` |
-| 底色 | `#2A2620` |
+| 键控色 | `#FF00FF`（后处理删除） |
 | 描边 | `#1A1A1A` |
 
 ## 视觉描述
@@ -31,6 +31,7 @@
 - 与 `potion-base` 同一正视圆肚细颈瓶剪影：瓶身下 2/3 青色液体、液面平线、瓶底更深的暗青
 - 玻璃高光月牙与木塞照旧；青色取全局钻石青系（`#1E7C7C`/`#4CC6C4`），清澈的水感
 - 瓶型、玻璃、木塞色逐项照母版，只动液色
+- 主体占画幅约 70%、居中；背景整片纯洋红 `#FF00FF` 键控为透明，无深色底
 
 ## AI 提示词
 
@@ -42,11 +43,11 @@ neck and a small brown cork stopper on top. Bright cyan-teal liquid fills
 the lower two thirds of the bulb with a flat horizontal surface line,
 slightly darker teal at the bottom of the bulb. A pale glass highlight
 crescent sits on the left of the bulb, and the glass rim at the neck base
-is slightly darker. Black 1-pixel outline around the flask. The empty
-corners are one flat solid dark backdrop color #2A2620.
+is slightly darker. Black 1-pixel outline around the flask. The subject is centered, taking about 70 percent of the frame. The entire
+background is solid flat pure magenta #FF00FF, fully saturated, hard edges,
+no anti-aliasing, with clear magenta margins on all sides.
 
-Color palette strictly: #A9CBD6, #E7F4F8, #9C7549, #1E7C7C, #4CC6C4,
-#2A2620, #1A1A1A only.
+Color palette strictly: #A9CBD6, #E7F4F8, #9C7549, #1E7C7C, #4CC6C4, #1A1A1A outline only.
 
 No text, no watermark, no label, no bubbles, no splash, no sparkle, no
 fish, no gills, no waves, no gradient, no cast shadow, no glow, no
@@ -57,15 +58,17 @@ anti-aliasing. Hard pixel edges only.
 
 ```
 text, label, stickers, bubbles, splash, sparkle, fish, gills, waves, water
-drops, hands, gradient, drop shadow, glow, blur, 3D render, anti-aliasing
+drops, hands, gradient, drop shadow, glow, blur, 3D render, anti-aliasing, dark background
 ```
 
 ## 后处理
 
-最近邻降采样到 32×32 + 调色板量化（不透明图，无需洋红键控）。
+1. 最近邻降采样到 32 × 32
+2. 键控洋红为透明（洋红占比 > 50% → Alpha = 0），去洋红边
+3. 量化到上表色值
 
 ## 验收
 
-- 32×32 PNG，32 位 RGBA，Alpha 全部 255
+- 32×32 PNG，32 位 RGBA，Alpha 仅 0/255，背景键控为透明
 - 颜色数 ≤ 7
 - 与 `potion-base` 并排瓶型一致，液体为青色系

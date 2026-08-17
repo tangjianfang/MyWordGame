@@ -45,31 +45,26 @@ A seamless tileable pixel art texture of blue-green cedar foliage, flat front
 view, 1024x1024, designed to be downscaled to 32x32 pixel art.
 
 Style: retro voxel game block texture, flat shading, no perspective, even
-illumination. Base color is a muted blue-green seafoam foliage filling most of
-the canvas — green with a clear blue lean, but still a plant color, NOT pure
-blue, NOT navy, NOT water, NOT gray.
+illumination. Base color is a clearly readable seafoam blue-green filling most of the
+canvas — medium bright, green first with a blue lean, like cedar foliage in
+daylight; NEVER navy, NEVER near-black, NEVER dark.
 
-Content: densely overlapping flat scaly leaf sprays, small 2 or 3 pixel
-flattened scales like cedar branchlets, no veins, no stems. Dark and mid
-blue-greens interleave randomly for depth.
+Content: densely overlapping flat scaly leaf sprays, 2 or 3 pixel scales like cedar
+branchlets, no veins, no stems. Tones interleave randomly for depth.
 
-Divide the canvas into an 8x8 grid of 128x128 cells. Pick roughly 12 cells,
+Divide the canvas into an 8x8 grid of 128x128 cells. Pick 14 to 16 cells,
 scattered evenly (not clustered), and fill each ENTIRELY with one LARGE solid
-magenta blob the size of that whole cell — at least 100 pixels across, never a
-small speck, never a thin line, never a tiny dot. Gap edges look like organic
-rounded holes, not perfect squares.
+magenta blob the size of that whole cell — at least 128 pixels across — ENORMOUS, unmissable. Gap edges look organic and rounded, not square.
 
-Every gap is pure magenta #FF00FF, flat, fully saturated, hard edges, no
-anti-aliasing. Magenta gaps cover roughly 20 percent of the total image area.
+Every hole is flat, fully saturated, hard-edged pure magenta, no
+anti-aliasing. Holes cover roughly 25 percent of the image.
 
 Foliage palette strictly limited to: #1F4A44, #2A5E56, #36736A, #42897E,
 #519E92.
 
 CRITICAL: tiles seamlessly on all four edges, including the magenta gaps.
 
-No border, no frame, no branches, no cones, no snow, no water droplets, no
-text, no watermark, no gradient, no dark background, no navy, no pure blue, no
-tiny dots, no thin lines.
+No border, no frame, no branches, no cones, no snow, no text, no watermark, no gradient, no dark background, no navy, no pure blue, no tiny dots, no specks, no thin lines, fully opaque leaves only in the remaining area.
 ```
 
 ## 负面提示词
@@ -78,7 +73,7 @@ tiny dots, no thin lines.
 gradient, drop shadow, border, frame, dark outline, branches, twigs, cones,
 snow, frost, water, ocean, waves, pure blue, navy, gray foliage, autumn
 colors, text, watermark, blur, 3D render, perspective, glossy, tiny scattered
-dots, thin lines, small specks
+dots, thin lines, small specks, near-black foliage, deep sea, unbroken foliage, dense wall without holes
 ```
 
 ## 后处理

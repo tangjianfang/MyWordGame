@@ -54,14 +54,12 @@ specksized clusters, slightly sparser and scrappier than tree foliage, no
 veins, no stems. Muted greens interleave randomly for a dry roadside thicket
 feel.
 
-Divide the canvas into an 8x8 grid of 128x128 cells. Pick roughly 12 cells,
+Divide the canvas into an 8x8 grid of 128x128 cells. Pick 14 to 16 cells,
 scattered evenly (not clustered), and fill each ENTIRELY with one LARGE solid
-magenta blob the size of that whole cell — at least 100 pixels across, never a
-small speck, never a thin line, never a tiny dot. Gap edges look like organic
-rounded holes, not perfect squares.
+magenta blob the size of that whole cell — at least 128 pixels across — ENORMOUS, unmissable. Gap edges look organic and rounded, not square.
 
 Every gap is pure magenta #FF00FF, flat, fully saturated, hard edges, no
-anti-aliasing. Magenta gaps cover roughly 20 percent of the total image area.
+anti-aliasing. Magenta gaps cover roughly 22 percent of the image.
 
 Leaf palette strictly limited to: #4A5A38, #5C6E46, #6E8255, #7F9665,
 #91AA76.
@@ -70,7 +68,7 @@ CRITICAL: tiles seamlessly on all four edges, including the magenta gaps.
 
 No border, no frame, no branches, no thorns, no berries, no flowers, no
 lavender, no text, no watermark, no gradient, no dark background, no brown, no
-gray, no tiny dots, no thin lines.
+gray, no tiny dots, no specks, no thin lines, fully opaque leaves only in the remaining area.
 ```
 
 ## 负面提示词

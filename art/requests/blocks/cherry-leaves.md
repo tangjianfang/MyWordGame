@@ -41,36 +41,31 @@
 ## AI 提示词
 
 ```
-A seamless tileable pixel art texture of pink cherry blossom canopy, flat
+A seamless tileable pixel art texture of cherry blossom canopy, flat
 front view, 1024x1024, designed to be downscaled to 32x32 pixel art.
 
 Style: retro voxel game block texture, flat shading, no perspective, even
 illumination. Base color is warm pastel rose pink filling most of the canvas —
-soft warm pink like peach blossom, NOT cold pink, NOT purple, NOT magenta, NOT
-white.
+soft muted peach-blossom pink, NOT cold pink, NOT purple, NOT magenta, NOT
+white. Keep every blossom muted and desaturated; NEVER bright saturated pink.
 
-Content: densely overlapping cherry blossom clusters, 2 to 4 pixel puffy blobs,
-deep rose on the outside shading to near-white at the brightest spots, all
-five pink layers present, no green leaves, no stems, no single recognizable
-flower.
+Content: dense cherry blossom clusters, 2 to 4 pixel blobs,
+deep rose shading to near-white, all five pink layers present, no green
+leaves, no stems, no single flower.
 
-Divide the canvas into an 8x8 grid of 128x128 cells. Pick roughly 12 cells,
-scattered evenly (not clustered), and fill each ENTIRELY with one LARGE solid
-magenta blob the size of that whole cell — at least 100 pixels across, never a
-small speck, never a thin line, never a tiny dot. Gap edges look like organic
-rounded holes, not perfect squares.
+Divide the canvas into an 8x8 grid of 128x128 cells. Pick 14 to 16 cells,
+scattered evenly (not clustered), and fill each ENTIRELY with one LARGE solid magenta blob at least 128 pixels across — ENORMOUS, unmissable. Gap edges look organic and rounded, not square.
 
 Every gap is pure magenta #FF00FF, flat, fully saturated, hard edges, no
-anti-aliasing. Magenta gaps cover roughly 20 percent of the total image area.
+anti-aliasing. Magenta gaps cover roughly 22 percent of the image.
 
 Blossom palette strictly limited to: #D4A092, #E2B8AC, #EECFC6, #F6E4DE,
-#FBF0EC. Warm peachy rose pinks only.
+#FBF0EC. Warm muted peachy pinks only — the ONLY vivid color is the magenta gaps.
 
 CRITICAL: tiles seamlessly on all four edges, including the magenta gaps.
 
 No border, no frame, no branches, no green leaves, no single flowers, no text,
-no watermark, no gradient, no dark background, no purple, no cold pink, no
-tiny dots, no thin lines.
+no watermark, no gradient, no dark background, no purple, no cold pink, no tiny dots, no specks, no thin lines, fully opaque leaves only in the remaining area.
 ```
 
 ## 负面提示词
@@ -79,7 +74,7 @@ tiny dots, no thin lines.
 gradient, drop shadow, border, frame, dark outline, branches, green leaves,
 single flower, falling petals, purple, violet, cold pink, magenta petals,
 white background, text, watermark, blur, 3D render, perspective, glossy, tiny
-scattered dots, thin lines, small specks
+scattered dots, thin lines, small specks, hot pink, neon pink, saturated pink
 ```
 
 ## 后处理

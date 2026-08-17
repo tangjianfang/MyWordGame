@@ -53,22 +53,19 @@ Content: densely overlapping small rounded birch leaves, 2 or 3 pixel irregular
 blobs, no veins, no stems. Light and dark yellow-greens interleave randomly,
 with plenty of bright highlights for a sunlit airy feel.
 
-Divide the canvas into an 8x8 grid of 128x128 cells. Pick roughly 12 cells,
+Divide the canvas into an 8x8 grid of 128x128 cells. Pick 14 to 16 cells,
 scattered evenly (not clustered), and fill each ENTIRELY with one LARGE solid
-magenta blob the size of that whole cell — at least 100 pixels across, never a
-small speck, never a thin line, never a tiny dot. Gap edges look like organic
-rounded holes, not perfect squares.
+magenta blob the size of that whole cell — at least 128 pixels across — ENORMOUS, unmissable. Gap edges look organic and rounded, not square.
 
 Every gap is pure magenta #FF00FF, flat, fully saturated, hard edges, no
-anti-aliasing. Magenta gaps cover roughly 20 percent of the total image area.
+anti-aliasing. Magenta gaps cover roughly 22 percent of the image.
 
 Leaf palette strictly limited to: #5F8A24, #74A02C, #89B638, #9FCB46, #B5DE58.
 
 CRITICAL: tiles seamlessly on all four edges, including the magenta gaps.
 
 No border, no frame, no branches, no fruit, no catkins, no text, no watermark,
-no gradient, no dark background, no navy, no teal, no tiny dots, no thin
-lines.
+no gradient, no dark background, no navy, no teal, no tiny dots, no specks, no thin lines, fully opaque leaves only in the remaining area.
 ```
 
 ## 负面提示词
