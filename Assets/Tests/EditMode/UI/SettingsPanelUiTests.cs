@@ -37,10 +37,11 @@ namespace MyWorld.Core.Tests.UI
         [SetUp]
         public void SetUp()
         {
-            // 每个测试前清掉三键，避免上个测试写入的值影响「默认值」断言
+            // 每个测试前清掉四键，避免上个测试写入的值影响「默认值」断言
             PlayerPrefs.DeleteKey(SettingsPanelUi.SensitivityKey);
             PlayerPrefs.DeleteKey(SettingsPanelUi.VolumeKey);
             PlayerPrefs.DeleteKey(SettingsPanelUi.FovKey);
+            PlayerPrefs.DeleteKey(SettingsPanelUi.MusicVolumeKey);  // av W1-7
         }
 
         [TearDown]
@@ -49,6 +50,7 @@ namespace MyWorld.Core.Tests.UI
             PlayerPrefs.DeleteKey(SettingsPanelUi.SensitivityKey);
             PlayerPrefs.DeleteKey(SettingsPanelUi.VolumeKey);
             PlayerPrefs.DeleteKey(SettingsPanelUi.FovKey);
+            PlayerPrefs.DeleteKey(SettingsPanelUi.MusicVolumeKey);  // av W1-7
         }
 
         [Test]
@@ -77,6 +79,14 @@ namespace MyWorld.Core.Tests.UI
         }
 
         [Test]
+        public void 默认值_音乐音量_未存键返回80()
+        {
+            // av W1-7：音乐音量默认 80，与全局音量同步
+            Assert.That(SettingsPanelUi.LoadMusicVolume(), Is.EqualTo(SettingsPanelUi.MusicDefault),
+                "音乐音量默认 80");
+        }
+
+        [Test]
         public void Save_越界写入_钳到量程两端()
         {
             // 写严格：Save 钳到量程是「范围原样」硬约束的守门——旧档被外部工具写坏也不许超范围进系统
@@ -90,6 +100,18 @@ namespace MyWorld.Core.Tests.UI
                 "音量低于 0 应钳到 0");
             Assert.That(SettingsPanelUi.LoadFov(), Is.EqualTo(SettingsPanelUi.FovMax),
                 "FOV 超上限应钳到 90");
+        }
+
+        [Test]
+        public void MusicVolume_Save_越界写入_钳到量程两端()
+        {
+            // av W1-7：音乐音量复用 VolumeMin/Max，钳端同款
+            SettingsPanelUi.SaveMusicVolume(150f);
+            Assert.That(SettingsPanelUi.LoadMusicVolume(), Is.EqualTo(SettingsPanelUi.VolumeMax),
+                "音乐音量超上限应钳到 100");
+            SettingsPanelUi.SaveMusicVolume(-3f);
+            Assert.That(SettingsPanelUi.LoadMusicVolume(), Is.EqualTo(SettingsPanelUi.VolumeMin),
+                "音乐音量低于 0 应钳到 0");
         }
 
         [Test]
@@ -109,6 +131,43 @@ namespace MyWorld.Core.Tests.UI
             finally
             {
                 Object.DestroyImmediate(panel.gameObject);
+            }
+        }
+
+        [Test]
+        public void Awake_从PlayerPrefs读回音乐音量()
+        {
+            // av W1-7：四键都应读回
+            SettingsPanelUi.SaveMusicVolume(40f);
+
+            var panel = NewPanel();
+            try
+            {
+                Assert.That(panel.CurrentMusicVolume, Is.EqualTo(40f),
+                    "Awake 应从 PlayerPrefs 读回音乐音量");
+            }
+            finally
+            {
+                Object.DestroyImmediate(panel.gameObject);
+            }
+        }
+
+        [Test]
+        public void Awake_应用音乐音量到MusicVolumeBus_归一0到1()
+        {
+            // av W1-7：音乐音量 0–100 应除以 VolumeMax 归一后喂 MusicVolumeBus.Volume
+            SettingsPanelUi.SaveMusicVolume(40f);
+
+            var panel = NewPanel();
+            try
+            {
+                Assert.That(MyWorld.Unity.Audio.MusicVolumeBus.Volume, Is.EqualTo(0.4f).Within(0.001f),
+                    "音乐音量 40 应归一成 0.4 写进 MusicVolumeBus");
+            }
+            finally
+            {
+                Object.DestroyImmediate(panel.gameObject);
+                MyWorld.Unity.Audio.MusicVolumeBus.Volume = 0.8f; // 还原，不污染后续夹具
             }
         }
 
@@ -135,9 +194,9 @@ namespace MyWorld.Core.Tests.UI
         public void 面板高度_常量与内容行匹配()
         {
             // 宿主按 PanelHeight 预留区域并在其下排列后续内容（如「保存并退出」按钮）——
-            // 数值必须覆盖三行滑条（各 70/70/60）+ 提示行 20，改布局时这个常量要跟着动
-            Assert.That(SettingsPanelUi.PanelHeight, Is.EqualTo(220f),
-                "三滑条 70+70+60 + 提示行 20 = 220");
+            // av W1-7：四行滑条各 70 + 提示行 20 = 300；旧三滑条是 220，改布局时这个常量要跟着动
+            Assert.That(SettingsPanelUi.PanelHeight, Is.EqualTo(300f),
+                "四滑条 70×4 + 提示行 20 = 300");
         }
     }
 }
