@@ -1,0 +1,9 @@
+{
+  "id": "netherite_chest",
+  "displayName": "下界合金胸甲",
+  "numericId": 1467,
+  "maxStack": 1,
+  "texture": "chest-netherite",
+  "armorPart": "chest",
+  "gearBonus": { "stat": "defense", "amount": 4 }
+}

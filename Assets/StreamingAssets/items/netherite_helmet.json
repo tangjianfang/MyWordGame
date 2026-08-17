@@ -1,0 +1,9 @@
+{
+  "id": "netherite_helmet",
+  "displayName": "下界合金头盔",
+  "numericId": 1466,
+  "maxStack": 1,
+  "texture": "helmet-netherite",
+  "armorPart": "helmet",
+  "gearBonus": { "stat": "defense", "amount": 2 }
+}

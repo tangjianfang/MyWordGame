@@ -191,6 +191,9 @@ namespace MyWorld.Unity.Rendering
                 case MobKind.Goat: return "goat.json";
                 case MobKind.Raccoon: return "raccoon.json";
                 case MobKind.Hamster: return "hamster.json";
+                // m11 W3-3：Boss 造型（2.5 格紫金机甲，配色与 art/requests/entities/
+                // machine-guardian.md 的调色板同源；守卫测试在 Visual/MobModelBossTests）
+                case MobKind.MachineGuardian: return "machine_guardian.json";
                 default:
                     // 旧三类（Passive/Hostile/Neutral）没有独立造型 JSON，保底表在 MobModels 内
                     throw new ArgumentException(

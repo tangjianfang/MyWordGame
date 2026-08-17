@@ -28,9 +28,12 @@ namespace MyWorld.Unity.Player
     /// <para>
     /// <b>m11 ②右键路由优先级表</b>（<see cref="UseAt"/>，自上而下首中即止）：
     /// 死亡画面让位 → 食物优先（m7 A3）→ 附魔书融合（m11 W2-2，无需命中）→
-    /// 弓蓄力（m11 ②，无需命中）→ 锄草/泥成耕地 →
+    /// 弓蓄力（m11 ②，无需命中）→ 机元图腾召唤 Boss（m11 W3-3）→
+    /// 锄草/泥成耕地 →
     /// 种子播上耕地 → 骨粉催熟（树苗让位 SaplingGrowth）→ 床睡觉 → 箱子开箱（m11 W2-3
-    /// <see cref="UI.ChestUi.OpenAt"/>）→ 木门/铁门让位 RedstoneSystem 切换 → 放 placeBlockId。
+    /// <see cref="UI.ChestUi.OpenAt"/>）→ 木门/铁门让位 RedstoneSystem 切换 →
+    /// 放手持物品对应的方块（m11 W3-1 <see cref="ItemDefinition.BlockId"/>；
+    /// 无 blockId 物品/空手回落 placeBlockId 占位，m3 语义保持）。
     /// 左键在成熟作物（*_stage2）上改走 <see cref="FarmSystem.Harvest"/>（<see cref="BreakAt"/>）。
     /// </para>
     /// </summary>
@@ -44,6 +47,14 @@ namespace MyWorld.Unity.Player
         /// 菜单里点滑条不应误挖/误放方块。静态门由 HelpMenuUi 的开关维护，
         /// 挂在玩家身上的组件实例共享这一个全局状态。</summary>
         public static bool InputLocked;
+
+        /// <summary>
+        /// m11 W3-4：方块被挖掉/收获的公开事件（坐标 + 被挖前方块 id）——纯视觉订阅点
+        /// （<see cref="MyWorld.Unity.FX.ParticlePool"/> 挖掘碎屑）。本类不持订阅者、
+        /// 不感知谁在听；无订阅者时 <c>?.Invoke</c> 零开销，玩法语义零变化。
+        /// 静态事件与 <see cref="InputLocked"/> 同约定：挂在玩家身上的实例共享。
+        /// </summary>
+        public static event System.Action<int, int, int, ushort> BlockBroken;
 
         private PlayerController _player;
         private World _world;
@@ -220,12 +231,14 @@ namespace MyWorld.Unity.Player
         /// <c>Input.GetMouseButtonDown</c>，直接调本方法，与 <see cref="BreakAt"/> 同款做法）。
         /// 选中槽是食物（<see cref="ItemDefinition.IsEdible"/>）→ 吃 1 个：经
         /// <see cref="HungerSystem.Eat"/>（唯一进食入口）恢复 Hunger/Saturation 并扣 1 个物品，
-        /// <b>本次右键到此为止，不再放方块</b>（食物优先）；否则射线命中时照常放
-        /// <see cref="placeBlockId"/>。
+        /// <b>本次右键到此为止，不再放方块</b>（食物优先）；否则射线命中时按 m11 W3-1
+        /// 放置路由落块（手持物品带 <see cref="ItemDefinition.BlockId"/> 放对应方块并扣 1 个，
+        /// 否则照旧放 <see cref="placeBlockId"/> 占位）。
         /// <para>
         /// m11 ②：食物之后、放方块之前新插一排交互路由（优先级自上而下）：
         /// 附魔书融合（m11 W2-2，不需要命中方块）→
-        /// 弓（蓄力，不需要命中方块）→ 锄草/泥成耕地 → 种子播上耕地 → 骨粉催熟作物
+        /// 弓（蓄力，不需要命中方块）→ 机元图腾召唤 Boss（m11 W3-3，命中 2×2 机元矿石
+        /// 图腾才消费）→ 锄草/泥成耕地 → 种子播上耕地 → 骨粉催熟作物
         /// （树苗让位给 <see cref="MyWorld.Unity.Environment.SaplingGrowth"/> 的既有右键即长，
         /// 这里只挡放置）→ 床睡觉 → 箱子开箱（m11 W2-3，<see cref="UI.ChestUi.OpenAt"/>）→
         /// 门让位给 <see cref="MyWorld.Unity.Environment.RedstoneSystem"/> 的既有切换。
@@ -268,6 +281,7 @@ namespace MyWorld.Unity.Player
             ushort target = _world.GetBlock(hit.X, hit.Y, hit.Z);
 
             // ── m11 ②交互路由（全部在「放方块」之前，见类注释的路由优先级表） ──
+            if (TrySummonMachineGuardian(hit, target)) return;
             if (TryTillWithHoe(hit, target)) return;
             if (TryPlantSeeds(hit, target)) return;
             if (TryApplyBoneMeal(hit, target)) return;
@@ -285,19 +299,201 @@ namespace MyWorld.Unity.Player
                 return; // 门：切换由 RedstoneSystem 自己的右键通道做，这里只挡放置（双动）
             }
 
-            // 放：尝试解算放置位置，合法就 SetBlock + 标脏 + 重建
+            // 放：尝试解算放置位置（含 IntersectsPlayer 防卡身），合法就按 m11 W3-1 放置路由落块
             Aabb playerBox = Aabb.FromBottomCenter(_player.State.Position,
                 _player.Settings.Width, _player.Settings.Height);
             if (BlockPlacement.TryResolve(hit, playerBox, out int x, out int y, out int z))
             {
+                PlaceHeldItemOrPlaceholder(playerBox, x, y, z);
+            }
+        }
+
+        // ─── m11 W3-1：手持物品 → 对应方块（替换 m3 恒放 placeBlockId 的占位） ──────
+
+        /// <summary>
+        /// 放置路由（m11 W3-1，集成点③发现的缺口：此前家具/箱子/床/门/附魔台全放不进世界）。
+        /// 手持物品 <see cref="ItemDefinition.BlockId"/> 非空 → 放对应方块并扣 1 个物品：
+        /// 床走 <see cref="BedSystem.PlaceBed"/> 双格摆法、门贴地两格竖放、其余
+        /// （9 家具 / 箱子 / 附魔台）单格直放。BlockId 为空（含空手 / 无关物品）→
+        /// 照旧放 <see cref="placeBlockId"/> 且<b>不扣物品</b>——m3 占位语义原样保持
+        /// （BlockInteractionUseRoutingTests.UseAt_EmptyHandOnGrass_PlacesAsBefore 钉着）。
+        /// 放置成功才扣 1：挖掉这些方块按 block_drops 1:1 掉回物品，不扣就是无限复制机。
+        /// </summary>
+        private void PlaceHeldItemOrPlaceholder(Aabb playerBox, int x, int y, int z)
+        {
+            var ctx = PlayerContext.Instance;
+            var def = ctx == null ? null : ctx.GetSelectedDefinition();
+            string blockId = def?.BlockId;
+            if (string.IsNullOrEmpty(blockId))
+            {
+                // 占位兼容路径（m3 起）：无 blockId 物品照旧恒放 placeBlockId
                 _world.SetBlock(x, y, z, placeBlockId);
                 _views?.MarkBlockChanged(x, y, z);
                 _audio?.PlayPlace();
+                return;
             }
+
+            // 悬空 blockId（数据表笔误）：不放也不扣——真数据守卫测试会把住这一关
+            if (_registry == null || !_registry.TryGetById(blockId, out BlockDefinition block))
+            {
+                Debug.LogWarning(
+                    $"[BlockInteraction] 物品 {def.Id} 的 blockId「{blockId}」未在方块注册表注册，本次右键不放任何方块。");
+                return;
+            }
+
+            if (block.NumericId == BlockIds.Bed)
+            {
+                PlaceBedTwoCells(playerBox, x, y, z);
+                return;
+            }
+
+            if (block.NumericId == BlockIds.WoodenDoor || block.NumericId == IronDoorBlockId)
+            {
+                PlaceDoorTwoCells(playerBox, x, y, z, block.NumericId);
+                return;
+            }
+
+            _world.SetBlock(x, y, z, block.NumericId);
+            _views?.MarkBlockChanged(x, y, z);
+            _audio?.PlayPlace();
+            ConsumeOneHeldItem();
+        }
+
+        /// <summary>
+        /// 床：脚格 = 解算出的放置格，头格 = 脚格沿玩家视向偏移一格（<see cref="ResolveBedFacing"/>，
+        /// 头朝玩家看的方向，与 MC 同款摆法）。双格落块走 <see cref="BedSystem.PlaceBed"/>
+        /// 既有 API：头格或脚格非空气<b>整体拒绝</b>（不留半张床）；头格额外过一遍
+        /// <see cref="BlockPlacement.IntersectsPlayer"/> 防卡身——脚格由 TryResolve 把过关，
+        /// 头格是本路径新引入的占据格，同一份判定不能只查一半。BedSystem 未就绪
+        /// （数据表缺失降级）时 warn 后不放（右键被消费，不回落占位——占位放的是石头，
+        /// 对着床物品放石头比什么都不放更错）。
+        /// </summary>
+        private void PlaceBedTwoCells(Aabb playerBox, int x, int y, int z)
+        {
+            var beds = ResolveBeds();
+            if (beds == null)
+            {
+                Debug.LogWarning("[BlockInteraction] BedSystem 未就绪，床放不了（本次右键不放任何方块）。");
+                return;
+            }
+
+            BedFacing facing = ResolveBedFacing();
+            (int hx, _, int hz) = BedSystem.HeadOffset(facing);
+            if (BlockPlacement.IntersectsPlayer(x + hx, y, z + hz, playerBox))
+            {
+                return; // 头格会卡住玩家：整体不放（床是实心方块，放进去人被封在床里）
+            }
+
+            if (!beds.PlaceBed(_world, x, y, z, facing))
+            {
+                return; // 头/脚格被占：整体拒绝（PlaceBed 内部两格原子性，不留半张床）
+            }
+
+            _views?.MarkBlockChanged(x, y, z);
+            _views?.MarkBlockChanged(x + hx, y, z + hz);
+            _audio?.PlayPlace();
+            ConsumeOneHeldItem();
+        }
+
+        /// <summary>
+        /// 门：贴地两格竖放——下格 = 解算出的放置格，上格 = 其正上方（MC 门是两格高）。
+        /// <para>
+        /// <b>双格取舍（m11 W3-1）</b>：仓库没有 <c>wooden_door_upper</c> 方块 id，
+        /// <see cref="World.SetBlock"/> 又只存 16 位方块 id、没有逐格 metadata 位可放
+        /// 「上半扇」标记——因此上下两格放<b>同一个门方块 id</b>（纹理差异靠该方块自身
+        /// top/bottom/side 分面，两格造型一致是可接受的简化）。这与 RedstoneSystem 的
+        /// 门语义天然对齐：它把每个门格独立注册切换（Doors.Register 逐格），同 id 双格
+        /// 不引入新特例。要真正区分上下半扇需新增 upper 方块 id 或给 ChunkSection 加
+        /// metadata 面，留给后续里程碑。
+        /// </para>
+        /// 上格非空气 / 超出世界高度 / 会卡住玩家 → <b>整体拒绝</b>（不留半扇门、不扣物品）。
+        /// </summary>
+        private void PlaceDoorTwoCells(Aabb playerBox, int x, int y, int z, ushort doorId)
+        {
+            if (y + 1 >= VoxelCoords.MaxY) return;
+            if (_world.GetBlock(x, y + 1, z) != BlockIds.Air) return; // 上格被占（天花板抵头）
+            if (BlockPlacement.IntersectsPlayer(x, y + 1, z, playerBox)) return; // 上格卡身
+
+            _world.SetBlock(x, y, z, doorId);
+            _world.SetBlock(x, y + 1, z, doorId);
+            _views?.MarkBlockChanged(x, y, z);
+            _views?.MarkBlockChanged(x, y + 1, z);
+            _audio?.PlayPlace();
+            ConsumeOneHeldItem();
+        }
+
+        /// <summary>
+        /// 床头脚取向：取玩家视向的<b>水平主轴</b>（|X| 与 |Z| 大者；相等或垂直俯仰时归
+        /// Z 轴），头格朝玩家看的方向。<see cref="BedFacing"/> 的 North=+Z / East=+X 轴约定
+        /// 与 MobModels「面朝 +Z」同源。没有视向信息（EditMode 无相机 / 装配失误）
+        /// 默认朝北——放得出床比取向完美更重要，取向仅影响头脚哪端朝哪。
+        /// </summary>
+        private BedFacing ResolveBedFacing()
+        {
+            if (_player == null || _player.Eye == null) return BedFacing.North;
+            Float3 forward = ToFloat3(_player.Eye.forward);
+            if (System.Math.Abs(forward.X) > System.Math.Abs(forward.Z))
+            {
+                return forward.X >= 0f ? BedFacing.East : BedFacing.West;
+            }
+            return forward.Z >= 0f ? BedFacing.North : BedFacing.South;
+        }
+
+        /// <summary>放置成功扣选中槽 1 个物品（blockId 物品路径专用；占位路径不扣）。
+        /// 与「挖掉这些方块 1:1 掉回物品」（block_drops）对称——放时扣 1、挖时还 1。</summary>
+        private void ConsumeOneHeldItem()
+        {
+            var ctx = PlayerContext.Instance;
+            ctx?.Inventory?.TryRemoveOne(ctx.Inventory.SelectedHotbarIndex);
         }
 
         /// <summary>铁门方块 numericId（与 blocks/iron_door.json 及 RedstoneSystem.IronDoorId 手动一致）。</summary>
         private const ushort IronDoorBlockId = 1005;
+
+        // ─── m11 W3-3：机元图腾 → 召唤机元守卫 Boss ──────────────────────────
+
+        /// <summary>「机元守卫苏醒了！」（召唤成功提示）。public const 给 EditMode 测试锁文案（OnGUI 本身 EditMode 不跑）。</summary>
+        public const string BossSummonedHintText = "机元守卫苏醒了！";
+
+        /// <summary>「图腾已沉寂」（已用图腾再右键的提示）。同上。</summary>
+        public const string BossTotemUsedHintText = "图腾已沉寂";
+
+        /// <summary>
+        /// m11 W3-3：机元守卫召唤路由——右键命中的机元矿石属于一个完整 2×2 图腾
+        /// （<see cref="MachineGuardianSummon.TryDetectTotem"/>：四块相邻同层 + y&lt;16）
+        /// 时，在图腾中心上方一格生成 Boss（<see cref="MobManager.SpawnMobAt"/>）。
+        /// 消耗无——矿石留着，挖掉任一块即自然拆除图腾；防重复靠
+        /// <see cref="BossSummonState.Default"/> 的已用登记（键 = 2×2 最小角，
+        /// 进 <see cref="MyWorld.Core.Persistence.LevelData.UsedBossTotems"/> 存档往返），
+        /// 同一图腾只出一只 Boss，再右键给「图腾已沉寂」提示。
+        /// 不是完整图腾（单块/缺角/y 过浅）→ false 落到后续路由（锄地/放方块等）；
+        /// 场景没有 MobManager（纯逻辑测试宿主）→ 同样 false 整条让位。
+        /// </summary>
+        private bool TrySummonMachineGuardian(VoxelRayHit hit, ushort target)
+        {
+            if (target != BlockIds.MachineEssenceOre) return false;
+            if (!MachineGuardianSummon.TryDetectTotem(_world, hit.X, hit.Y, hit.Z,
+                    out int anchorX, out int anchorY, out int anchorZ, out Float3 spawnPos))
+            {
+                return false; // 不是完整图腾：不是本路由的菜，照常落到后续路由
+            }
+
+            var mgr = FindObjectOfType<MobManager>();
+            if (mgr == null) return false; // 没生物系统的宿主（EditMode 纯逻辑场景）整条让位
+
+            string key = MachineGuardianSummon.TotemKey(anchorX, anchorY, anchorZ);
+            if (BossSummonState.Default.IsUsed(key))
+            {
+                ShowInteractionHint(BossTotemUsedHintText);
+                return true; // 已用图腾：消费右键给提示，不再召唤也不放方块
+            }
+
+            Mob boss = mgr.SpawnMobAt(MobKind.MachineGuardian, spawnPos);
+            BossSummonState.Default.MarkUsed(key);
+            _audio?.PlayPlace();
+            ShowInteractionHint(BossSummonedHintText);
+            return true;
+        }
 
         /// <summary>
         /// m11 ②：手持锄（<c>hoe_*</c> 系列）+ 准星是草/泥土 → 锄成干耕地。
@@ -693,6 +889,7 @@ namespace MyWorld.Unity.Player
                 ItemStack[] harvest = harvestFarm.Harvest(_world, x, y, z); // 内部已清方块 + 清作物状态
                 _views?.MarkBlockChanged(x, y, z);
                 _audio?.PlayHarvest();  // av W3-13：成熟作物 → 收获音
+                BlockBroken?.Invoke(x, y, z, before); // m11 W3-4：碎屑粒子纯视觉挂载点（收获也是一次移除方块）
                 SpawnItemDrops(harvest, x, y, z);
                 // m11 W2-4：收获一株成熟作物 → HarvestCrop 任务事件（chapter2 ch2_03
                 // 「第一茬收获」；不区分作物种类，Count 按株记）
@@ -711,6 +908,7 @@ namespace MyWorld.Unity.Player
             _world.SetBlock(x, y, z, BlockIds.Air);
             _views?.MarkBlockChanged(x, y, z);
             _audio?.PlayBreak();  // 普通方块挖掘 → 破方块音
+            BlockBroken?.Invoke(x, y, z, before); // m11 W3-4：碎屑粒子纯视觉挂载点（门槛不够的白挖也发——方块视觉上确实没了）
 
             // m10 B1：挖掉即磨损（白挖也算——工具挥出去了就是用了，与 MC 一致）
             ApplyDigDurability(x, y, z);

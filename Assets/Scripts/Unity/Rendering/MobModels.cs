@@ -78,6 +78,9 @@ namespace MyWorld.Unity.Rendering
                 case MobKind.Goat:
                 case MobKind.Raccoon:
                 case MobKind.Hamster:
+                // m11 W3-3：Boss 造型 JSON 同批入库（只经图腾召唤刷出，走保底灰双部位
+                // 的话召唤出来的是灰方块——模型白做）
+                case MobKind.MachineGuardian:
                     // 五生物真值已外置 mobs/models/*.json（m11 I1）——
                     // 门面只转调，加载/缓存/报错策略统一在 Library
                     return MobModelLibrary.Load(kind);

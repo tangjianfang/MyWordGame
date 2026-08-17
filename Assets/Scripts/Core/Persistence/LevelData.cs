@@ -34,6 +34,11 @@ namespace MyWorld.Core.Persistence
         public Dictionary<string, int> Stats;
         /// <summary>作物状态（m11 I3）。key = "x,y,z" 农田坐标，value = 作物状态串。可空：旧档缺键归一为空字典。</summary>
         public Dictionary<string, string> FarmStates;
+        /// <summary>已用 Boss 图腾（m11 W3-3）。元素 = "x,y,z" 图腾 anchor 角键
+        ///（<see cref="MyWorld.Core.Entities.MachineGuardianSummon.TotemKey"/>），
+        /// 每个图腾只召唤一次机元守卫。可空：旧档缺键归一为空列表。
+        /// 不复用 FarmStates 的取舍见 <c>BossSummonState</c> 类注释（农田层整体替换会清掉寄生键）。</summary>
+        public List<string> UsedBossTotems;
     }
 
     /// <summary>玩家快照：位置/速度/生命/饥饿/经验/背包全部 36 槽 + 穿戴栏 4 槽（m11 W2-1）。</summary>

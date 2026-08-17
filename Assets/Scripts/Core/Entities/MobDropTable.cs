@@ -22,6 +22,12 @@ namespace MyWorld.Core.Entities
         public int CountMax { get; set; }
         public float Chance { get; set; }
 
+        /// <summary>m11 W3-3：掉落栈的 Metadata 初值（默认 0 = 无编码）。
+        /// 唯一在用场景是 Boss 掉落的附魔书——<c>EnchantSystem.EncodeBook</c> 的
+        /// 「bits0-2 类型 / bits3-4 等级」编码（如 25 = 锋利 III），带编码的书融合时
+        /// 不掷骰直接用编码值。取值照抄 JSON，不在此校验语义（坏编码按未鉴定书兜底）。</summary>
+        public ushort Metadata { get; set; }
+
         /// <summary>规范化后写入的最终 [min, max] 区间。</summary>
         public void Normalize()
         {
@@ -130,7 +136,7 @@ namespace MyWorld.Core.Entities
                     // 用 seed × entryIndex 区分 count 与 chance 命中，避免完全同步
                     int countSeed = unchecked(seed * 31 + entryIndex * 17 + 1);
                     int count = RollCount(countSeed, e.CountMin, e.CountMax);
-                    return new ItemStack(e.ItemId, count);
+                    return new ItemStack(e.ItemId, count, e.Metadata);
                 }
                 entryIndex++;
             }
@@ -166,7 +172,7 @@ namespace MyWorld.Core.Entities
                 {
                     int countSeed = unchecked(seed * 31 + entryIndex * 17 + 1);
                     int count = RollCount(countSeed, e.CountMin, e.CountMax);
-                    results.Add(new ItemStack(e.ItemId, count));
+                    results.Add(new ItemStack(e.ItemId, count, e.Metadata));
                 }
                 entryIndex++;
             }
@@ -218,9 +224,11 @@ namespace MyWorld.Core.Entities
                 case "Goat": return MobKind.Goat;
                 case "Raccoon": return MobKind.Raccoon;
                 case "Hamster": return MobKind.Hamster;
+                // m11 W3-3：Boss 掉落（netherite_ingot ×2-3 + 带编码附魔书 ×1）
+                case "MachineGuardian": return MobKind.MachineGuardian;
                 default:
                     throw new System.ArgumentException(
-                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Skeleton/Spider/Creeper/Sheep/Rabbit/Fox/Deer/Panda/Penguin/Goat/Raccoon/Hamster）");
+                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Skeleton/Spider/Creeper/Sheep/Rabbit/Fox/Deer/Panda/Penguin/Goat/Raccoon/Hamster/MachineGuardian）");
             }
         }
     }

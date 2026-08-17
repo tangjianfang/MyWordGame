@@ -1,0 +1,15 @@
+{
+  "id": "armor_netherite_chest_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "netherite_ingot",
+    "iron_chest"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "netherite_chest",
+    "count": 1
+  }
+}

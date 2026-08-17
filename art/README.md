@@ -251,6 +251,16 @@ milestone-11 第 2 波附魔系统的三张新贴图先程序占位
 | M11-E1 | 附魔台方块顶面 [top](requests/blocks/enchanting-table-top.md) + 侧底面 [side](requests/blocks/enchanting-table-side.md) | 2 | 32×32 | 顶四边/侧左右 | 无 | 已入库（程序占位，待正式美术替换） |
 | M11-E2 | [附魔台物品图标](requests/items/enchanting-table.md) | 1 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
 
+### m11 W3-3 批 · 下界合金盔甲图标（程序占位）
+
+milestone-11 第 3 波 Boss 链的四件 netherite 盔甲先程序占位
+（`art/scripts/gen_m11_netherite_armor_placeholders.py`：四系盔甲既成剪影 +
+深紫灰色阶 + 金饰，m10 批同模式）：
+
+| 编号 | 资源 | 文件数 | 尺寸 | 平铺 | Alpha | 状态 |
+| --- | --- | --- | --- | --- | --- | --- |
+| M11-N1 | [下界合金四件盔甲图标](requests/items/netherite-armor-placeholders.md)（helmet/chest/legs/boots-netherite） | 4 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
+
 ### av 批 · 音频与视频（MiniMax 生成）
 
 音频 33 条走 `tools/generate_media.py --audio`（music-2.6，SFX 带 ffmpeg 合成兜底），
@@ -260,16 +270,28 @@ milestone-11 第 2 波附魔系统的三张新贴图先程序占位
 
 | 编号 | 资源 | 条数 | 说明 | 状态 |
 | --- | --- | --- | --- | --- |
-| AV-BGM | [BGM 三首](requests/audio/bgm/bgm.md) | 3 | 氛围钢琴 无缝循环 | 待生成 |
-| AV-AMB | [环境循环](requests/audio/ambient/ambient.md) | 3 | 鸟/虫/洞穴 | 待生成 |
-| AV-SFX | [事件音](requests/audio/events/events.md) | 11 | mono 短音（含合成兜底模板） | 待生成 |
-| AV-MOB | [生物叫声](requests/audio/mobs/mobs.md) | 16 | 6 专属 + 2 通用 × idle/hurt | 待生成 |
-| AV-VID | [视频两条](requests/video/menu-bg.md) | 2 | 主菜单背景 + 笔记本屏 | 待生成 |
+| AV-BGM | [BGM 三首](requests/audio/bgm/bgm.md) | 3 | 氛围钢琴 无缝循环 | 已入库 |
+| AV-AMB | [环境循环](requests/audio/ambient/ambient.md) | 3 | 鸟/虫/洞穴 | 已入库 |
+| AV-SFX | [事件音](requests/audio/events/events.md) | 11 | mono 短音（含合成兜底模板） | 已入库 |
+| AV-MOB | [生物叫声](requests/audio/mobs/mobs.md) | 16 | 6 专属 + 2 通用 × idle/hurt | 已入库 |
+| AV-VID | [视频两条](requests/video/videos/menu-bg.md) | 2 | 主菜单背景 + 笔记本屏 | 已入库 |
 | AV-LS | [笔记本屏幕贴图](requests/items/laptop-screen.md) | 1 | 32×32 程序占位，运行时换 RenderTexture | 程序占位（待正式美术替换） |
 
 第 4 批合计 **36 个文件**（音频 33 ogg + 视频 2 mp4 + 屏幕贴图 1 png）。
 注：plan 文字提到 mob 14，但实际需要 6 专属 × 2 + 2 通用 × 2 = 16 条（Task 10
 测试要求 `generic-small/large-{idle,hurt}` 4 个文件名全在），以实现为准修计划。
+
+### m11 W3-4 批 · 特效帧贴图（程序占位）
+
+milestone-11 第 3 波氛围任务（粒子池）的两张特效贴图先程序占位
+（`art/scripts/gen_m11_fx_placeholders.py`：确定性哈希画形状，m10/m11 批同模式）。
+运行时从 `Assets/StreamingAssets/fx/` 读（standalone 可达——m6 B3 教训），
+正式美术后处理入库 `Assets/Art/Effects/` 后同名替换即可：
+
+| 编号 | 资源 | 文件数 | 尺寸 | 平铺 | Alpha | 状态 |
+| --- | --- | --- | --- | --- | --- | --- |
+| M11-F1 | 爆炸三帧 [fx-explosion](requests/effects/fx-explosion.md)（拆帧命名 `fx-explosion-0/1/2`） | 3 | 32×32 | 否 | **有**（仅 0/255） | 已入库（程序占位，待正式美术替换） |
+| M11-F2 | 附魔光柱 [magic-enchant-column](requests/effects/magic-enchant-column.md) | 1 | 32×32 | 否 | **有**（仅 0/255） | 已入库（程序占位，待正式美术替换） |
 
 ### 第 3 批 · 待玩法定案后再写提示词
 
@@ -308,5 +330,6 @@ milestone-11 第 2 波附魔系统的三张新贴图先程序占位
 | UI | `Assets/Art/UI/` |
 | 天空 | `Assets/Art/Sky/` |
 | 玩家 | `Assets/Art/Player/` |
+| 特效帧（m11 W3-4 占位在 `Assets/StreamingAssets/fx/`，正式美术入库 `Assets/Art/Effects/`） | `Assets/Art/Effects/` |
 | 音频 | `Assets/Resources/Audio/` |
 | 视频 | `Assets/StreamingAssets/video/` |

@@ -53,6 +53,7 @@ namespace MyWorld.Core.Persistence
         /// 旧档 JSON 没有对应键时 Newtonsoft 会留 null，这里统一补成空集合，
         /// 后续波次直接拿来用不会 NPE（沿用 quests「旧档 = 全新开始」的兼容策略）。
         /// m11 W2-1 追加：Player.ArmorSlots（穿戴栏数组）同策略归一为空数组 = 空穿戴。
+        /// m11 W3-3 追加：UsedBossTotems（Boss 图腾已用列表）同策略归一为空列表。
         /// 字段类型给错（如 Stats 给字符串）在反序列化阶段就抛错，本方法不做任何静默吞错。
         /// level.dat 本身没有版本号字段（FormatVersion 是 regions 二进制格式的概念），无需 bump。</summary>
         private static void NormalizeNewCollections(LevelData data)
@@ -63,6 +64,8 @@ namespace MyWorld.Core.Persistence
             data.PlayerEnchantments ??= new Dictionary<string, string>();
             data.Stats ??= new Dictionary<string, int>();
             data.FarmStates ??= new Dictionary<string, string>();
+            // m11 W3-3：Boss 图腾已用列表同策略归一（旧档缺键 → 空列表 = 无已用图腾）
+            data.UsedBossTotems ??= new List<string>();
             // 旧档 Player 节点没有 armorSlots 键 → null；Player 本身缺失（无玩家段的档）保持 null
             if (data.Player != null) data.Player.ArmorSlots ??= new SlotSnapshot[0];
         }

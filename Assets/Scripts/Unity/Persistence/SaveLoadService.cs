@@ -268,6 +268,12 @@ namespace MyWorld.Unity.Persistence
             {
                 data.PlayerEnchantments = MyWorld.Core.Enchanting.EnchantStore.Default.ToSaveDictionary();
             }
+            // m11 W3-3：Boss 图腾已用登记（照 PlayerEnchantments 挂法：全局单例
+            // BossSummonState.Default，空表不写字段留 null，旧档语义一致）
+            if (MyWorld.Core.Entities.BossSummonState.Default.Count > 0)
+            {
+                data.UsedBossTotems = MyWorld.Core.Entities.BossSummonState.Default.Export();
+            }
             return data;
         }
 
@@ -344,6 +350,9 @@ namespace MyWorld.Unity.Persistence
             // m11 W2-2 C4：附魔恢复（农田/箱子/床之后）。坏行由 FromSaveDictionary
             // 逐条读容忍跳过；旧档无字段 = null = 清空（全新开始）
             ApplyEnchants(data.PlayerEnchantments);
+            // m11 W3-3：Boss 图腾登记恢复（附魔之后）。Import 自带 null/坏行容忍；
+            // null（旧档 / 未召唤过）= 清空 = 全部图腾重新可用
+            MyWorld.Core.Entities.BossSummonState.Default.Import(data.UsedBossTotems);
             return true;
         }
 

@@ -29,6 +29,12 @@ namespace MyWorld.Core.Entities
     /// 9 被动 kind（Sheep…Hamster）仍等价猪组（wander + 受击逃 3s）。
     /// 昼夜门（isNight 参数）与追击半径语义对三敌对与僵尸保持一致。
     /// </para>
+    /// <para>
+    /// m11 W3-3：机元守卫 Boss（<see cref="MobKind.MachineGuardian"/>）三招状态机
+    /// （<see cref="TickBoss"/> 私有）：近身冲撞伤 6 / 6m 震荡波 AOE 伤 3 / 半血
+    /// 一次性召唤 2 骷髅（<see cref="OnBossSummon"/> 事件出口），各带冷却 +
+    /// 确定性哈希变招；Boss 不看昼夜——图腾召唤的对手局白天照打。
+    /// </para>
     /// </summary>
     public static class MobAI
     {
@@ -74,6 +80,43 @@ namespace MyWorld.Core.Entities
 
         /// <summary>新苦力怕引信时长（秒）：膨胀 1.5s 后起爆（Combat.Explosion 半径 3 / 最高 6 伤）。</summary>
         public const float NewCreeperFuseDuration = 1.5f;
+
+        // ─── m11 W3-3：机元守卫 Boss 三招参数（卡片数值） ────────────────────
+
+        /// <summary>Boss 震荡波半径（米）：玩家进入即吃一发 AOE——脉冲不是射线，躲掩体没用。</summary>
+        public const float BossShockwaveRadius = 6f;
+
+        /// <summary>Boss 震荡波伤害（点）。</summary>
+        public const float BossShockwaveDamage = 3f;
+
+        /// <summary>Boss 震荡波冷却（秒）。</summary>
+        public const float BossShockwaveCooldown = 6f;
+
+        /// <summary>Boss 冲撞起手距离上限（米）：玩家在攻击距离（4m）到该值之间可起手冲撞。</summary>
+        public const float BossChargeTriggerRange = 8f;
+
+        /// <summary>Boss 冲撞持续（秒）：起手后以 <see cref="BossChargeSpeed"/> 冲向玩家的窗口。</summary>
+        public const float BossChargeDuration = 0.6f;
+
+        /// <summary>Boss 冲撞速度（格/s）：常速 3.5 的两倍——玩家得跑位才甩得开。</summary>
+        public const float BossChargeSpeed = 7f;
+
+        /// <summary>Boss 冲撞冷却（秒）。</summary>
+        public const float BossChargeCooldown = 4f;
+
+        /// <summary>Boss 近身攻击冷却（秒）：伤 6 的重击比僵尸 1s 慢一倍，不能连发。</summary>
+        public const float BossMeleeCooldown = 2f;
+
+        /// <summary>Boss 半血一次性召唤的骷髅数。</summary>
+        public const int BossSummonCount = 2;
+
+        /// <summary>
+        /// m11 W3-3：Boss 半血召唤出口。Core 不持世界级 mob 容器——宿主（MobManager）
+        /// 订阅后在 Boss 附近刷骷髅（参数 mob + 第 i 只序号）；null 时召唤判定照走
+        /// （<see cref="Mob.BossSummoned"/> 仍置位），只是无人接管实体。
+        /// 照 <see cref="OnProjectileFired"/> 同款事件出口模式。
+        /// </summary>
+        public static System.Action<Mob, int> OnBossSummon;
 
         /// <summary>
         /// m11 W1-1：骷髅开火的箭实体出口。Unity 侧（集成点②接线）订阅后接管箭的
@@ -213,6 +256,13 @@ namespace MyWorld.Core.Entities
                 case MobKind.Villager:
                     mob.State = MobState.Idle;
                     mob.Velocity = default;
+                    break;
+
+                // m11 W3-3：机元守卫 Boss——**不看昼夜**（isNight 不进本分支）：
+                // 它是玩家右键图腾主动召唤的对手局，白天召唤也得打完，
+                // 与「夜里才威胁」的自然刷怪组（Zombie/Skeleton/Spider/Creeper）语义不同。
+                case MobKind.MachineGuardian:
+                    TickBoss(mob, playerPos, distSq, dt);
                     break;
             }
         }
@@ -567,6 +617,136 @@ namespace MyWorld.Core.Entities
                 mob.Position.X + mob.Velocity.X * dt,
                 mob.Position.Y,
                 mob.Position.Z + mob.Velocity.Z * dt);
+        }
+
+        /// <summary>
+        /// m11 W3-3：机元守卫 Boss 三招状态机——①近身冲撞（&lt;AttackRange 伤 6，
+        /// 冲撞窗口 4-8m 起手以 <see cref="BossChargeSpeed"/> 突进 0.6s，收尾撞上就是近身这一下）、
+        /// ②震荡波（≤<see cref="BossShockwaveRadius"/> 的 AOE 伤 3）、③半血一次性召唤
+        /// 2 骷髅（经 <see cref="OnBossSummon"/> 抛给宿主接管）。
+        /// <para>
+        /// 三招各带冷却（近身 2s / 冲撞 4s / 震荡波 6s）；「震荡波」与「冲撞/近身」
+        /// 同时可用的 tick（距离落在重叠带）用确定性哈希二选一变招
+        /// （<see cref="Mob.BossMoveCounter"/> 只在此递增，(EntityId, 招数) 唯一决定变招序列）。
+        /// 每 tick 至多发一招。昼夜门不进本分支（召唤出的 Boss 白天照打，见 Tick 分派注释）。
+        /// </para>
+        /// </summary>
+        private static void TickBoss(Mob mob, Float3 playerPos, float distSq, float dt)
+        {
+            // ③ 半血召唤（一次性）：×2 比较避开半血的取整歧义（60 血的线 = 30）。
+            // 判定照走、事件无人订阅也只是少刷骷髅——BossSummoned 置位保证不重发。
+            if (!mob.BossSummoned && mob.Health.Current * 2f <= mob.Health.Max)
+            {
+                mob.BossSummoned = true;
+                for (int i = 0; i < BossSummonCount; i++)
+                {
+                    OnBossSummon?.Invoke(mob, i);
+                }
+            }
+
+            if (mob.BossChargeCooldown > 0f) mob.BossChargeCooldown -= dt;
+            if (mob.BossShockwaveCooldown > 0f) mob.BossShockwaveCooldown -= dt;
+
+            float chaseRadius = mob.ChaseRadius > 0f ? mob.ChaseRadius : HostileChaseRadius;
+            if (distSq > chaseRadius * chaseRadius)
+            {
+                mob.State = MobState.Idle; // 追击半径外站定（走远由 MobManager despawn 兜底）
+                mob.Velocity = default;
+                return;
+            }
+            mob.State = MobState.Chasing;
+
+            float dist = (float)System.Math.Sqrt(distSq);
+
+            // ── 招式可用性（三段距离带：近身 <4 ≤ 冲撞 ≤8；震荡波整段 ≤6） ──
+            bool shockReady = dist <= BossShockwaveRadius && mob.BossShockwaveCooldown <= 0f;
+            bool meleeReady = dist < mob.AttackRange && mob.AttackCooldown <= 0f;
+            bool chargeReady = dist >= mob.AttackRange && dist <= BossChargeTriggerRange
+                && mob.BossChargeCooldown <= 0f;
+
+            // 变招：震荡波与另一招同 tick 可用时哈希二选一（重叠带 = 0-6m 的近身带 +
+            // 4-6m 的冲撞带）。同一 Boss 重放同序列；不同 EntityId 各走各的序列。
+            if (shockReady && (meleeReady || chargeReady))
+            {
+                if (BossMoveHash(mob) % 2u == 0u)
+                {
+                    meleeReady = false;
+                    chargeReady = false;
+                }
+                else
+                {
+                    shockReady = false;
+                }
+            }
+
+            if (shockReady)
+            {
+                // ② 震荡波：原地点发（本帧不走位），伤害走与近战同一条 CombatEvents 通道
+                mob.BossShockwaveCooldown = BossShockwaveCooldown;
+                mob.Velocity = default;
+                CombatEvents.RaiseDealt(new DamageEvent(
+                    DamageSource.Melee, BossShockwaveDamage,
+                    attacker: mob.EntityId, victim: 0, hit: mob.Position));
+                CombatEvents.RaiseTaken(new DamageEvent(
+                    DamageSource.Melee, BossShockwaveDamage,
+                    attacker: mob.EntityId, victim: 0, hit: playerPos));
+                return;
+            }
+
+            if (meleeReady)
+            {
+                // ① 近身重击（冲撞窗口冲到脸上的收尾也是它）：伤 6、冷却 2s
+                mob.AttackCooldown = BossMeleeCooldown;
+                CombatEvents.RaiseDealt(new DamageEvent(
+                    DamageSource.Melee, mob.AttackDamage,
+                    attacker: mob.EntityId, victim: 0, hit: mob.Position));
+                CombatEvents.RaiseTaken(new DamageEvent(
+                    DamageSource.Melee, mob.AttackDamage,
+                    attacker: mob.EntityId, victim: 0, hit: playerPos));
+            }
+
+            if (chargeReady && mob.BossChargeTimer <= 0f)
+            {
+                // ① 冲撞起手：开 0.6s 突进窗口（速度在下面取 BossChargeSpeed）
+                mob.BossChargeTimer = BossChargeDuration;
+                mob.BossChargeCooldown = BossChargeCooldown;
+            }
+
+            // ── 移动：常规追击 3.5，冲撞窗口内 7；贴脸（<0.5m）不再推挤 ──
+            float speed = mob.MoveSpeed > 0f ? mob.MoveSpeed : ChaseSpeed;
+            if (mob.BossChargeTimer > 0f)
+            {
+                mob.BossChargeTimer -= dt;
+                speed = BossChargeSpeed;
+            }
+            var to = playerPos - mob.Position;
+            float d = (float)System.Math.Sqrt(to.X * to.X + to.Z * to.Z);
+            mob.Velocity = d > 0.001f && dist > 0.5f
+                ? new Float3(to.X / d * speed, 0, to.Z / d * speed)
+                : default;
+
+            mob.Position = new Float3(
+                mob.Position.X + mob.Velocity.X * dt,
+                mob.Position.Y,
+                mob.Position.Z + mob.Velocity.Z * dt);
+        }
+
+        /// <summary>
+        /// m11 W3-3：Boss 变招哈希——(EntityId, 第 N 次变招) 进、非负 uint 出
+        /// （Knuth 乘 + xorshift，与 ComputeDropSeed 同思路）。只读不写：
+        /// <see cref="Mob.BossMoveCounter"/> 的递增放在调用方（TickBoss 变招分支）。
+        /// </summary>
+        private static uint BossMoveHash(Mob mob)
+        {
+            unchecked
+            {
+                uint h = (uint)mob.EntityId * 2654435761u;
+                h ^= (uint)(++mob.BossMoveCounter) * 40503u;
+                h ^= h >> 13;
+                h *= 2654435761u;
+                h ^= h >> 16;
+                return h;
+            }
         }
 
         /// <summary>

@@ -1,0 +1,15 @@
+{
+  "id": "armor_netherite_helmet_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "netherite_ingot",
+    "iron_helmet"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "netherite_helmet",
+    "count": 1
+  }
+}

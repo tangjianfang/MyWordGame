@@ -1,0 +1,15 @@
+{
+  "id": "armor_netherite_boots_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "netherite_ingot",
+    "iron_boots"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "netherite_boots",
+    "count": 1
+  }
+}

@@ -28,6 +28,7 @@
 | `countMax` | 整数 | 否（默认 = countMin） | 单次掉落堆叠数上界（含） |
 | `count` | 整数 | 否（旧 schema） | 若 `countMin`/`countMax` 都缺省则用此值兜底 |
 | `chance` | 小数 | 否（默认 1.0） | 单条命中概率 0..1；多条时按列表顺序累计，余量未命中返回 null |
+| `metadata` | 整数 | 否（默认 0） | 掉落栈的 Metadata 初值（m11 W3-3）。唯一在用场景是 `MachineGuardian` 掉的附魔书：`25` = `EnchantSystem.EncodeBook(Sharpness, 3)` 的「锋利 III」编码（bits0-2 类型 / bits3-4 等级），带编码的书右键融合时不掷骰直接用编码值 |
 
 ## spawn_rules.json
 
@@ -50,7 +51,7 @@
 
 1. 在 `Assets/Scripts/Core/Entities/MobKind.cs` 加 enum 值
 2. 在 `Assets/Scripts/Core/Entities/Mob.cs` 加 `Mob.Create(mobTypeId, ...)` 分支
-3. 在本目录的 `drop_tables.json` / `spawn_rules.json` 加键
+3. 在本目录的 `drop_tables.json` / `spawn_rules.json` 加键（**只召唤不自然刷的例外**：m11 W3-3 的 `MachineGuardian` 只进 drop_tables——spawn_rules 刻意不加条目，`ShouldSpawn` 对未配置 kind 恒 false，图腾右键是它的唯一来源）
 4. 跑 `dotnet test` 确认 `MobDropTableTests` + `MobSpawnRulesTests` 通过
 
 ## 改完怎么验证

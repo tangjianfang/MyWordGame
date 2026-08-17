@@ -76,6 +76,8 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Goat:
                 case MobKind.Raccoon:
                 case MobKind.Hamster:
+                // m11 W3-3：Boss 走部位表拼装（2.5 格紫金机甲 JSON 已入库）
+                case MobKind.MachineGuardian:
                     BuildFromPartTable(kind);
                     break;
                 default:

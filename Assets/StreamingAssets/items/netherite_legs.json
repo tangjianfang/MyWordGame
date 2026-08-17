@@ -1,0 +1,9 @@
+{
+  "id": "netherite_legs",
+  "displayName": "下界合金护腿",
+  "numericId": 1468,
+  "maxStack": 1,
+  "texture": "legs-netherite",
+  "armorPart": "legs",
+  "gearBonus": { "stat": "defense", "amount": 4 }
+}

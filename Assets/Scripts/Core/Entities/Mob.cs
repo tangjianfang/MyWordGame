@@ -55,6 +55,25 @@ namespace MyWorld.Core.Entities
         // 默认 1 = 既有行为；<=0 按兜底 1 处理（防御式，正常流程不会写出非正值）。
         public float VisualScale = 1f;
 
+        // ─── m11 W3-3：机元守卫 Boss 专属状态（其余 mob 恒为默认值，不参与） ──
+
+        /// <summary>Boss 冲撞进行中的剩余时间（秒，>0 = 正在冲）。MobAI.TickBoss 置
+        /// <see cref="MyWorld.Core.Entities.MobAI.BossChargeDuration"/>，逐帧递减。</summary>
+        public float BossChargeTimer;
+
+        /// <summary>Boss 冲撞起手冷却（秒），归零后玩家在起手窗口内可再触发。</summary>
+        public float BossChargeCooldown;
+
+        /// <summary>Boss 震荡波冷却（秒），归零后玩家进 6m 即触发下一发。</summary>
+        public float BossShockwaveCooldown;
+
+        /// <summary>Boss 变招计数：只在「多招同时可用、哈希二选一」时递增——
+        /// (EntityId, 计数) 唯一决定变招序列，同一场战斗重放一致。</summary>
+        public int BossMoveCounter;
+
+        /// <summary>半血召唤已发（每只 Boss 只召一次 2 骷髅，见 MobAI.TickBoss）。</summary>
+        public bool BossSummoned;
+
         public bool IsAlive => State != MobState.Dead && State != MobState.Dying;
 
         public static Mob Create(int mobTypeId, Float3 position)
@@ -106,6 +125,12 @@ namespace MyWorld.Core.Entities
                 24 => new Mob { MobTypeId = 24, Kind = MobKind.Skeleton, Health = new Health(16), Position = position, AttackDamage = 2f, AttackRange = 12f, ChaseRadius = 20f, WanderCooldown = 2f, MoveSpeed = 3.0f },
                 25 => new Mob { MobTypeId = 25, Kind = MobKind.Spider, Health = new Health(16), Position = position, AttackDamage = 2f, AttackRange = 4f, ChaseRadius = 20f, WanderCooldown = 2f, MoveSpeed = 4.5f },
                 26 => new Mob { MobTypeId = 26, Kind = MobKind.Creeper, Health = new Health(20), Position = position, ChaseRadius = 20f, WanderCooldown = 2f, MoveSpeed = 3.0f },
+
+                // m11 W3-3：机元守卫 Boss 建档——血 60（铁剑 4 伤 15 下 / 钻剑 7 伤 9 下，
+                // 半血还有 2 骷髅搅局）/ 伤 6（近身冲撞与冲撞收尾共用）/ 速 3.5（与僵尸同档，
+                // 冲撞窗口内翻倍到 7）/ 追击 20（同僵尸）。经验 50 在 Unity 侧
+                // MobManager.KillExperience 常量表。只经图腾召唤，不进自然刷怪。
+                27 => new Mob { MobTypeId = 27, Kind = MobKind.MachineGuardian, Health = new Health(60), Position = position, AttackDamage = 6f, AttackRange = 4f, ChaseRadius = 20f, WanderCooldown = 2f, MoveSpeed = 3.5f },
 
                 _ => throw new System.ArgumentException($"未知 mobTypeId: {mobTypeId}"),
             };

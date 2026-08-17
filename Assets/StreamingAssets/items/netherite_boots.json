@@ -1,0 +1,9 @@
+{
+  "id": "netherite_boots",
+  "displayName": "下界合金靴子",
+  "numericId": 1469,
+  "maxStack": 1,
+  "texture": "boots-netherite",
+  "armorPart": "boots",
+  "gearBonus": { "stat": "defense", "amount": 2 }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "armor_netherite_legs_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "netherite_ingot",
+    "iron_legs"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "netherite_legs",
+    "count": 1
+  }
+}

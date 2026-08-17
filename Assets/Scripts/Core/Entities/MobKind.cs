@@ -36,5 +36,12 @@ namespace MyWorld.Core.Entities
         Skeleton = 24,
         Spider = 25,
         Creeper = 26,
+
+        // m11 W3-3：机元守卫 Boss（枚举 27 起）。只经图腾召唤
+        //（Unity 侧 BlockInteraction 的机元图腾路由，检测逻辑在 Core
+        // Entities.MachineGuardianSummon），不进 MobManager 的昼夜刷怪候选、
+        // spawn_rules.json 刻意不加条目——PickKind 对未配置 kind 恒 false，
+        // 自然刷怪对它永不为真（守卫测试守着这两条）。
+        MachineGuardian = 27,
     }
 }
