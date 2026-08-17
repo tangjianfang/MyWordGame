@@ -7,6 +7,7 @@
 //   - MaxMobs 上限生效
 // 整个文件用 #if UNITY_EDITOR 包裹：dotnet 链跑纯 Core 测试时跳过，Unity EditMode 链跑。
 using System.IO;
+using System.Linq;
 using MyWorld.Core.Entities;
 using MyWorld.Core.WorldGen;
 using MyWorld.Unity.Bootstrap;
@@ -239,14 +240,15 @@ namespace MyWorld.Core.Tests.Combat
             foreach (var kind in M11PassiveKinds)
             {
                 Assert.That(day, Does.Contain(kind), $"{kind} 应在白天候选组（被动生物）");
-                Assert.That(night, Does.Not.Contain(kind), $"{kind} 不应在夜晚候选组");
+                // 本 NUnit 版本 Does.Not.Contain 无 object 重载（只认 string），改集合直判
+                Assert.That(night.Contains(kind), Is.False, $"{kind} 不应在夜晚候选组");
             }
 
             // 骷髅/蜘蛛/苦力怕进夜晚组、不进白天组（同上：传枚举值不传字符串）
             foreach (var kind in M11HostileKinds)
             {
                 Assert.That(night, Does.Contain(kind), $"{kind} 应在夜晚候选组（敌对生物）");
-                Assert.That(day, Does.Not.Contain(kind), $"{kind} 不应在白天候选组");
+                Assert.That(day.Contains(kind), Is.False, $"{kind} 不应在白天候选组");
             }
         }
 
