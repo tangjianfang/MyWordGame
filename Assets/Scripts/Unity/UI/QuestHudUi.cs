@@ -43,13 +43,21 @@ namespace MyWorld.Unity.UI
         private bool _chapterDone;
         private float _chapterDoneUntil;
 
+        /// <summary>
+        /// 章节解锁卡（m11 W2-4）：非末章的章节完成的瞬间写入，停留 5s 提示「下一章已解锁」。
+        /// 末章完成不进这张卡——由上面的全链完成卡收尾。
+        /// </summary>
+        private bool _chapterUnlocked;
+        private float _chapterUnlockedUntil;
+
         private static float DefaultTime()
         {
             return Time.time;
         }
 
         /// <summary>
-        /// 挂总线并订阅 <see cref="QuestEventBus.OnQuestCompleted"/>。WorldBootstrap 装配时调用；
+        /// 挂总线并订阅 <see cref="QuestEventBus.OnQuestCompleted"/>（m11 W2-4 起还有
+        /// <see cref="QuestEventBus.OnChapterCompleted"/>）。WorldBootstrap 装配时调用；
         /// 重复 Bind 先摘旧订阅再挂新的（幂等），bus 传 null = 只解绑（无链场景不显示卡片）。
         /// </summary>
         public void Bind(QuestEventBus bus)
@@ -57,11 +65,13 @@ namespace MyWorld.Unity.UI
             if (_bus != null)
             {
                 _bus.OnQuestCompleted -= HandleQuestCompleted;
+                _bus.OnChapterCompleted -= HandleChapterCompleted;
             }
             _bus = bus;
             if (bus != null)
             {
                 bus.OnQuestCompleted += HandleQuestCompleted;
+                bus.OnChapterCompleted += HandleChapterCompleted;
             }
         }
 
@@ -76,7 +86,7 @@ namespace MyWorld.Unity.UI
 
         /// <summary>
         /// 当前目标卡的完整文本（两行，'\n' 分隔）；不该显示卡片时返回 null。
-        /// 状态优先级：首章完成卡 &gt; 任务完成打勾卡 &gt; 普通目标卡 &gt; 不显示。
+        /// 状态优先级：全链完成卡 &gt; 章节解锁卡 &gt; 任务完成打勾卡 &gt; 普通目标卡 &gt; 不显示。
         /// 停留窗口的过期判定在这里惰性执行（OnGUI 每帧调用 = 每帧步进），幂等可重入。
         /// </summary>
         public string GetHudText()
@@ -86,9 +96,20 @@ namespace MyWorld.Unity.UI
             {
                 if (_timeProvider() < _chapterDoneUntil)
                 {
-                    return "首章完成 ✓";
+                    // 单章任务书保持 m6 的「首章完成 ✓」文案；多章节的最后一章完成 =
+                    // 整本通关，文案随章节数切换（QuestHudUiTests 锁着单章文案）
+                    return _bus != null && _bus.ChapterCount > 1 ? "全部章节完成 ✓" : "首章完成 ✓";
                 }
                 _chapterDone = false; // 5s 到：隐藏（链已走完，下面 Current 也是 null）
+            }
+
+            if (_chapterUnlocked)
+            {
+                if (_timeProvider() < _chapterUnlockedUntil)
+                {
+                    return _chapterUnlockedText;
+                }
+                _chapterUnlocked = false; // 5s 到：落到普通目标卡（已是新章首任务）
             }
 
             if (_completedQuest != null)
@@ -114,9 +135,13 @@ namespace MyWorld.Unity.UI
             return $"当前目标：{current.Name}\n{progress}/{required}　已完成 {quests.CompletedCount}/{quests.TotalCount}";
         }
 
+        /// <summary>章节解锁卡的文本（两行）。写入时拼好存字段，GetHudText 只读（不碰 GUI 上下文）。</summary>
+        private string _chapterUnlockedText;
+
         /// <summary>
         /// 完成钩子：非链尾 → 打勾卡停留 1s；链尾（完成后 <see cref="QuestSystem.Current"/> 为 null）
-        /// → 首章完成卡停留 5s。
+        /// → 全链完成卡停留 5s。多章节下活动章在链尾任务完成的同时已切到下一章，
+        /// 所以只有**最后一章**走完才会看到 Current 为 null（走全链完成卡）。
         /// </summary>
         private void HandleQuestCompleted(Quest quest)
         {
@@ -132,6 +157,21 @@ namespace MyWorld.Unity.UI
                 _completedQuest = quest;
                 _completedUntil = now + CompletedHoldSeconds;
             }
+        }
+
+        /// <summary>
+        /// 章节完成钩子（m11 W2-4）：非末章的章节走完 → 章节解锁卡停留 5s
+        /// （此刻活动章已前移，普通目标卡即将显示下一章首任务——先让孩子看到「第二章开了」）。
+        /// </summary>
+        private void HandleChapterCompleted(int chapterIndex)
+        {
+            if (_bus == null || chapterIndex + 1 >= _bus.ChapterCount)
+            {
+                return; // 末章完成走全链完成卡，不进这张卡
+            }
+            _chapterUnlocked = true;
+            _chapterUnlockedUntil = _timeProvider() + ChapterDoneHoldSeconds;
+            _chapterUnlockedText = $"第 {chapterIndex + 1} 章完成 ✓\n第 {chapterIndex + 2} 章已解锁";
         }
 
         // ─── 绘制 ─────────────────────────────────────────────────────────────
@@ -173,6 +213,7 @@ namespace MyWorld.Unity.UI
             if (_bus != null)
             {
                 _bus.OnQuestCompleted -= HandleQuestCompleted;
+                _bus.OnChapterCompleted -= HandleChapterCompleted;
             }
         }
     }

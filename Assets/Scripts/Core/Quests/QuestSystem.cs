@@ -101,10 +101,33 @@ namespace MyWorld.Core.Quests
         /// </summary>
         private bool TrackAndCheck(QuestCondition condition, QuestEvent evt)
         {
-            if (condition.Type == ConditionType.SurviveNight)
+            // 无条件参数组（SurviveNight + m11 W2-4 的睡觉/锄地/穿甲/附魔）：事件类型到达即满足，无中间进度
+            if (condition.Type == ConditionType.SurviveNight || condition.Type == ConditionType.SleepInBed
+                || condition.Type == ConditionType.TillSoil || condition.Type == ConditionType.EquipArmorFull
+                || condition.Type == ConditionType.EnchantItem)
             {
-                // SurviveNight 无条件参数：事件到达即满足，无中间进度
-                return evt.Type == QuestEventType.SurviveNight;
+                return evt.Type == (QuestEventType)condition.Type;
+            }
+
+            // 生物限定组（KillKind/FeedAnimal，m11 W2-4）：类型 + 可选 kind/weapon 匹配后累计 Count。
+            // KillKind 的 kind 在加载侧必填；FeedAnimal 可空 = 不限物种。事件没带 Kind 时
+            // 只匹配「不限物种」的条件（带限定的一律不认——近战击杀不会冒充「用弓击杀」）。
+            if (condition.Type == ConditionType.KillKind || condition.Type == ConditionType.FeedAnimal)
+            {
+                if (evt.Type != (QuestEventType)condition.Type)
+                {
+                    return false;
+                }
+                if (condition.Kind.HasValue && evt.Kind != condition.Kind)
+                {
+                    return false;
+                }
+                if (!string.IsNullOrEmpty(condition.Weapon) && evt.Weapon != condition.Weapon)
+                {
+                    return false;
+                }
+                _progress += evt.Count;
+                return _progress >= condition.RequiredCount;
             }
 
             // ConditionType 与 QuestEventType 同名成员底层值相同（见 Quest.cs 注释），显式转换安全
@@ -121,7 +144,7 @@ namespace MyWorld.Core.Quests
                 return evt.Count >= condition.RequiredCount;
             }
 
-            // 产出口径（CraftItem/SmeltItem）：事件 Count 是本次产出数量，任务内累计后比较——
+            // 产出口径（CraftItem/SmeltItem/SowSeed/HarvestCrop）：事件 Count 是本次数量，任务内累计后比较——
             // 单笔永远凑不满的任务（炼 3 根铁锭、一次只取 1）靠多笔累计完成
             _progress += evt.Count;
             return _progress >= condition.RequiredCount;

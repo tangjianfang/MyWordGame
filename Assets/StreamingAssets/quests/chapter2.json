@@ -1,0 +1,58 @@
+[
+  {
+    "id": "ch2_01_sleep_in_bed",
+    "name": "在床上睡到天亮",
+    "desc": "做一张床（3 羊毛 + 3 木板，工作台合成；羊毛找村民换或剪羊），夜里对着床按右键睡觉，一睁眼就是早晨",
+    "condition": { "type": "SleepInBed" },
+    "rewardExp": 10
+  },
+  {
+    "id": "ch2_02_sow_wheat",
+    "name": "锄地播种",
+    "desc": "做一把锄头（2 木板 + 2 木棍），对草方块按右键翻出耕地，再手持小麦种子对耕地按右键种下一株（种子：口袋里 1 株小麦搓 2 把）",
+    "condition": { "type": "SowSeed", "itemId": 1019, "count": 1 },
+    "rewardExp": 10
+  },
+  {
+    "id": "ch2_03_first_harvest",
+    "name": "第一茬收获",
+    "desc": "等麦穗长成金色（第三阶段）后对它按左键收获——产物和种子都会掉出来，捡起来能再种一茬",
+    "condition": { "type": "HarvestCrop", "count": 1 },
+    "rewardExp": 15
+  },
+  {
+    "id": "ch2_04_feed_two_sheep",
+    "name": "喂两只羊",
+    "desc": "手持小麦分别对两只羊按右键喂食（各喂一次），它们会配对并生出一只小羊",
+    "condition": { "type": "FeedAnimal", "kind": "Sheep", "count": 2 },
+    "rewardExp": 15
+  },
+  {
+    "id": "ch2_05_full_iron_armor",
+    "name": "穿齐铁盔甲",
+    "desc": "铁盔、铁胸甲、铁护腿、铁靴四件全部穿上（装备栏四格各就各位，缺一不可）",
+    "condition": { "type": "EquipArmorFull" },
+    "rewardExp": 25
+  },
+  {
+    "id": "ch2_06_first_enchant",
+    "name": "附魔一件装备",
+    "desc": "攒够经验和青金石（书 + 青金石换附魔书），对一把工具完成一次附魔",
+    "condition": { "type": "EnchantItem" },
+    "rewardExp": 25
+  },
+  {
+    "id": "ch2_07_bow_kill_skeleton",
+    "name": "用弓击败骷髅",
+    "desc": "做一把弓（3 木棍 + 3 线）和箭（圆石 + 木棍，1 组 4 支），夜里拉满弓把一只骷髅射死——它也会射你，记得走位",
+    "condition": { "type": "KillKind", "kind": "Skeleton", "weapon": "bow", "count": 1 },
+    "rewardExp": 30
+  },
+  {
+    "id": "ch2_08_defeat_creeper",
+    "name": "拆掉苦力怕",
+    "desc": "苦力怕靠近会嘶嘶作响然后爆炸——保持距离，用弓或剑在它炸到你之前干掉它",
+    "condition": { "type": "KillKind", "kind": "Creeper", "count": 1 },
+    "rewardExp": 40
+  }
+]

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using MyWorld.Core.Entities;
 using Newtonsoft.Json;
 
 namespace MyWorld.Core.Quests
@@ -93,23 +94,84 @@ namespace MyWorld.Core.Quests
         {
             ConditionType type = ParseConditionType(dto.Type, questId, jsonPath);
 
-            if (type == ConditionType.SurviveNight)
+            // ── 三组条件各有各的参数规则（m11 W2-4 起 12 类）────────────────────
+            // 无条件参数组：只看事件类型，itemId/count/kind/weapon 写了也忽略，规范化 0/1（HUD 显示 0/1）
+            if (type == ConditionType.SurviveNight || type == ConditionType.SleepInBed
+                || type == ConditionType.TillSoil || type == ConditionType.EquipArmorFull
+                || type == ConditionType.EnchantItem)
             {
-                // SurviveNight 无条件参数：itemId/count 写了也被忽略，规范化为 0/1（HUD 显示 0/1）
                 return new QuestCondition { Type = type, ItemId = 0, RequiredCount = 1 };
             }
 
-            if (dto.ItemId <= 0)
+            RequireCountAtLeastOne(questId, dto.Count, jsonPath);
+
+            // 物品类条件（含播种）：itemId 必须是已注册物品 id，kind/weapon 不参与
+            if (type == ConditionType.ObtainItem || type == ConditionType.CraftItem
+                || type == ConditionType.SmeltItem || type == ConditionType.SowSeed)
+            {
+                if (dto.ItemId <= 0)
+                {
+                    throw new InvalidDataException(
+                        $"任务 {questId} 的 condition.itemId 必须是已注册物品 id（>0），实际 {dto.ItemId}：{jsonPath}");
+                }
+                return new QuestCondition { Type = type, ItemId = dto.ItemId, RequiredCount = dto.Count };
+            }
+
+            // 计数动作类条件（收获/喂食/击杀）：itemId 恒 0（写了忽略），count 累计判定
+            if (type == ConditionType.HarvestCrop)
+            {
+                return new QuestCondition { Type = type, ItemId = 0, RequiredCount = dto.Count };
+            }
+            if (type == ConditionType.FeedAnimal)
+            {
+                // kind 可选：写了就必须是合法 MobKind 名，不写 = 不限物种
+                MobKind? kind = ParseOptionalKind(dto.Kind, questId, jsonPath);
+                return new QuestCondition { Type = type, ItemId = 0, RequiredCount = dto.Count, Kind = kind };
+            }
+            // KillKind：kind 必填，weapon 可选（"bow"=箭击杀）
+            MobKind? killKind = ParseOptionalKind(dto.Kind, questId, jsonPath);
+            if (!killKind.HasValue)
             {
                 throw new InvalidDataException(
-                    $"任务 {questId} 的 condition.itemId 必须是已注册物品 id（>0），实际 {dto.ItemId}：{jsonPath}");
+                    $"任务 {questId} 的 condition.type=KillKind 必须写 kind（生物名，如 Skeleton/Creeper）：{jsonPath}");
             }
-            if (dto.Count < 1)
+            string weapon = string.IsNullOrWhiteSpace(dto.Weapon) ? null : dto.Weapon.Trim();
+            return new QuestCondition
+            {
+                Type = type,
+                ItemId = 0,
+                RequiredCount = dto.Count,
+                Kind = killKind,
+                Weapon = weapon,
+            };
+        }
+
+        /// <summary>count 校验：计数类条件一律要求 ≥ 1（写严格，与物品类条件同口径）。</summary>
+        private static void RequireCountAtLeastOne(string questId, int count, string jsonPath)
+        {
+            if (count < 1)
             {
                 throw new InvalidDataException(
-                    $"任务 {questId} 的 condition.count 必须 ≥ 1，实际 {dto.Count}：{jsonPath}");
+                    $"任务 {questId} 的 condition.count 必须 ≥ 1，实际 {count}：{jsonPath}");
             }
-            return new QuestCondition { Type = type, ItemId = dto.ItemId, RequiredCount = dto.Count };
+        }
+
+        /// <summary>
+        /// 解析可选的 kind 字段：空/null → null（不限）；写了则必须是合法
+        /// <see cref="MyWorld.Core.Entities.MobKind"/> 名（大小写敏感，写严格）。
+        /// </summary>
+        private static MobKind? ParseOptionalKind(string name, string questId, string jsonPath)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+            if (!System.Enum.IsDefined(typeof(MyWorld.Core.Entities.MobKind), name))
+            {
+                throw new System.ArgumentException(
+                    $"任务 {questId} 的 condition.kind 不是合法生物名（MobKind）：{name}：{jsonPath}");
+            }
+            return (MyWorld.Core.Entities.MobKind)System.Enum.Parse(typeof(MyWorld.Core.Entities.MobKind), name);
         }
 
         private static ConditionType ParseConditionType(string name, string questId, string jsonPath)
@@ -120,9 +182,18 @@ namespace MyWorld.Core.Quests
                 case "CraftItem": return ConditionType.CraftItem;
                 case "SmeltItem": return ConditionType.SmeltItem;
                 case "SurviveNight": return ConditionType.SurviveNight;
+                case "SleepInBed": return ConditionType.SleepInBed;
+                case "TillSoil": return ConditionType.TillSoil;
+                case "SowSeed": return ConditionType.SowSeed;
+                case "HarvestCrop": return ConditionType.HarvestCrop;
+                case "FeedAnimal": return ConditionType.FeedAnimal;
+                case "EquipArmorFull": return ConditionType.EquipArmorFull;
+                case "EnchantItem": return ConditionType.EnchantItem;
+                case "KillKind": return ConditionType.KillKind;
                 default:
                     throw new System.ArgumentException(
-                        $"任务 {questId} 的 condition.type 非法：{name}（合法的有 ObtainItem/CraftItem/SmeltItem/SurviveNight）：{jsonPath}");
+                        $"任务 {questId} 的 condition.type 非法：{name}（合法的有 ObtainItem/CraftItem/SmeltItem/"
+                        + "SurviveNight/SleepInBed/TillSoil/SowSeed/HarvestCrop/FeedAnimal/EquipArmorFull/EnchantItem/KillKind）：{jsonPath}");
             }
         }
 
@@ -142,6 +213,8 @@ namespace MyWorld.Core.Quests
             [JsonProperty("type")] public string Type { get; set; }
             [JsonProperty("itemId")] public int ItemId { get; set; }
             [JsonProperty("count")] public int Count { get; set; }
+            [JsonProperty("kind")] public string Kind { get; set; }
+            [JsonProperty("weapon")] public string Weapon { get; set; }
         }
     }
 }

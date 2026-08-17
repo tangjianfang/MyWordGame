@@ -250,6 +250,9 @@ namespace MyWorld.Unity.Persistence
                 // m6 C4：任务进度从全局总线拿绑定的 QuestSystem（无链 / 无总线 → null，
                 // 恢复侧按 null 全新开始）。SaveState 只读纯数据，主线程冻结语义与其余层一致
                 Quest = QuestEventBus.Instance?.Quests?.SaveState(),
+                // m11 W2-4：多章节任务书全量进度（每章一个 QuestState）。Quest 字段继续写
+                // 「当前活动章」快照（旧版读档兼容）；新读档路径优先用本字段整本恢复
+                QuestChapters = QuestEventBus.Instance?.Campaign?.SaveAll(),
             };
 
             // m11 第 1 波（集成点②）：农田 / 箱子 / 床三层。各系统自持导出逻辑——
@@ -277,6 +280,9 @@ namespace MyWorld.Unity.Persistence
                 ExpCurrent = _context.Experience.Current, ExpLevel = _context.Experience.Level,
                 SelectedHotbarIndex = _context.Inventory != null ? _context.Inventory.SelectedHotbarIndex : 0,
                 Slots = _context.Inventory != null ? SnapshotMappers.SnapshotSlots(_context.Inventory) : null,
+                // m11 W2-1：穿戴栏 4 槽（ArmorSlots 是 readonly 字段初始化，永不为 null，
+                // 防御式判空只为与上面 Inventory 同构）
+                ArmorSlots = _context.ArmorSlots != null ? SnapshotMappers.SnapshotArmor(_context.ArmorSlots) : null,
             };
         }
 
@@ -322,7 +328,7 @@ namespace MyWorld.Unity.Persistence
             ApplyPlayer(data.Player);
             ApplyFurnace(data.Furnace);
             ApplyDrops(data.Drops);
-            ApplyQuest(data.Quest);
+            ApplyQuest(data);
             // m11 第 1 波（集成点②）：农田 → 箱子 → 床。各层自带 null 容忍
             //（旧档无字段 / 系统实例未建都跳过），坏一层不挡其余层
             ApplyFarm(data.FarmStates);
@@ -388,6 +394,14 @@ namespace MyWorld.Unity.Persistence
                 _context.Inventory.SelectedHotbarIndex = p.SelectedHotbarIndex;
                 SnapshotMappers.RestoreSlots(_context.Inventory, p.Slots);
             }
+
+            // m11 W2-1：穿戴栏恢复。旧档无 armorSlots 键经 Codec 归一为空数组 = 空穿戴
+            //（I3 兼容策略）；null（ArmorSlots 字段缺失且 Player 节点没归一到的非常规档）
+            // 同样清空。恢复不校验部位——与 RestoreSlots 同态度，档里是什么收什么。
+            if (_context.ArmorSlots != null)
+            {
+                SnapshotMappers.RestoreArmor(_context.ArmorSlots, p.ArmorSlots);
+            }
         }
 
         private void ApplyFurnace(FurnaceSnapshot snapshot)
@@ -408,23 +422,24 @@ namespace MyWorld.Unity.Persistence
             }
         }
 
-        /// <summary>任务链进度恢复（m6 C4）。QuestSystem 引用从全局 <see cref="QuestEventBus"/> 拿
-        /// （WorldBootstrap 装配顺序：总线先 Bind、本服务再 TryRestore）。
-        /// <paramref name="state"/> 为 null（旧档 / 无链）时 <see cref="QuestSystem.Restore"/> 自己跳过 =
-        /// 任务链全新开始；任务 id 不属于当前链（换章后读旧档）时 Restore 抛
-        /// <see cref="ArgumentException"/>——按层捕获只跳过本层，不影响其余层恢复（读容忍，同 spec 逐层降级）。</summary>
-        private void ApplyQuest(QuestState state)
+        /// <summary>任务进度恢复（m6 C4；m11 W2-4 起多章节）。总线引用从全局
+        /// <see cref="QuestEventBus"/> 拿（WorldBootstrap 装配顺序：总线先 Bind、本服务再 TryRestore）。
+        /// 优先走 <see cref="LevelData.QuestChapters"/>（新档整本恢复）；旧档只有单章
+        /// <see cref="LevelData.Quest"/> 字段时回退 <see cref="QuestCampaign.RestoreLegacy"/>
+        /// （第一章接续、后续章节全新开始）。无总线 / 无任务书时本层整体跳过（任务链全新开始）。</summary>
+        private void ApplyQuest(LevelData data)
         {
-            QuestSystem quests = QuestEventBus.Instance?.Quests;
-            if (quests == null) return; // 无总线 / 无链：无从恢复，任务链保持全新
-            try
+            QuestCampaign campaign = QuestEventBus.Instance?.Campaign;
+            if (campaign == null) return; // 无总线 / 无链：无从恢复，任务链保持全新
+            if (data.QuestChapters != null)
             {
-                quests.Restore(state);
+                // 新档：整本恢复。逐章的坏状态（换章内容读旧档）由 RestoreAll 内部
+                // 按章降级（该章全新开始），不会拖垮其余章，也无需这里再捕获
+                campaign.RestoreAll(data.QuestChapters);
+                return;
             }
-            catch (ArgumentException ex)
-            {
-                Debug.LogWarning($"[SaveLoadService] 任务进度恢复失败，该层跳过（任务链全新开始）：{ex.Message}");
-            }
+            // 旧档：单章字段恢复进第一章（null = 更老的档，整本全新开始）
+            campaign.RestoreLegacy(data.Quest);
         }
 
         /// <summary>坏档改名 <c>level.dat → level.dat.corrupt</c> 留案。

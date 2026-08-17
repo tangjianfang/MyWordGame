@@ -17,6 +17,11 @@ namespace MyWorld.Core.Persistence
         /// <summary>引导任务链进度（m6 C4）。旧档缺此字段时 Newtonsoft 反序列化得 null，
         /// 恢复侧按 null 跳过 = 任务链全新开始，天然向后兼容。</summary>
         public MyWorld.Core.Quests.QuestState Quest;
+        /// <summary>多章节任务书进度（m11 W2-4）：每章一个 QuestState、顺序与章节文件一致。
+        /// 旧档缺此字段时为 null——恢复侧回退读上面的单章 Quest 字段（RestoreLegacy）；
+        /// 本字段**刻意不做缺键归一**（null 是「旧档、走兼容路径」的判别信号）。
+        /// 写盘侧两个字段都写（Quest = 当前活动章快照，兼容旧版读档）。</summary>
+        public List<MyWorld.Core.Quests.QuestState> QuestChapters;
         /// <summary>箱子内容（m11 I3）。key = "x,y,z" 箱子坐标；条目复用掉落物快照结构
         /// <see cref="DropSnapshot"/>（ItemId/Count/Metadata 有效，X/Y/Z 不用）。
         /// 可空字段：旧档缺键时 <see cref="LevelDataCodec.Load"/> 统一归一为空字典。</summary>
@@ -31,7 +36,7 @@ namespace MyWorld.Core.Persistence
         public Dictionary<string, string> FarmStates;
     }
 
-    /// <summary>玩家快照：位置/速度/生命/饥饿/经验/背包全部 36 槽。</summary>
+    /// <summary>玩家快照：位置/速度/生命/饥饿/经验/背包全部 36 槽 + 穿戴栏 4 槽（m11 W2-1）。</summary>
     public class PlayerSnapshot
     {
         public float X, Y, Z;
@@ -42,6 +47,10 @@ namespace MyWorld.Core.Persistence
         public int ExpCurrent, ExpLevel;
         public int SelectedHotbarIndex;
         public SlotSnapshot[] Slots;
+
+        /// <summary>穿戴栏（头/胸/腿/脚，m11 W2-1）。旧档缺此字段时 Newtonsoft 反序列化得 null，
+        /// <see cref="LevelDataCodec"/> 归一为空数组 = 空穿戴（照 I3「缺键 → 空集合」兼容模式）。</summary>
+        public SlotSnapshot[] ArmorSlots;
     }
 
     /// <summary>单个物品槽。Metadata 必须保存：工具耐久存在这里。</summary>

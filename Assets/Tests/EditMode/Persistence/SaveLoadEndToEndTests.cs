@@ -182,8 +182,14 @@ namespace MyWorld.Core.Tests.Persistence
         /// <summary>把任务链 JSON 落成临时文件并返回路径（模拟 chapter1.json，TearDown 清理）。</summary>
         private string WriteChapter()
         {
+            return WriteChapter(QuestChainJson);
+        }
+
+        /// <summary>把指定章节 JSON 落成临时文件（m11 W2-4 起多章节测试用第二章内容）。</summary>
+        private string WriteChapter(string json)
+        {
             string path = Path.GetTempFileName();
-            File.WriteAllText(path, QuestChainJson);
+            File.WriteAllText(path, json);
             _questFiles.Add(path);
             return path;
         }
@@ -197,6 +203,105 @@ namespace MyWorld.Core.Tests.Persistence
             bus.Bind(ctx, QuestSystem.LoadChapter(WriteChapter()));
             return bus;
         }
+
+        // ─── m11 W2-4：多章节任务书进度进 level.dat ───────────────────────
+
+        [Test]
+        public void QuestChaptersRoundTrip_两章进度各自接续()
+        {
+            // 树 A：第一章（q1/q2/q3）全链完成 + 切到第二章后停在 s2 累计 1/2
+            var (ctxA, playerA, svcA) = BuildTree();
+            svcA.Bind(new World(), ctxA, playerA, 42, _saveRoot);
+            var busA = ctxA.gameObject.AddComponent<QuestEventBus>();
+            busA.Bind(ctxA, QuestCampaign.Load(
+                WriteChapter(), WriteChapter(ChapterTwoJson)));
+            busA.Raise(new QuestEvent { Type = QuestEventType.ObtainItem, ItemId = 1000, Count = 1 });
+            busA.Raise(new QuestEvent { Type = QuestEventType.CraftItem, ItemId = 1001, Count = 4 });
+            busA.Raise(new QuestEvent { Type = QuestEventType.SurviveNight }); // 第一章走完 → 切第二章
+            Assert.That(busA.Quests.Current.Id, Is.EqualTo("s1"), "前置：第二章首任务已解锁");
+            busA.Raise(new QuestEvent { Type = QuestEventType.SleepInBed }); // s1 完成 → 停在 s2
+            busA.Raise(new QuestEvent { Type = QuestEventType.FeedAnimal, Kind = MobKind.Sheep, Count = 1 });
+            Assert.That(busA.Quests.CurrentProgress, Is.EqualTo(1), "前置：s2 累计 1/2");
+
+            svcA.WriteExecutor = a => a();
+            svcA.SaveNow();
+
+            // 落盘侧：两章快照都写进了 QuestChapters，Quest 字段带活动章（旧版兼容）
+            LevelData saved = LevelDataCodec.Load(svcA.LevelDataPath);
+            Assert.That(saved.QuestChapters, Is.Not.Null, "QuestChapters 应入档");
+            Assert.That(saved.QuestChapters.Count, Is.EqualTo(2), "每章一个快照");
+            Assert.That(saved.QuestChapters[0].CompletedCount, Is.EqualTo(3), "第一章全链完成");
+            Assert.That(saved.QuestChapters[1].CurrentQuestId, Is.EqualTo("s2"), "第二章停在 s2");
+            Assert.That(saved.Quest.CurrentQuestId, Is.EqualTo("s2"), "Quest 字段 = 当前活动章快照");
+
+            // 模拟重启：拆树 A → 全新树 B + 全新两章任务书
+            Object.DestroyImmediate(_gos[_gos.Count - 1]);
+            _gos.RemoveAt(_gos.Count - 1);
+            var (ctxB, playerB, svcB) = BuildTree();
+            svcB.Bind(new World(), ctxB, playerB, 42, _saveRoot);
+            var busB = ctxB.gameObject.AddComponent<QuestEventBus>();
+            busB.Bind(ctxB, QuestCampaign.Load(WriteChapter(), WriteChapter(ChapterTwoJson)));
+            Assert.That(svcB.TryRestore(), Is.True, "同 seed 好档应恢复成功");
+
+            Assert.That(busB.ActiveChapterIndex, Is.EqualTo(1), "第一章完成态接续：活动章仍是第二章");
+            Assert.That(busB.Quests.Current.Id, Is.EqualTo("s2"), "第二章进度接续");
+            Assert.That(busB.Quests.CurrentProgress, Is.EqualTo(1), "s2 的累计分子接续（1/2）");
+            Assert.That(busB.Quests.CompletedCount, Is.EqualTo(1), "第二章完成计数接续（s1）");
+
+            busB.Raise(new QuestEvent { Type = QuestEventType.FeedAnimal, Kind = MobKind.Sheep, Count = 1 });
+            Assert.That(busB.Quests.Current.Id, Is.EqualTo("s3"),
+                "恢复后 1+1 凑满 2/2 应完成 s2（多章节进度真的接得上）");
+        }
+
+        [Test]
+        public void LegacySave_只有Quest字段_第一章进度接续_第二章全新()
+        {
+            // 手写 m6→m11 过渡期的旧档：只有单章 Quest 字段（第二章字段的形态不存在）
+            var (ctx, player, svc) = BuildTree();
+            svc.Bind(new World(), ctx, player, 42, _saveRoot);
+            Directory.CreateDirectory(Path.GetDirectoryName(svc.LevelDataPath));
+            File.WriteAllText(svc.LevelDataPath, @"{
+                ""Seed"": 42, ""TimeTick"": 6000.0,
+                ""Quest"": { ""CurrentQuestId"": ""q2"", ""CompletedCount"": 1, ""Progress"": 2 } }");
+            var bus = ctx.gameObject.AddComponent<QuestEventBus>();
+            bus.Bind(ctx, QuestCampaign.Load(WriteChapter(), WriteChapter(ChapterTwoJson)));
+
+            Assert.That(svc.TryRestore(), Is.True, "旧档其余字段合法，整档应照常恢复");
+
+            Assert.That(bus.Quests.Current.Id, Is.EqualTo("q2"), "旧档单章字段恢复进第一章（接续 q2）");
+            Assert.That(bus.Quests.CurrentProgress, Is.EqualTo(2), "进度分子接续");
+            Assert.That(bus.ActiveChapterIndex, Is.EqualTo(0), "第一章进行中：第二章未解锁");
+            Assert.That(bus.Campaign.Chapters[1].Current.Id, Is.EqualTo("s1"), "旧档没有第二章字段 = 全新开始");
+        }
+
+        [Test]
+        public void LegacySave_旧档第一章已完成_读档直接解锁第二章()
+        {
+            var (ctx, player, svc) = BuildTree();
+            svc.Bind(new World(), ctx, player, 42, _saveRoot);
+            Directory.CreateDirectory(Path.GetDirectoryName(svc.LevelDataPath));
+            // 第一章 q1/q2/q3 全链完成的旧档（CurrentQuestId 空 + CompletedCount = 链长 3）
+            File.WriteAllText(svc.LevelDataPath, @"{
+                ""Seed"": 42, ""TimeTick"": 6000.0,
+                ""Quest"": { ""CurrentQuestId"": null, ""CompletedCount"": 3, ""Progress"": 0 } }");
+            var bus = ctx.gameObject.AddComponent<QuestEventBus>();
+            bus.Bind(ctx, QuestCampaign.Load(WriteChapter(), WriteChapter(ChapterTwoJson)));
+
+            Assert.That(svc.TryRestore(), Is.True);
+
+            Assert.That(bus.ActiveChapterIndex, Is.EqualTo(1), "第一章已完成：读档直接落在第二章");
+            Assert.That(bus.Quests.Current.Id, Is.EqualTo("s1"), "第二章首任务就位");
+            Assert.That(bus.Quests.CompletedCount, Is.EqualTo(0), "第二章全新开始");
+        }
+
+        /// <summary>第二章测试链：s1 睡觉 → s2 喂两只羊（累计中停态）→ s3 弓杀骷髅。</summary>
+        private const string ChapterTwoJson = @"[
+            { ""id"": ""s1"", ""name"": ""在床上睡到天亮"", ""desc"": ""..."",
+              ""condition"": { ""type"": ""SleepInBed"" }, ""rewardExp"": 10 },
+            { ""id"": ""s2"", ""name"": ""喂两只羊"", ""desc"": ""..."",
+              ""condition"": { ""type"": ""FeedAnimal"", ""kind"": ""Sheep"", ""count"": 2 }, ""rewardExp"": 15 },
+            { ""id"": ""s3"", ""name"": ""用弓击败骷髅"", ""desc"": ""..."",
+              ""condition"": { ""type"": ""KillKind"", ""kind"": ""Skeleton"", ""weapon"": ""bow"", ""count"": 1 }, ""rewardExp"": 30 } ]";
 
         // ─── m6 C4：任务进度进 level.dat ─────────────────────────────────
 
