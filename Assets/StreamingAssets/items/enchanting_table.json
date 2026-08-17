@@ -1,0 +1,8 @@
+{
+  "id": "enchanting_table",
+  "displayName": "附魔台",
+  "numericId": 1604,
+  "maxStack": 64,
+  "texture": "enchanting_table",
+  "blockId": "enchanting_table"
+}

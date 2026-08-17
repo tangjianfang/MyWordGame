@@ -1,0 +1,14 @@
+{
+  "id": "enchanting_table",
+  "displayName": "附魔台",
+  "numericId": 1062,
+  "textures": {
+    "top": "enchanting-table-top",
+    "bottom": "enchanting-table-side",
+    "side": "enchanting-table-side"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 2.0
+}

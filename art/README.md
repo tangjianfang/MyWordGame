@@ -236,6 +236,21 @@ milestone-10 矿物进阶的 6 张新贴图全部先程序占位：
 | M10-D | [6 张装备物品图标（金/合金/机元剑+镐）](requests/items/m10-gear-placeholders.md) | 6 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
 | M10-E | [9 张升级链物品图标（金锭 + 四系剑/镐+1）](requests/items/m10-c2-upgrade-placeholders.md) | 9 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
 
+### m11 W2-2 批 · 附魔台贴图（程序占位）
+
+milestone-11 第 2 波附魔系统的三张新贴图先程序占位
+（`art/scripts/gen_m11_enchant_placeholders.py`：planks.png 逐像素打底 +
+确定性哈希噪点，m10 批同模式）：
+
+- 方块 top/side 两张 32×32 不透明（深紫黑台面 + 青蓝宝石 + 金色符文点，
+  侧面木身逐像素复用 planks.png）
+- 物品图标 16×16 RGBA（摊开的书 + 悬浮菱形宝石）
+
+| 编号 | 资源 | 文件数 | 尺寸 | 平铺 | Alpha | 状态 |
+| --- | --- | --- | --- | --- | --- | --- |
+| M11-E1 | 附魔台方块顶面 [top](requests/blocks/enchanting-table-top.md) + 侧底面 [side](requests/blocks/enchanting-table-side.md) | 2 | 32×32 | 顶四边/侧左右 | 无 | 已入库（程序占位，待正式美术替换） |
+| M11-E2 | [附魔台物品图标](requests/items/enchanting-table.md) | 1 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
+
 ### av 批 · 音频与视频（MiniMax 生成）
 
 音频 33 条走 `tools/generate_media.py --audio`（music-2.6，SFX 带 ffmpeg 合成兜底），

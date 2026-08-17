@@ -1,0 +1,17 @@
+{
+  "id": "enchanting_table_recipe",
+  "tier": "inventory",
+  "width": 2,
+  "height": 2,
+  "pattern": [
+    "book",
+    "lapis",
+    "plank",
+    "plank"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "enchanting_table",
+    "count": 1
+  }
+}

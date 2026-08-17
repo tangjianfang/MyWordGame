@@ -192,5 +192,12 @@
     "drops": [
       { "itemId": "dirt", "countMin": 1, "countMax": 1 }
     ]
+  },
+  {
+    "blockId": "enchanting_table",
+    "blockNumericId": 1062,
+    "drops": [
+      { "itemId": "enchanting_table", "countMin": 1, "countMax": 1 }
+    ]
   }
 ]

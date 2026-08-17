@@ -1,0 +1,17 @@
+{
+  "id": "enchanted_book_recipe",
+  "tier": "inventory",
+  "width": 2,
+  "height": 2,
+  "pattern": [
+    "book",
+    "lapis",
+    "_",
+    "_"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "enchanted_book",
+    "count": 1
+  }
+}

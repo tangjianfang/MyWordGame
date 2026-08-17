@@ -1,4 +1,5 @@
 using MyWorld.Core.Blocks;
+using MyWorld.Core.Enchanting;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Farming;
 using MyWorld.Core.Items;
@@ -26,7 +27,8 @@ namespace MyWorld.Unity.Player
     /// </para>
     /// <para>
     /// <b>m11 ②右键路由优先级表</b>（<see cref="UseAt"/>，自上而下首中即止）：
-    /// 死亡画面让位 → 食物优先（m7 A3）→ 弓蓄力（m11 ②，无需命中）→ 锄草/泥成耕地 →
+    /// 死亡画面让位 → 食物优先（m7 A3）→ 附魔书融合（m11 W2-2，无需命中）→
+    /// 弓蓄力（m11 ②，无需命中）→ 锄草/泥成耕地 →
     /// 种子播上耕地 → 骨粉催熟（树苗让位 SaplingGrowth）→ 床睡觉 → 箱子开箱（m11 W2-3
     /// <see cref="UI.ChestUi.OpenAt"/>）→ 木门/铁门让位 RedstoneSystem 切换 → 放 placeBlockId。
     /// 左键在成熟作物（*_stage2）上改走 <see cref="FarmSystem.Harvest"/>（<see cref="BreakAt"/>）。
@@ -65,6 +67,13 @@ namespace MyWorld.Unity.Player
         /// <see cref="BedSystem.Sleep"/>。
         /// </summary>
         private BedSystem _beds;
+
+        /// <summary>
+        /// 附魔存储（m11 W2-2）。PlayerContext 是并行波次热点文件挂不了字段，
+        /// 运行时走 <see cref="EnchantStore.Default"/> 单例（效果接线与存档接线共用同一份）；
+        /// <see cref="SetEnchantStore"/> 是 EditMode fixture 的直注优先通道（测试互不共享静态状态）。
+        /// </summary>
+        private EnchantStore _enchants;
 
         /// <summary>农田系统双源解析：EditMode 直注优先，否则读 PlayerContext.FarmSystem。</summary>
         private FarmSystem ResolveFarm()
@@ -215,6 +224,7 @@ namespace MyWorld.Unity.Player
         /// <see cref="placeBlockId"/>。
         /// <para>
         /// m11 ②：食物之后、放方块之前新插一排交互路由（优先级自上而下）：
+        /// 附魔书融合（m11 W2-2，不需要命中方块）→
         /// 弓（蓄力，不需要命中方块）→ 锄草/泥成耕地 → 种子播上耕地 → 骨粉催熟作物
         /// （树苗让位给 <see cref="MyWorld.Unity.Environment.SaplingGrowth"/> 的既有右键即长，
         /// 这里只挡放置）→ 床睡觉 → 箱子开箱（m11 W2-3，<see cref="UI.ChestUi.OpenAt"/>）→
@@ -237,6 +247,13 @@ namespace MyWorld.Unity.Player
             if (TryEatSelectedFood())
             {
                 return; // 食物优先，不再放方块
+            }
+
+            // m11 W2-2：手持附魔书 → 右键整次被融合消费（书消失、背包第一件可附魔装备带魔）。
+            // 照食物/弓同思路不要求命中方块：朝天也能把书拍到装备上。
+            if (TryFuseEnchantedBook())
+            {
+                return; // 融合消费右键，不再放方块
             }
 
             // m11 ②：手持弓 → 右键整个被蓄力消费（无箭不开弓，给一次性提示）。
@@ -400,6 +417,58 @@ namespace MyWorld.Unity.Player
             return true;
         }
 
+        // ─── m11 W2-2：附魔书融合（手持 enchanted_book 右键 → 书消失、装备带魔） ──
+
+        /// <summary>附魔书物品 id（与 items/enchanted_book.json 一致；判定走字符串 id，同弓分支）。</summary>
+        private const string EnchantedBookItemId = "enchanted_book";
+
+        /// <summary>
+        /// m11 W2-2：EditMode fixture 直注附魔存储（优先于 <see cref="EnchantStore.Default"/>）。
+        /// 运行时不需要调——效果/存档接线与融合路由共用 Default 同一份。
+        /// 传 null 打 warning 方便发现装配遗漏（回落 Default 不影响功能）。
+        /// </summary>
+        public void SetEnchantStore(EnchantStore store)
+        {
+            if (store == null)
+            {
+                Debug.LogWarning("[BlockInteraction] SetEnchantStore 传入了 null，融合将落到全局 Default 实例。");
+            }
+            _enchants = store;
+        }
+
+        /// <summary>附魔存储双源解析：EditMode 直注优先，否则全局 <see cref="EnchantStore.Default"/>。</summary>
+        private EnchantStore ResolveEnchants() => _enchants ?? EnchantStore.Default;
+
+        /// <summary>
+        /// m11 W2-2：手持附魔书（enchanted_book）右键 → <see cref="EnchantSystem.Fuse"/>
+        /// 把书融进背包里第一件可附魔装备：书消失（maxStack=1 整格清空）、装备带魔——
+        /// 附魔写 <see cref="EnchantStore"/> 独立字典，装备栈 <see cref="ItemStack.Metadata"/>
+        /// 一位不动（16 位全归耐久，a1fb425 的教训）。融合<b>不扣经验</b>
+        /// （书的成本已在配方：书 + 青金石）。背包没有可附魔装备时给一次性提示且右键仍被消费
+        /// （不能顺势放方块）；手持的不是书返回 false，落到弓/锄等后续路由。
+        /// salt 用 <c>Time.frameCount</c>：运行时每次右键必不同帧，
+        /// 未鉴定书的类型掷骰既均匀又可复现（Core 确定性哈希）。
+        /// </summary>
+        private bool TryFuseEnchantedBook()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Inventory == null || ctx.Items == null) return false;
+
+            var def = ctx.GetSelectedDefinition();
+            if (def == null || def.Id != EnchantedBookItemId) return false;
+
+            var result = EnchantSystem.Fuse(
+                ResolveEnchants(), ctx.Inventory, ctx.Items,
+                ctx.Inventory.SelectedHotbarIndex, Time.frameCount,
+                out _, out _, out _);
+
+            if (result == FuseResult.NoEnchantableGear)
+            {
+                ShowInteractionHint(FuseNoGearHintText);
+            }
+            return true; // 手持书时右键一律被消费（成功融合或提示），不放方块
+        }
+
         private static Float3 ToFloat3(Vector3 v) => new Float3(v.x, v.y, v.z);
 
         // ─── m11 ②：弓（手持 bow 右键按住蓄力，松开发射 ProjectileEntity） ─────
@@ -525,6 +594,9 @@ namespace MyWorld.Unity.Player
 
         /// <summary>「没有箭了」。同上。</summary>
         public const string BowNoArrowHintText = "没有箭了";
+
+        /// <summary>「没有可附魔的装备」（m11 W2-2 手持附魔书但背包无装备）。同上锁文案。</summary>
+        public const string FuseNoGearHintText = "没有可附魔的装备";
 
         /// <summary>交互提示显示时长（秒），与门槛提示同款「不叠不刷」语义。</summary>
         private const float InteractionHintDuration = 2f;
