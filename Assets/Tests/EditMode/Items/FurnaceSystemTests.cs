@@ -79,5 +79,40 @@ namespace MyWorld.Core.Tests.Items
             Assert.That(f.AddFuel(new ItemStack(FurnaceSystem.CoalItemId, 2)), Is.True, "真煤（1007）应被接受");
             Assert.That(f.FuelRemaining, Is.EqualTo(16f), "2 块煤 × coalFuelValue 8 = 16 秒燃烧值");
         }
+
+        // ---- m10 C2：粗矿冶炼——粗金→金锭 / 粗铁→铁锭，10s（矿石精炼比圆石 1s 慢一个量级）----
+
+        [Test]
+        public void Tick_RawGold_SmeltsIntoGoldIngot_InTenSeconds()
+        {
+            var f = new FurnaceSystem(coalFuelValue: 8, smeltTimeSeconds: 1f);
+            Assert.That(f.AddInput(new ItemStack(FurnaceSystem.RawGoldItemId, 1)), Is.True, "粗金（1023）应可作输入");
+            f.AddFuel(new ItemStack(FurnaceSystem.CoalItemId, 2));  // 16s 燃料 > 10s 烧炼
+
+            f.Tick(dt: 9.9f);
+            Assert.That(f.Output, Is.Null,
+                "粗金要烧满 10s——构造时长的 1s 只管圆石/透传路径，9.9s 不该出锭");
+
+            f.Tick(dt: 0.2f);
+            Assert.That(f.Output, Is.Not.Null, "满 10s 应出锭");
+            Assert.That(f.Output.Value.ItemId, Is.EqualTo(FurnaceSystem.GoldIngotItemId),
+                "粗金（1023）应烧成 gold_ingot（1027）");
+            Assert.That(f.Output.Value.Count, Is.EqualTo(1));
+            Assert.That(f.Input, Is.Null, "单个输入烧完应清空输入槽");
+        }
+
+        [Test]
+        public void Tick_RawIron_SmeltsIntoIronIngot_InTenSeconds()
+        {
+            var f = new FurnaceSystem(coalFuelValue: 8, smeltTimeSeconds: 1f);
+            Assert.That(f.AddInput(new ItemStack(FurnaceSystem.RawIronItemId, 2)), Is.True, "粗铁（1024）应可作输入");
+            f.AddFuel(new ItemStack(FurnaceSystem.CoalItemId, 2));  // 16s 燃料
+
+            f.Tick(dt: 10f);
+            Assert.That(f.Output, Is.Not.Null, "10s 到点应出锭");
+            Assert.That(f.Output.Value.ItemId, Is.EqualTo(FurnaceSystem.SmeltOutputItemId),
+                "粗铁（1024）应烧成 iron_ingot（1004）——与圆石冶炼殊途同归");
+            Assert.That(f.Input.Value.Count, Is.EqualTo(1), "烧掉一个，输入槽还剩一个粗铁");
+        }
     }
 }

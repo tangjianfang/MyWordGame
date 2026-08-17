@@ -1,0 +1,19 @@
+{
+  "id": "summer_alloy_pickaxe_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 2,
+  "pattern": [
+    "summer_alloy",
+    "summer_alloy",
+    "summer_alloy",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "summer_alloy_pickaxe",
+    "count": 1
+  }
+}

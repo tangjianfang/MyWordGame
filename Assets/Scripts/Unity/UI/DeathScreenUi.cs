@@ -50,6 +50,41 @@ namespace MyWorld.Unity.UI
         /// B3 测试用此方法验证 OnPlayerDied 后 IsVisible=true。</summary>
         public void OnPlayerDied() => Show();
 
+        /// <summary>m10 C2 右键复活的纯路由谓词（raw 值版）：死亡画面激活期间，
+        /// 任意位置的**右键按下**等效点「复活」按钮（spec §4 顺手小改）。
+        /// 只认 MouseDown + button 1：抬起/左键/布局事件都不算，避免一次右键触发多次。
+        /// 注意测试必须走这个 raw 版——EditMode 批处理下 <c>Event.type</c> 的 setter
+        /// 不落值（探针实测 <c>new Event { type = MouseDown }</c> 读回 Ignore），
+        /// 无 GUI 上下文构造不出真右键事件。</summary>
+        public static bool IsRespawnRightClick(EventType type, int button)
+            => type == EventType.MouseDown && button == 1;
+
+        /// <summary>Event 包装版（生产路径：<see cref="OnGUI"/> 每帧喂 <c>Event.current</c>）。</summary>
+        public static bool IsRespawnRightClick(Event e)
+            => e != null && IsRespawnRightClick(e.type, e.button);
+
+        /// <summary>右键复活的执行入口（<see cref="OnGUI"/> 每帧喂 <c>Event.current</c>）。
+        /// 与按钮同一道门：只在 <see cref="DeathPhase.Respawning"/> 生效——Dying 阶段
+        /// 按钮也是灰的，右键不该抢先。命中后与按钮同款把 PhaseTimer 清零，
+        /// 由 <see cref="Update"/> 检测 Respawning→Alive 转换统一走 TriggerRespawn。</summary>
+        internal void HandleRightClick(Event e)
+        {
+            if (e == null) return;
+            HandleRightClickCore(e.type, e.button);
+        }
+
+        /// <summary>右键复活的执行体（raw 值版，EditMode 直测入口）。</summary>
+        internal void HandleRightClickCore(EventType type, int button)
+        {
+            if (!IsRespawnRightClick(type, button)) return;
+
+            var ctx = PlayerContext.Instance;
+            var death = ctx != null ? ctx.Death : null;
+            if (death == null || death.Phase != DeathPhase.Respawning) return;
+
+            death.PhaseTimer = 0f;
+        }
+
         private void Update()
         {
             // 每帧推进 DeathSystem 状态机：Phase=Alive 时收起 IsVisible。
@@ -119,6 +154,9 @@ namespace MyWorld.Unity.UI
             // 复活按钮（Dying 时不可点；Respawning 时可点）
             if (death.Phase == DeathPhase.Respawning)
             {
+                // m10 C2：右键等效复活按钮——任何位置的右键按下都算，不用瞄准按钮
+                HandleRightClick(Event.current);
+
                 if (_btnStyle == null)
                 {
                     _btnStyle = new GUIStyle(GUI.skin.button)

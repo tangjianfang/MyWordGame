@@ -1,0 +1,19 @@
+{
+  "id": "machine_essence_pickaxe_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 2,
+  "pattern": [
+    "machine_essence",
+    "machine_essence",
+    "machine_essence",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "machine_essence_pickaxe",
+    "count": 1
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "gold_pickaxe_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "gold_pickaxe",
+    "gold_pickaxe"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "gold_pickaxe_plus",
+    "count": 1
+  }
+}

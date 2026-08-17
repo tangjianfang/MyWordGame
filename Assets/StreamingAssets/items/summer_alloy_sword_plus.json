@@ -1,0 +1,14 @@
+{
+  "id": "summer_alloy_sword_plus",
+  "displayName": "夏季合金剑+1",
+  "numericId": 1111,
+  "maxStack": 1,
+  "texture": "summer_alloy_sword_plus",
+  "attackDamage": 10,
+  "isTool": true,
+  "miningLevel": 3,
+  "gearBonus": {
+    "stat": "moveSpeed",
+    "amount": 0.1
+  }
+}

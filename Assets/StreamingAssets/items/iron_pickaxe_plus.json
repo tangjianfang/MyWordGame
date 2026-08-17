@@ -1,0 +1,16 @@
+{
+  "id": "iron_pickaxe_plus",
+  "displayName": "铁镐+1",
+  "numericId": 1413,
+  "maxStack": 1,
+  "texture": "iron_pickaxe_plus",
+  "attackDamage": 4,
+  "isTool": true,
+  "miningLevel": 3,
+  "toolTier": 3,
+  "maxDurability": 250,
+  "gearBonus": {
+    "stat": "defense",
+    "amount": 2
+  }
+}

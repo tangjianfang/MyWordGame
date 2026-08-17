@@ -1,0 +1,15 @@
+{
+  "id": "machine_essence_sword_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "machine_essence_sword",
+    "machine_essence_sword"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "machine_essence_sword_plus",
+    "count": 1
+  }
+}

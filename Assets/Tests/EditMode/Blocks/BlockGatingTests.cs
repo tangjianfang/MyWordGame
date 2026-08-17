@@ -141,11 +141,13 @@ namespace MyWorld.Core.Tests.Blocks
         // ─── 真实数据文件端到端（spec §1 矩阵全量） ─────────────────────────
 
         /// <summary>
-        /// 真实 items/*.json 里九把镐的 toolTier 与 spec §1 门槛矩阵一致。
+        /// 真实 items/*.json 里十三把镐的 toolTier 与 spec §1 门槛矩阵一致。
         /// m10 C1 起金镐从零建（A3 fix1 勘误：spec §3「既有金装备」不实），按 MC 惯例
         /// 金镐等同石镐（2）；夏季合金镐与铁镐同级（3，合金矿石本就要铁镐才挖得到）；
         /// 机元镐与钻石镐同级（4，机元矿石要钻镐）。下界合金镐按 MC 惯例
         /// 与钻石镐同级（挖掘门槛 4，只是耐久/属性更好）。
+        /// m10 C2 的四把升级镐（<c>*_pickaxe_plus</c>）toolTier 与各自基底一致——
+        /// 升级只升 gearBonus/攻击，不升挖掘档位。
         /// </summary>
         [Test]
         public void RealItems_PickaxeToolTiers_MatchTheGatingMatrix()
@@ -164,6 +166,10 @@ namespace MyWorld.Core.Tests.Blocks
                 ("gold_pickaxe", 2),
                 ("summer_alloy_pickaxe", 3),
                 ("machine_essence_pickaxe", 4),
+                ("iron_pickaxe_plus", 3),
+                ("gold_pickaxe_plus", 2),
+                ("summer_alloy_pickaxe_plus", 3),
+                ("machine_essence_pickaxe_plus", 4),
             };
 
             foreach ((string id, int expectedTier) in expected)
@@ -182,11 +188,13 @@ namespace MyWorld.Core.Tests.Blocks
         }
 
         /// <summary>
-        /// fix1 I2 守卫：所有 <c>*_pickaxe</c> 类物品必须**显式声明** <c>toolTier</c>（漏写即红）。
+        /// fix1 I2 守卫：所有镐类物品（id 含 <c>pickaxe</c>）必须**显式声明** <c>toolTier</c>（漏写即红）。
         /// toolTier 缺省 0 = 视同徒手——一把「挖不动任何矿」的镐在实机上没有任何线索可查，
         /// 只能让数据契约在加载层就拦住。断言 <c>ToolTier ≥ 1</c>：漏写（缺省 0）和显式写 0
         /// 都是「不如徒手的镐」，一并拦下。将来 C 阶段加金镐时按 MC 惯例写 2（金镐等同石镐），
         /// 合金镐/机元镐按 spec §3 各自定档——不管写几，必须写。
+        /// m10 C2 起升级镐叫 <c>*_pickaxe_plus</c>（不再以 _pickaxe 结尾），
+        /// 扫描谓词放宽为 Contains，升级镐同样被守卫罩住。
         /// </summary>
         [Test]
         public void RealItems_EveryPickaxe_ExplicitlyDeclaresToolTier()
@@ -195,12 +203,13 @@ namespace MyWorld.Core.Tests.Blocks
                 Directory.GetFiles(LocateItemsDirectory(), "*.json").Select(File.ReadAllText));
 
             string[] pickaxeIds = items.ById.Keys
-                .Where(id => id.EndsWith("_pickaxe", StringComparison.Ordinal))
+                .Where(id => id.Contains("pickaxe", StringComparison.Ordinal))
                 .OrderBy(id => id, StringComparer.Ordinal)
                 .ToArray();
 
-            Assert.That(pickaxeIds.Length, Is.EqualTo(9),
-                "当前仓库应有 9 个 *_pickaxe 物品（木/石/铁/钻/下界合金/基岩 + m10 C1 的金/夏季合金/机元）。" +
+            Assert.That(pickaxeIds.Length, Is.EqualTo(13),
+                "当前仓库应有 13 个镐类物品（木/石/铁/钻/下界合金/基岩 + m10 C1 的金/夏季合金/机元" +
+                " + m10 C2 的四把升级镐 *_pickaxe_plus）。" +
                 "数目变了请同步本断言、RealItems_PickaxeToolTiers_MatchTheGatingMatrix 与门槛矩阵——" +
                 "特别地，加新镐必须显式写 toolTier");
 
@@ -213,11 +222,11 @@ namespace MyWorld.Core.Tests.Blocks
         }
 
         /// <summary>
-        /// m10 B1：真实 items/*.json 九把镐的耐久阶梯。木/石/铁照 MC 原值（59/131/250，
+        /// m10 B1：真实 items/*.json 十三把镐的耐久阶梯。木/石/铁照 MC 原值（59/131/250，
         /// 恰好放得进 Metadata 的 8 位上限）；钻 1561 / 下界合金 2031 超 255 放不下，封顶 255
         /// （顶级镐的进阶差异在 toolTier/攻击力，不在耐久）；基岩镐是彩蛋终局镐，同样 255。
         /// m10 C1 三把新镐：金 32（MC 原值，出名的脆）；夏季合金与铁同档 250；
-        /// 机元与钻同档封顶 255。
+        /// 机元与钻同档封顶 255。m10 C2 四把升级镐与各自基底同值——升级不送耐久。
         /// 改任何一把的耐久这里立刻红。
         /// </summary>
         [Test]
@@ -237,6 +246,10 @@ namespace MyWorld.Core.Tests.Blocks
                 ("gold_pickaxe", 32),
                 ("summer_alloy_pickaxe", 250),
                 ("machine_essence_pickaxe", 255),
+                ("iron_pickaxe_plus", 250),
+                ("gold_pickaxe_plus", 32),
+                ("summer_alloy_pickaxe_plus", 250),
+                ("machine_essence_pickaxe_plus", 255),
             };
 
             foreach ((string id, int durability) in expected)
@@ -248,7 +261,8 @@ namespace MyWorld.Core.Tests.Blocks
         }
 
         /// <summary>
-        /// m10 B1 守卫：所有 <c>*_pickaxe</c> 必须显式声明 <c>maxDurability</c>（漏写即红）。
+        /// m10 B1 守卫：所有镐类物品（id 含 <c>pickaxe</c>，含 m10 C2 的 *_pickaxe_plus）
+        /// 必须显式声明 <c>maxDurability</c>（漏写即红）。
         /// 缺省 0 = 无耐久概念，挖矿永不磨损——「镐子会碎」直接静默失效，
         /// 实机上同样无线索可查，与上面 toolTier 守卫同款在数据层拦下。
         /// </summary>
@@ -259,7 +273,7 @@ namespace MyWorld.Core.Tests.Blocks
                 Directory.GetFiles(LocateItemsDirectory(), "*.json").Select(File.ReadAllText));
 
             string[] pickaxeIds = items.ById.Keys
-                .Where(id => id.EndsWith("_pickaxe", StringComparison.Ordinal))
+                .Where(id => id.Contains("pickaxe", StringComparison.Ordinal))
                 .OrderBy(id => id, StringComparer.Ordinal)
                 .ToArray();
 

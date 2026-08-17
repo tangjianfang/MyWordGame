@@ -1,0 +1,7 @@
+{
+  "id": "gold_ingot",
+  "displayName": "金锭",
+  "numericId": 1027,
+  "maxStack": 64,
+  "texture": "gold_ingot"
+}

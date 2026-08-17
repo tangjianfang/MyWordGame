@@ -1,0 +1,15 @@
+{
+  "id": "gold_sword_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "gold_sword",
+    "gold_sword"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "gold_sword_plus",
+    "count": 1
+  }
+}

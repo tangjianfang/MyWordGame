@@ -1,0 +1,16 @@
+{
+  "id": "machine_essence_sword_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 3,
+  "pattern": [
+    "machine_essence",
+    "machine_essence",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "machine_essence_sword",
+    "count": 1
+  }
+}

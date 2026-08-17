@@ -1,0 +1,12 @@
+{
+  "id": "gold_pickaxe_plus",
+  "displayName": "金镐+1",
+  "numericId": 1414,
+  "maxStack": 1,
+  "texture": "gold_pickaxe_plus",
+  "attackDamage": 4,
+  "isTool": true,
+  "miningLevel": 2,
+  "toolTier": 2,
+  "maxDurability": 32
+}

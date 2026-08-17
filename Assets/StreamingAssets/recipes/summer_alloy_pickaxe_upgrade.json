@@ -1,0 +1,15 @@
+{
+  "id": "summer_alloy_pickaxe_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "summer_alloy_pickaxe",
+    "summer_alloy_pickaxe"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "summer_alloy_pickaxe_plus",
+    "count": 1
+  }
+}

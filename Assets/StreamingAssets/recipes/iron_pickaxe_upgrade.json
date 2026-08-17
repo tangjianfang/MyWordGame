@@ -1,0 +1,15 @@
+{
+  "id": "iron_pickaxe_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "iron_pickaxe",
+    "iron_pickaxe"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "iron_pickaxe_plus",
+    "count": 1
+  }
+}

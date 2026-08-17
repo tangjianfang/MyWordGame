@@ -1,0 +1,15 @@
+{
+  "id": "summer_alloy_sword_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "summer_alloy_sword",
+    "summer_alloy_sword"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "summer_alloy_sword_plus",
+    "count": 1
+  }
+}

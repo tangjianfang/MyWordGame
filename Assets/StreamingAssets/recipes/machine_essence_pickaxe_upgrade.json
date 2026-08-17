@@ -1,0 +1,15 @@
+{
+  "id": "machine_essence_pickaxe_upgrade",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "machine_essence_pickaxe",
+    "machine_essence_pickaxe"
+  ],
+  "shaped": false,
+  "output": {
+    "item": "machine_essence_pickaxe_plus",
+    "count": 1
+  }
+}

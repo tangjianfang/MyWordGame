@@ -1,0 +1,10 @@
+{
+  "id": "gold_sword_plus",
+  "displayName": "金剑+1",
+  "numericId": 1110,
+  "maxStack": 1,
+  "texture": "gold_sword_plus",
+  "attackDamage": 6,
+  "isTool": true,
+  "miningLevel": 2
+}

@@ -52,6 +52,10 @@ namespace MyWorld.Core.Tests.Items
             "skull", "crafting_table",
             // m10 A1 四材料（矿石掉落物，进背包立刻要显示图标）
             "raw_gold", "raw_iron", "summer_alloy", "machine_essence",
+            // m10 C2 升级链：金锭（粗金熔炼产物）+ 四系剑/镐升级件（左上角「+」徽记占位图）
+            "gold_ingot",
+            "iron_sword_plus", "gold_sword_plus", "summer_alloy_sword_plus", "machine_essence_sword_plus",
+            "iron_pickaxe_plus", "gold_pickaxe_plus", "summer_alloy_pickaxe_plus", "machine_essence_pickaxe_plus",
         };
 
         [Test]
@@ -76,7 +80,7 @@ namespace MyWorld.Core.Tests.Items
                 }
             }
             Assert.That(missing, Is.EqualTo(0),
-                $"任务 A4 brief 范围内 ({CoveredItems.Length} 个物品) 必须全部有贴图，否则 HotbarUI 会显示 missingTex 棕色。缺 {missing} 个。");
+                $"brief 范围内 ({CoveredItems.Length} 个物品) 必须全部有贴图，否则 HotbarUI 会显示 missingTex 棕色。缺 {missing} 个。");
         }
 
         [Test]

@@ -1,0 +1,19 @@
+{
+  "id": "gold_pickaxe_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 2,
+  "pattern": [
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot",
+    "stick",
+    "_",
+    "stick"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "gold_pickaxe",
+    "count": 1
+  }
+}

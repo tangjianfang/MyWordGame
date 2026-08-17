@@ -234,6 +234,7 @@ milestone-10 矿物进阶的 6 张新贴图全部先程序占位：
 | M10-B | [机元矿石](requests/blocks/machine-essence-ore.md) | 1 | 32×32 | 继承石头 | 无 | 已入库（程序占位，待正式美术替换） |
 | M10-C | [4 张材料物品图标](requests/items/m10-material-placeholders.md) | 4 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
 | M10-D | [6 张装备物品图标（金/合金/机元剑+镐）](requests/items/m10-gear-placeholders.md) | 6 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
+| M10-E | [9 张升级链物品图标（金锭 + 四系剑/镐+1）](requests/items/m10-c2-upgrade-placeholders.md) | 9 | 16×16 | 否 | **有** | 已入库（程序占位，待正式美术替换） |
 
 ### 第 3 批 · 待玩法定案后再写提示词
 

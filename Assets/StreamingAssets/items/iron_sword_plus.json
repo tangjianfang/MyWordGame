@@ -1,0 +1,14 @@
+{
+  "id": "iron_sword_plus",
+  "displayName": "铁剑+1",
+  "numericId": 1109,
+  "maxStack": 1,
+  "texture": "iron_sword_plus",
+  "attackDamage": 10,
+  "isTool": true,
+  "miningLevel": 3,
+  "gearBonus": {
+    "stat": "defense",
+    "amount": 2
+  }
+}
