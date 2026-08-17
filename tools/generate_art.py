@@ -14,11 +14,18 @@ API Key 只从环境变量或仓库根目录的 .env 读取，绝不写进代码
     $env:MINIMAX_API_KEY = "你的key"
 
     python tools/generate_art.py --list              # 看每个资源的提示词解析情况
+    python tools/generate_art.py --tree              # 12 大类资源树 + 每叶状态
     python tools/generate_art.py --dry-run --only leaves
     python tools/generate_art.py --only leaves glass cobblestone
     python tools/generate_art.py --all               # 已存在的自动跳过
     python tools/generate_art.py --all --force --jobs 4
     python tools/generate_art.py --only leaves --n 4 # 一次出 4 张备选，挑一张
+
+    # 母版程序换色（0 次 API 调用）：调色板映射或色相偏移，产物落 incoming
+    python tools/generate_art.py --variants wool --names wool-red,wool-blue \
+        --palette "#8C1B1B,#D42B2B;#1A3A7C,#3A5AC4"
+    python tools/generate_art.py --dry-run --variants potion-base \
+        --names potion-speed,potion-strength  # 只打印计划不写盘
 
 可调环境变量：
     MINIMAX_API_KEY     必填
@@ -44,10 +51,11 @@ from concurrent.futures import ThreadPoolExecutor
 from math import gcd
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from postprocess_art import ASSETS, INCOMING, PROJECT_ROOT  # noqa: E402
+from postprocess_art import ASSETS, H, INCOMING, PROCESSED, PROJECT_ROOT  # noqa: E402
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -119,8 +127,8 @@ def targets() -> dict[str, tuple[int, int]]:
 
 def gen_size(size: tuple[int, int]) -> tuple[int, int]:
     """
-    按目标图的宽高比放大到生成尺寸：保持比例精确（避免降采样时被拉伸），
-    两边都落在 [512, 2048] 且是 8 的倍数。
+    按目标图的宽高比放大到生成尺寸：优先保持比例精确（避免降采样时被拉伸），
+    两边都落在 [512, 2048] 且是 8 的倍数；凑不出精确比例时取最接近的一档。
     """
     tw, th = size
     g = gcd(tw, th)
@@ -135,7 +143,16 @@ def gen_size(size: tuple[int, int]) -> tuple[int, int]:
         if best is None or score < best[0]:
             best = (score, w, h)
     if best is None:
-        raise ValueError(f"{size} 的宽高比无法映射到接口允许的尺寸")
+        # 精确比例在接口允许范围内凑不出来（m11 的三帧横排 1024×341 就是这种：
+        # 341 与 1024 互质，任何 8 的倍数放大都超界）。退而求其次，在允许尺寸里
+        # 找宽高比最接近的一档，降采样时轻微校正（1536×512 → 1024×341 纵向仅差 1 像素）
+        target = tw / th
+        cand = min(((w, h)
+                    for w in range(SIZE_MIN, SIZE_MAX + 1, 8)
+                    for h in range(SIZE_MIN, SIZE_MAX + 1, 8)),
+                   key=lambda wh: (abs(wh[0] / wh[1] - target),
+                                   abs(max(wh) - GEN_LONG_SIDE)))
+        return cand
     return best[1], best[2]
 
 
@@ -162,10 +179,14 @@ def _blocks_in_section(lines: list[str]) -> list[tuple[str | None, str]]:
     return out
 
 
-def parse_prompts() -> tuple[dict[str, str], list[str]]:
-    """扫描需求文件，返回 (资源名 → 提示词, 无法映射的告警)。"""
+def parse_prompts() -> tuple[dict[str, str], list[str], dict[str, str]]:
+    """扫描需求文件，返回 (资源名 → 提示词, 无法映射的告警, 资源名 → 需求文件相对路径)。
+
+    第三个返回值给 --tree 用：包括没注册进 ASSETS 的名字（树里标 ⬜ 缺注册）。
+    """
     prompts: dict[str, str] = {}
     warnings: list[str] = []
+    origin: dict[str, str] = {}
     known = set(targets())
 
     for md in sorted(REQUESTS_DIR.rglob("*.md")):
@@ -192,6 +213,7 @@ def parse_prompts() -> tuple[dict[str, str], list[str]]:
                     warnings.append(f"{rel}：模板里找不到 COLOR_DESC 行，无法派生 {ore}")
                     continue
                 prompts[f"{ore}-blobs"] = swapped
+                origin[f"{ore}-blobs"] = rel
             continue
 
         for sub, body in blocks:
@@ -201,13 +223,19 @@ def parse_prompts() -> tuple[dict[str, str], list[str]]:
             name = m.group(1) if m else FILE_DEFAULT.get(md.stem, md.stem)
             name = ALIASES.get(name, name)
             if name not in known:
+                # m11 资源名统一用连字符，容错需求文件把连字符写成下划线的笔误
+                alt = name.replace("_", "-")
+                if alt in known:
+                    name = alt
+            origin[name] = rel
+            if name not in known:
                 warnings.append(f"{rel}：提示词「{sub or md.stem}」对应的 {name} 不在生成清单里，已忽略")
                 continue
             if name in prompts:
                 warnings.append(f"{rel}：{name} 出现了多段提示词，只用第一段")
                 continue
             prompts[name] = body
-    return prompts, warnings
+    return prompts, warnings, origin
 
 
 # ---------------------------------------------------------------- 调接口
@@ -332,11 +360,234 @@ def show_list(prompts: dict[str, str], warnings: list[str]) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- 资源树（--tree）
+
+# 12 大类打印顺序：既有六类在前、m11 新六类在后（spec 口径）；
+# 出现清单外的新目录时排在最后，不丢
+CATEGORY_ORDER = ["blocks", "items", "entities", "player", "sky", "ui",
+                  "effects", "scenes", "codex", "architecture", "marketing",
+                  "seasonal"]
+
+ST_INSTALLED, ST_INCOMING, ST_REQUEST, ST_MISSING = "已入库", "📥", "📄", "⬜"
+
+
+def _installed_stems() -> set[str]:
+    """Assets 下已入库 PNG 的资源名（含 StreamingAssets 的 ui/items 贴图）。"""
+    stems: set[str] = set()
+    for base in (PROJECT_ROOT / "Assets" / "Art",
+                 PROJECT_ROOT / "Assets" / "StreamingAssets"):
+        if base.exists():
+            stems.update(p.stem for p in base.rglob("*.png"))
+    return stems
+
+
+def _resource_status(name: str, installed: set[str]) -> str:
+    """单资源状态：⬜ 缺注册（名字不在 ASSETS）> 已入库 > 📥 > 📄 仅需求。"""
+    if name not in ASSETS:
+        return ST_MISSING
+    if name in installed:
+        return ST_INSTALLED
+    if (INCOMING / f"{name}.png").exists() or (INCOMING / f"{name}-blobs.png").exists():
+        return ST_INCOMING
+    return ST_REQUEST
+
+
+def show_tree(origin: dict[str, str], warnings: list[str]) -> int:
+    """按 art/requests/ 目录树打印：大类 → 子目录 → 需求文件 → 资源状态。"""
+    installed = _installed_stems()
+    # 矿石的生成名是 <名>-blobs，折回主名显示
+    names_by_file: dict[str, list[str]] = {}
+    for raw, rel in origin.items():
+        name = raw[:-len("-blobs")] if raw.endswith("-blobs") else raw
+        names_by_file.setdefault(rel, []).append(name)
+
+    # 目录树：大类 → 子目录（可为 ""）→ (需求文件相对路径, 资源名列表)
+    tree: dict[str, dict[str, list[tuple[str, list[str]]]]] = {}
+    for md in sorted(REQUESTS_DIR.rglob("*.md")):
+        rel = md.relative_to(PROJECT_ROOT).as_posix()
+        parts = md.relative_to(REQUESTS_DIR).parts
+        cat = parts[0] if len(parts) > 1 else "（散件）"
+        sub = "/".join(parts[1:-1])
+        tree.setdefault(cat, {}).setdefault(sub, []).append(
+            (rel, names_by_file.get(rel, [])))
+
+    def cat_key(n: str) -> tuple[int, str]:
+        return (CATEGORY_ORDER.index(n) if n in CATEGORY_ORDER
+                else len(CATEGORY_ORDER), n)
+
+    counts = {ST_INSTALLED: 0, ST_INCOMING: 0, ST_REQUEST: 0, ST_MISSING: 0}
+    no_prompt: list[str] = []
+    total = 0
+
+    print("=== art/requests 美术资源树（大类 → 子目录 → 资源）===")
+    for cat in sorted(tree, key=cat_key):
+        # 先数这一类的状态给标题行用
+        cat_counts = dict.fromkeys(counts, 0)
+        cat_total = 0
+        for sub in tree[cat]:
+            for _, names in tree[cat][sub]:
+                cat_total += len(names)
+                for n in names:
+                    cat_counts[_resource_status(n, installed)] += 1
+        head = f"{cat}（{cat_total} 资源：" + " ".join(
+            f"{k} {v}" for k, v in cat_counts.items() if v) + "）"
+        print(f"\n{head}")
+        for sub in sorted(tree[cat]):
+            if sub:
+                print(f"  {sub}/")
+            for rel, names in tree[cat][sub]:
+                if not names:
+                    # 程序占位批次/纯说明文件：没有「AI 提示词」段落，不参与生成
+                    no_prompt.append(rel)
+                    print(f"    {rel}  —— 无「AI 提示词」段落（不参与生成）")
+                    continue
+                print(f"    {rel}")
+                for n in names:
+                    st = _resource_status(n, installed)
+                    counts[st] += 1
+                    total += 1
+                    print(f"        {st}  {n}")
+
+    print("\n=== 汇总 ===")
+    print(f"共 {total} 个资源：已入库 {counts[ST_INSTALLED]} / 📥 {counts[ST_INCOMING]}"
+          f" / 📄 {counts[ST_REQUEST]} / ⬜ {counts[ST_MISSING]}")
+    if no_prompt:
+        print(f"另有 {len(no_prompt)} 份需求文件没有「AI 提示词」段落（程序占位/纯说明，不计入）：")
+        for d in no_prompt:
+            print(f"    {d}")
+    for w in warnings:
+        print(f"{C_WARN}  ! {w}{C_END}")
+    return 0
+
+
+# ---------------------------------------------------------------- 母版换色（--variants）
+
+
+def _luminance(rgb: tuple[int, int, int]) -> float:
+    return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+
+
+def _recolor_by_palette(arr: np.ndarray, master: list[tuple[int, int, int]],
+                        target: list[tuple[int, int, int]]) -> np.ndarray:
+    """
+    调色板映射：母版色与目标色都按明度排序后按秩配对（第 i 暗配第 i 暗），
+    保留原图明暗结构——染色羊毛/药水变体的标准换色手法。
+    母版色未知时退化为整图最近色量化（按明度，不做 RGB 欧氏，避免偏色）。
+    """
+    out = arr.copy()
+    rgb = out[:, :, :3]
+    if master:
+        src = sorted(master, key=_luminance)
+        dst = sorted(target, key=_luminance)
+        for i, c in enumerate(src):
+            # 母版色多于目标色时按比例归并到目标档位
+            t = dst[round(i * (len(dst) - 1) / max(len(src) - 1, 1))]
+            rgb[np.all(rgb == np.array(c, dtype=np.uint8), axis=-1)] = t
+    else:
+        ranks = np.asarray(sorted(target, key=_luminance), dtype=np.uint8)
+        flat = rgb.reshape(-1, 3).astype(np.int32)
+        lum = flat @ np.array([299, 587, 114], dtype=np.int32)
+        order = np.argsort(np.argsort(lum))          # 每像素的明度秩
+        slot = (order * (len(ranks) - 1) // max(int(order.max()), 1)
+                ).clip(0, len(ranks) - 1)
+        rgb[:] = ranks[slot].reshape(rgb.shape)
+    return out
+
+
+def _hue_shifted(img: Image.Image, delta_deg: int) -> np.ndarray:
+    """整图色相偏移（PIL 的 HSV 通道 H 是 0–255 刻度），返回 RGB 数组。"""
+    hsv = np.array(img.convert("HSV"), dtype=np.int32)
+    shift = round(delta_deg * 255 / 360) % 256
+    hsv[:, :, 0] = (hsv[:, :, 0] + shift) % 256
+    return np.array(Image.fromarray(hsv.astype(np.uint8), "HSV").convert("RGB"))
+
+
+def run_variants(args) -> int:
+    """取 incoming（次选 processed）母版程序换色，输出多张变体——0 次 API 调用。"""
+    base = args.variants
+    names = [n.strip() for n in (args.names or "").split(",") if n.strip()]
+    if not names:
+        print(f"{C_ERR}--variants 需要配合 --names 指定变体输出名（逗号分隔）{C_END}")
+        return 2
+    if base in names:
+        print(f"{C_ERR}变体名 {base} 与母版同名，会覆盖母版{C_END}")
+        return 2
+
+    src = INCOMING / f"{base}.png"
+    src_where = "incoming"
+    if not src.exists():
+        alt = PROCESSED / f"{base}.png"
+        if alt.exists():
+            src, src_where = alt, "processed"
+    if not src.exists():
+        print(f"{C_ERR}母版不存在：art/incoming/{base}.png（processed/ 里也没有），"
+              f"先 --only {base} 生成{C_END}")
+        return 1
+
+    # --palette：分号分组对应各变体，组内逗号分色；不给则用色相偏移
+    groups: list[list[tuple[int, int, int]]] = []
+    for chunk in args.palette or []:
+        for g in chunk.split(";"):
+            colors = [H(c.strip()) for c in g.split(",") if c.strip()]
+            if colors:
+                groups.append(colors)
+    if groups and len(groups) != len(names):
+        print(f"{C_ERR}--palette 给了 {len(groups)} 组调色板，与 {len(names)} 个变体名不一致"
+              f"（分号分组对应各变体，组内逗号分色）{C_END}")
+        return 2
+
+    img = Image.open(src)
+    arr = np.array(img.convert("RGBA"), dtype=np.uint8)
+    # 母版色：优先用 ASSETS 里登记的调色板（更稳），否则取图内不透明高频色
+    master: list[tuple[int, int, int]] = list(ASSETS[base].palette) \
+        if base in ASSETS and ASSETS[base].palette else []
+    if not master:
+        opaque = arr[:, :, :3][arr[:, :, 3] > 0]
+        if opaque.size:
+            colors, cnt = np.unique(opaque.reshape(-1, 3), axis=0, return_counts=True)
+            master = [tuple(int(v) for v in colors[i])
+                      for i in np.argsort(-cnt)[:24]]
+
+    print(f"=== 母版 {src.relative_to(PROJECT_ROOT)}（{src_where}）"
+          f"→ {len(names)} 个变体，0 次 API 调用 ===")
+    for i, name in enumerate(names):
+        out_path = INCOMING / f"{name}.png"
+        if groups:
+            desc = "调色板映射 " + ",".join("#%02X%02X%02X" % c for c in groups[i])
+        else:
+            # 色相偏移量按序号均分圆周，确定性可复现（不持随机数）
+            desc = f"色相偏移 {((i + 1) * (360 // (len(names) + 1))) % 360}°"
+        if args.dry_run:
+            print(f"  {C_DIM}[dry-run] {name}：{desc} → "
+                  f"{out_path.relative_to(PROJECT_ROOT)}{C_END}")
+            continue
+        if out_path.exists() and not args.force:
+            print(f"  {C_DIM}跳过 {name}（已存在，--force 可覆盖）{C_END}")
+            continue
+        if groups:
+            variant = _recolor_by_palette(arr, master, groups[i])
+        else:
+            delta = ((i + 1) * (360 // (len(names) + 1))) % 360
+            variant = arr.copy()
+            variant[:, :, :3] = _hue_shifted(img, delta)
+        Image.fromarray(variant, "RGBA").save(out_path, "PNG")
+        print(f"  {C_OK}完成 {name}（{desc}）{C_END}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="按 art/requests/ 的提示词调 MiniMax 生成素材")
     ap.add_argument("--all", action="store_true", help="生成全部缺失素材")
     ap.add_argument("--only", nargs="+", metavar="NAME", help="只生成指定资源")
     ap.add_argument("--list", action="store_true", help="列出提示词解析结果，不调接口")
+    ap.add_argument("--tree", action="store_true",
+                    help="按 art/requests/ 目录树打印大类→子目录→资源与每叶状态")
+    ap.add_argument("--variants", metavar="BASE",
+                    help="取 incoming（次选 processed）母版程序换色出多张变体，0 次 API 调用")
+    ap.add_argument("--names", metavar="A,B,...", help="--variants 的变体输出名，逗号分隔")
+    ap.add_argument("--palette", action="append", metavar="HEX;HEX;...",
+                    help="--variants 的目标调色板：分号分组对应各变体，组内逗号分色；"
+                         "不给则按序号均分色相偏移")
     ap.add_argument("--dry-run", action="store_true", help="打印将要发送的请求，不调接口")
     ap.add_argument("--force", action="store_true", help="覆盖已存在的素材")
     ap.add_argument("--jobs", type=int, default=3, help="并发路数，默认 3")
@@ -345,10 +596,14 @@ def main() -> int:
     args = ap.parse_args()
 
     load_dotenv()
-    prompts, warnings = parse_prompts()
+    prompts, warnings, origin = parse_prompts()
 
     if args.list:
         return show_list(prompts, warnings)
+    if args.tree:
+        return show_tree(origin, warnings)
+    if args.variants:
+        return run_variants(args)
 
     all_targets = targets()
     if args.only:

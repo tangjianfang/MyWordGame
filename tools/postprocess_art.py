@@ -59,6 +59,14 @@ INSTALL_DIRS = {
     "player": PROJECT_ROOT / "Assets" / "Art" / "Player",
     "item": PROJECT_ROOT / "Assets" / "StreamingAssets" / "items" / "textures",
     "entity": PROJECT_ROOT / "Assets" / "Art" / "Entities",
+    # milestone-11 新增大类（A3-A5）：统一先落 Assets/Art/<大类>，
+    # 后续波次接线时按实际加载方挪目录，此处先保证 --install 不 KeyError
+    "effects": PROJECT_ROOT / "Assets" / "Art" / "Effects",
+    "codex": PROJECT_ROOT / "Assets" / "Art" / "Codex",
+    "architecture": PROJECT_ROOT / "Assets" / "Art" / "Architecture",
+    "scenes": PROJECT_ROOT / "Assets" / "Art" / "Scenes",
+    "marketing": PROJECT_ROOT / "Assets" / "Art" / "Marketing",
+    "seasonal": PROJECT_ROOT / "Assets" / "Art" / "Seasonal",
 }
 
 # ---------------------------------------------------------------- 常量
@@ -314,13 +322,14 @@ def verify(arr: np.ndarray, spec: "Asset") -> list[str]:
     opaque = arr[:, :, 3] > 0
     if opaque.any():
         colors = np.unique(arr[:, :, :3][opaque].reshape(-1, 3), axis=0)
-        if len(colors) > len(spec.palette):
-            problems.append(f"颜色数 {len(colors)} 超过调色板 {len(spec.palette)} 色")
-        if spec.palette:
-            allowed = {tuple(c) for c in spec.palette}
-            stray = [tuple(c) for c in colors if tuple(c) not in allowed]
-            if stray:
-                problems.append(f"出现调色板外的颜色 {stray[:3]}")
+        if not spec.direct:       # 直用大图不限色，其余照旧
+            if len(colors) > len(spec.palette):
+                problems.append(f"颜色数 {len(colors)} 超过调色板 {len(spec.palette)} 色")
+            if spec.palette:
+                allowed = {tuple(c) for c in spec.palette}
+                stray = [tuple(c) for c in colors if tuple(c) not in allowed]
+                if stray:
+                    problems.append(f"出现调色板外的颜色 {stray[:3]}")
         if any(tuple(c) == MAGENTA for c in colors):
             problems.append("成品里残留洋红 #FF00FF")
 
@@ -344,6 +353,7 @@ class Asset:
     alpha_range: tuple[float, float] | None = None
     kind: str = "ai"              # ai | ore | derived | procedural | manual
     source: str | None = None     # kind=ai 时的 incoming 文件名（默认同 name）
+    direct: bool = False          # 直用大图（1024 概念/宣传图）：不量化、不做调色板校验
     note: str = ""
 
 
@@ -572,7 +582,450 @@ def _entities() -> list[Asset]:
     return out
 
 
-ASSETS: dict[str, Asset] = {a.name: a for a in _blocks() + _ores() + _ui_sky_player() + _items() + _entities()}
+# ---------------------------------------------------------------- milestone-11 资源（A1-A5 共 238 项）
+#
+# m11 起资源名统一用连字符（与需求文件名一一对应）。下面的调色板是注册时的
+# 初始值，真源仍是 art/requests/ 下各需求文件的调色板段——集成点逐批核对，
+# 有出入以需求文件为准并回写这里（评审会抓这种漂移）。
+
+OUTLINE_DARK = "#1A1A1A"            # 图标深色描边（A2 约定 1px，提升背包可读性）
+HANDLE_WOOD = ["#634C33", "#7A6042", "#8E7350"]        # 工具/乐器木柄
+METAL_IRON = ["#5C5C5C", "#8A8A8A", "#C8C8C8"]
+METAL_GOLD = ["#A87322", "#DCAE3A", "#F7DA7A"]
+METAL_ALLOY = ["#3A6E8A", "#4E88A8", "#6AA8C8"]        # 夏季合金：蓝绿金属
+METAL_ESSENCE = ["#5A4A8A", "#A88AD2", "#DCAE3A"]      # 机元：紫金
+PLANK_WOOD = ["#6B4E2E", "#8A6741", "#9C7549", "#B98D57"]
+DIRT_BROWN = ["#4E3826", "#5F4630", "#7A5A3C", "#91704B"]
+STONE_GRAY = ["#5C5C5C", "#6E6E6E", "#8A8A8A", "#9B9B9B", "#A3A3A3"]
+BRICK_RED = ["#6B3226", "#8B4433", "#A05242", "#B3634C", "#9A9086"]
+STEM_GREEN = ["#3F7A2E", "#52963B", "#2F5D24"]          # 花草茎叶（深于 grass-top 主色）
+PARCHMENT = ["#E8D8A8", "#D2BC80", "#C8AA70"]           # 羊皮纸（地图/卷轴）
+SKIN_TONE = ["#D2A48A", "#E8C0A8"]                      # 玩家脸基色
+UI_WARM_GRAY = ["#17140F", "#443D34", "#6B6155", "#8B7F6F"]   # 面板/框同 panel 色系
+BADGE_BASE = ["#8B7355", "#DCAE3A", "#F7DA7A", "#5C4632"]     # 徽章共用底盘 + 金边
+
+
+def _m11_a1_blocks() -> list[Asset]:
+    """任务 A1：方块类 48 张（功能 9 / 农业 11 / 花草 12 / 树木 13 / 楼梯 3）。"""
+
+    def X(n, pal, tiling="4-side", **kw):   # 不透明贴图，默认四边无缝
+        return Asset(n, "block", (32, 32), [H(c) for c in pal], tiling, **kw)
+
+    def K(n, pal, **kw):            # 洋红键控的十字/镂空类，不平铺
+        return Asset(n, "block", (32, 32), [H(c) for c in pal], "none",
+                     transparent=True, **kw)
+
+    def L(n, pal):                  # 树叶类：与既有 leaves 同款键控占比区间
+        return Asset(n, "block", (32, 32), [H(c) for c in pal], "4-side",
+                     transparent=True, alpha_range=(0.15, 0.25))
+
+    # —— 功能方块 9（箱子三面 / 门两段 / 床三面都是整块独占贴图，不要求平铺）——
+    chest_pal = PLANK_WOOD + [OUTLINE_DARK]
+    bed_pal = ["#8C1B1B", "#D42B2B", "#F45C5C", "#F2F2F2"] + PLANK_WOOD[:2]
+    door_pal = PLANK_WOOD + ["#8FB4C0", "#C8E2EA", OUTLINE_DARK]
+    a1 = [
+        K("torch", HANDLE_WOOD + ["#8A2400", "#F79B22", "#FFD24A"]),
+        X("chest-front", chest_pal), X("chest-side", chest_pal), X("chest-top", chest_pal),
+        K("wooden-door-upper", door_pal, alpha_range=(0.40, 0.65)),
+        K("wooden-door-lower", door_pal, alpha_range=(0.40, 0.65)),
+        X("bed-head-top", bed_pal, tiling="none"),
+        X("bed-foot-top", bed_pal, tiling="none"),
+        X("bed-side", bed_pal + [OUTLINE_DARK], tiling="none"),
+
+        # —— 农业 11：耕地不透明；作物三阶段逐级转色，全部键控 ——
+        X("farmland-dry", ["#3A2A1C", "#4E3826", "#5F4630", "#7A5A3C"]),
+        X("farmland-wet", ["#2A1E12", "#3A2A1C", "#4E3826", "#5F4630"]),
+        K("wheat-stage0", ["#4A7E2F", "#5D9C3C", "#74B84E"]),
+        K("wheat-stage1", ["#5D9C3C", "#74B84E", "#A87322", "#DCAE3A"]),
+        K("wheat-stage2", ["#DCAE3A", "#F7DA7A", "#A87322"] + HANDLE_WOOD[:1]),
+        K("beet-stage0", ["#4A7E2F", "#5D9C3C", "#74B84E"]),
+        K("beet-stage1", ["#4A7E2F", "#5D9C3C", "#74B84E", "#7A1A3A"]),
+        K("beet-stage2", ["#4A7E2F", "#5D9C3C", "#7A1A3A", "#A82A52"]),
+        K("mung-stage0", ["#4A6E2A", "#6E8E3A"]),
+        K("mung-stage1", ["#6E8E3A", "#9ABE5A", "#C8E8A0"]),
+        K("mung-stage2", ["#9ABE5A", "#C8E8A0", "#DCAE3A"]),
+
+        # —— 花草 12：主体居中约 70%，背景整片纯洋红键控 ——
+        K("flower-poppy", ["#D42B2B", "#F45C5C", "#8C1B1B"] + STEM_GREEN),
+        K("flower-dandelion", ["#DCAE3A", "#F7DA7A", "#A87322"] + STEM_GREEN),
+        K("flower-orchid", ["#3A6FB5", "#4E88CE", "#8FB4E8"] + STEM_GREEN),
+        K("flower-cornflower", ["#3A5AC4", "#6A8AE8", "#1A3A7C"] + STEM_GREEN),
+        K("flower-rose", ["#8C1B1B", "#D42B2B", "#3A2020"] + STEM_GREEN),
+        K("flower-sunflower", ["#F7DA7A", "#DCAE3A", "#A87322", "#8A2400"] + STEM_GREEN),
+        K("flower-lilac", ["#5A4A8A", "#A88AD2", "#3A2A5A"] + STEM_GREEN),
+        K("flower-daisy", ["#F2F2F2", "#FFFFFF", "#DCAE3A"] + STEM_GREEN),
+        K("tall-grass", ["#3F7A2E", "#52963B", "#66B04A", "#2F5D24"]),
+        K("fern", ["#2F5D24", "#3F7A2E", "#52963B", "#66B04A"]),
+        K("mushroom-red", ["#D42B2B", "#F45C5C", "#F2F2F2", "#C8C8B8", OUTLINE_DARK]),
+        K("mushroom-brown", ["#8A6741", "#B98D57", "#C8C8B8", "#F2F2F2", OUTLINE_DARK]),
+
+        # —— 树木 13：七种树叶色板对齐 A1 任务卡（叶色深于 grass-top）——
+        X("birch-log", ["#D7CFC0", "#EAE5DA", "#B8AFA0", "#8A8175"]),   # 白桦白皮
+        L("birch-leaves", ["#4A7E2F", "#5D9C3C", "#74B84E", "#8CCB5E"]),  # 亮黄绿
+        X("pine-log", ["#2E241A", "#3B2C1C", "#4E3B27", "#634C33"]),
+        L("pine-leaves", ["#1E3B2A", "#2A5038", "#356647", "#448059", "#56996B"]),
+        X("cedar-log", ["#3A2E22", "#4E3E2E", "#63503C"]),
+        L("cedar-leaves", ["#1E3A34", "#2A4A44", "#35605A", "#44786E", "#568E82"]),  # 蓝绿
+        X("jungle-log", ["#5A4632", "#6E563E", "#82684C"]),
+        L("jungle-leaves", ["#1E5A1E", "#2A7A2A", "#3A9A3A", "#56BB56"]),  # 浓艳
+        L("bush-leaves", ["#4A5E3A", "#5A6E4A", "#6E8258", "#82966A"]),    # 灰绿
+        X("sequoia-log", ["#6E3020", "#8A4028", "#A65638"]),
+        L("sequoia-leaves", ["#6E3A26", "#8A4A32", "#A65E40", "#5A2E1E"]),  # 锈褐
+        X("cherry-log", ["#5A3E24", "#6B4E2E", "#8A6741"]),
+        L("cherry-leaves", ["#D898B0", "#E8B8C8", "#F2D0DC", "#F8E8EE"]),   # 粉白系
+
+        # —— 楼梯 3：直接沿用对应方块既定色板 ——
+        X("stairs-stone", STONE_GRAY),
+        X("stairs-planks", PLANK_WOOD),
+        X("stairs-bricks", BRICK_RED),
+    ]
+    return a1
+
+
+def _m11_a2_items() -> list[Asset]:
+    """任务 A2：物品图标 63 张（32×32，洋红键控，1px 深色描边，45° 侧视单体图）。"""
+
+    def I(n, pal):
+        return Asset(n, "item", (32, 32), [H(c) for c in pal], "none", transparent=True)
+
+    out: list[Asset] = []
+    # —— 武器工具 7：锄头四档，柄统一木色、头按档取色 ——
+    out.append(I("bow", HANDLE_WOOD + ["#E0E0E0", "#FFFFFF", OUTLINE_DARK]))
+    out.append(I("arrow", HANDLE_WOOD + ["#C8C8C8", "#F2F2F2", OUTLINE_DARK]))
+    out.append(I("shield", METAL_IRON + PLANK_WOOD[:2] + [OUTLINE_DARK]))
+    hoe_heads = {"wooden": ["#8A6741", "#B98D57"], "stone": ["#7E7E7E", "#C8C8C8"],
+                 "iron": ["#8A8A8A", "#D8D8D8"], "diamond": ["#1E7C7C", "#4CC6C4", "#A8F2EF"]}
+    for tier, head in hoe_heads.items():
+        out.append(I(f"hoe-{tier}", HANDLE_WOOD + head + [OUTLINE_DARK]))
+
+    # —— 盔甲 16：四材料 × 头盔/胸甲/护腿/靴子，色板随材料 ——
+    armor_mats = {"iron": METAL_IRON, "gold": METAL_GOLD,
+                  "summer-alloy": METAL_ALLOY, "machine-essence": METAL_ESSENCE}
+    for mat, pal in armor_mats.items():
+        for piece in ("helmet", "chest", "legs", "boots"):
+            out.append(I(f"{piece}-{mat}", pal + [OUTLINE_DARK]))
+
+    # —— 食物 4 + 材料 2 ——
+    out.append(I("wheat-item", ["#DCAE3A", "#F7DA7A", "#A87322", OUTLINE_DARK]))
+    out.append(I("bread", ["#B98D57", "#D2A868", "#8A6741", OUTLINE_DARK]))
+    out.append(I("seeds-wheat", ["#8A9A4A", "#AEBE6A", "#DCAE3A", OUTLINE_DARK]))
+    out.append(I("seeds-beet", ["#7A1A3A", "#A82A52", "#4A7E2F", OUTLINE_DARK]))
+    out.append(I("bone-meal", ["#EAEAD8", "#F8F8E8", "#C8C8B8", OUTLINE_DARK]))
+    out.append(I("leather", ["#8A6741", "#A5825A", "#6B4E2E", OUTLINE_DARK]))
+
+    # —— 家具 9：木色系为主，电子件加深灰/屏幕蓝 ——
+    out.append(I("chair", PLANK_WOOD + [OUTLINE_DARK]))
+    out.append(I("table", PLANK_WOOD + [OUTLINE_DARK]))
+    out.append(I("office-desk", ["#8A8A8A", "#B4B4B4"] + PLANK_WOOD + [OUTLINE_DARK]))
+    out.append(I("laptop", ["#2A2A2E", "#5C5C5C", "#8A8A8A", "#3A6FB5", OUTLINE_DARK]))
+    out.append(I("keyboard", ["#2A2A2E", "#5C5C5C", "#8A8A8A", OUTLINE_DARK]))
+    out.append(I("mouse", ["#5C5C5C", "#8A8A8A", "#C8C8C8", OUTLINE_DARK]))
+    out.append(I("notebook", ["#F2EAD2", "#E0D8B8", "#8A6741", OUTLINE_DARK]))
+    out.append(I("hacker-pc", ["#1A1A1A", "#2A2A2E", "#3A6E8A", "#66B04A", OUTLINE_DARK]))
+    out.append(I("globe", ["#3A6FB5", "#4E88CE", "#74B84E", "#8A8A8A", OUTLINE_DARK]))
+
+    # —— 药水 7：瓶型一致换液色（potion-base 为母版，--variants 可程序派生）——
+    out.append(I("potion-base", ["#C8E2EA", "#E7F4F8", "#8FB4C0", OUTLINE_DARK]))
+    potion_liquids = {
+        "healing": ["#D42B2B", "#F45C5C"], "speed": ["#4E88CE", "#8FB4E8"],
+        "strength": ["#F79B22", "#FFD24A"], "jump": ["#A88AD2", "#D2C4F2"],
+        "night-vision": ["#F7DA7A", "#FFEB99"], "water-breathing": ["#356647", "#66B04A"],
+    }
+    for kind, liquid in potion_liquids.items():
+        out.append(I(f"potion-{kind}", ["#C8E2EA", "#E7F4F8", "#8FB4C0"] + liquid
+                     + [OUTLINE_DARK]))
+
+    # —— 附魔 5：附魔书三变体同一书本底、换符文色 ——
+    book_base = ["#634C33", "#8A6741", "#F2EAD2"]
+    out.append(I("enchanted-book-sharpness", book_base + ["#D42B2B", OUTLINE_DARK]))
+    out.append(I("enchanted-book-efficiency", book_base + ["#F7DA7A", OUTLINE_DARK]))
+    out.append(I("enchanted-book-unbreaking", book_base + ["#5A4A8A", OUTLINE_DARK]))
+    out.append(I("enchanting-rod", HANDLE_WOOD + METAL_ESSENCE + [OUTLINE_DARK]))
+    out.append(I("enchant-scroll", PARCHMENT + ["#5A4A8A", OUTLINE_DARK]))
+
+    # —— 乐器 4 ——
+    out.append(I("drum", HANDLE_WOOD + ["#E8D8B8", "#C8AA70", OUTLINE_DARK]))
+    out.append(I("flute", HANDLE_WOOD + [OUTLINE_DARK]))
+    out.append(I("bell", METAL_GOLD + [OUTLINE_DARK]))
+    out.append(I("music-box", PLANK_WOOD + METAL_GOLD[:2] + [OUTLINE_DARK]))
+
+    # —— 玩具 5 ——
+    out.append(I("kite", ["#D42B2B", "#4E88CE", "#F7DA7A", "#74B84E", OUTLINE_DARK]))
+    out.append(I("spinning-top", HANDLE_WOOD + PLANK_WOOD[:1] + [OUTLINE_DARK]))
+    out.append(I("balloon", ["#D42B2B", "#F45C5C", "#F2F2F2", OUTLINE_DARK]))
+    out.append(I("robot-toy", ["#8A8A8A", "#C8C8C8", "#3A6FB5", "#D42B2B", OUTLINE_DARK]))
+    out.append(I("puzzle-cube", ["#D42B2B", "#F7DA7A", "#74B84E", "#4E88CE",
+                                 "#A88AD2", "#F2F2F2", OUTLINE_DARK]))
+
+    # —— 宝物 4 ——
+    out.append(I("gem-bag", ["#8A6741", "#6B4E2E", "#4CC6C4", "#F7DA7A", OUTLINE_DARK]))
+    out.append(I("coin-pile", METAL_GOLD + ["#A87322", OUTLINE_DARK]))
+    out.append(I("treasure-map", PARCHMENT + ["#8C1B1B", "#3A5AC4", OUTLINE_DARK]))
+    out.append(I("crown", METAL_GOLD + ["#D42B2B", OUTLINE_DARK]))
+    return out
+
+
+def _m11_a3_entities() -> list[Asset]:
+    """任务 A3：生物图标 12 张，沿用正脸构图、不透明。
+    machine-guardian 是 Boss 图标，放大到 64×64（紫金机甲、眼发蓝光）。"""
+
+    def E(n, pal, size=(32, 32)):
+        return Asset(n, "entity", size, [H(c) for c in pal], "none")
+
+    return [
+        E("cow", ["#E8E0D8", "#C8BCB0", "#D2A48A", "#1A1A1A"]),
+        E("chicken", ["#F2F2F2", "#E0A020", "#D42B2B", OUTLINE_DARK]),
+        E("spider", ["#2A2A2A", "#4A4A4A", "#8A1A1A", "#1A1A1A"]),
+        E("rabbit", ["#C8B8A8", "#E8DCC8", "#F2F2F2", OUTLINE_DARK]),
+        E("fox", ["#E8823A", "#F2A860", "#F2F2F2", "#2A1E14"]),
+        E("deer", ["#A5825A", "#C8A878", "#F2F2F2", "#6B4E2E"]),
+        E("panda", ["#F2F2F2", "#1A1A1A", "#8A8A8A", "#C8C8B8"]),
+        E("penguin", ["#1A1A1A", "#F2F2F2", "#E8823A"]),
+        E("goat", ["#E8E0D8", "#C8BCB0", "#A5825A", OUTLINE_DARK]),
+        E("raccoon", ["#8A8A8A", "#4A4A4A", "#C8C8C8", "#1A1A1A"]),
+        E("hamster", ["#E8C8A0", "#D2A878", "#F2E8D8", OUTLINE_DARK]),
+        E("machine-guardian", METAL_ESSENCE + ["#4CC6C4", OUTLINE_DARK], (64, 64)),
+    ]
+
+
+def _m11_a3_effects() -> list[Asset]:
+    """任务 A3：特效 16 张，全部洋红键控。
+    fx-explosion / anim-torch-flame 是三帧横排帧序列（1024×341），
+    生成时按 ~3:1 宽高比出图再降采样，拆帧对齐由 Unity 侧做。"""
+
+    def F(n, pal, size=(32, 32)):
+        return Asset(n, "effects", size, [H(c) for c in pal], "none", transparent=True)
+
+    return [
+        # 环境 4
+        F("env-smoke", ["#8A8A8A", "#B4B4B4", "#D8D8D8"]),
+        F("env-firefly", ["#F7DA7A", "#FFEB99", "#DCAE3A"]),
+        F("env-dandelion-fluff", ["#F2F2F2", "#FFFFFF", "#E0E0E0"]),
+        F("env-snowflake", ["#FFFFFF", "#E7F4F8", "#C8E2EA"]),
+        # 战斗 5（explosion 为帧序列）
+        F("fx-slash-arc", ["#FFFFFF", "#C8E2EA", "#8FB4E8"]),
+        F("fx-arrow-trail", ["#E7F4F8", "#C8E2EA", "#FFFFFF"]),
+        F("fx-explosion", ["#8A2400", "#D64B0A", "#F79B22", "#FFD24A", "#FFFFFF"],
+          (1024, 341)),
+        F("fx-magic-orb", METAL_ESSENCE[:2] + ["#E8D8FF"]),
+        F("fx-hit-spark", ["#FFD24A", "#F79B22", "#FFFFFF"]),
+        # 魔法阵 4
+        F("magic-teleport", ["#5A4A8A", "#A88AD2", "#D2C4F2"]),
+        F("magic-heal-ring", ["#3F7A2E", "#66B04A", "#A8F2B6"]),
+        F("magic-enchant-column", ["#5A4A8A", "#A88AD2", "#DCAE3A"]),
+        F("magic-shield", ["#4E88CE", "#8FB4E8", "#C8E2EA"]),
+        # 方块动态 3（torch-flame 为帧序列）
+        F("anim-torch-flame", ["#8A2400", "#D64B0A", "#F79B22", "#FFD24A"], (1024, 341)),
+        F("anim-water-glint", ["#FFFFFF", "#C8E2EA", "#4E88CE"]),
+        F("anim-lava-bubble", ["#8A2400", "#D64B0A", "#F79B22", "#FFD24A"]),
+    ]
+
+
+def _m11_a3_sky_player() -> list[Asset]:
+    """任务 A3：天空 9 + 玩家表情 6。
+    particle-* / face-* 洋红键控；星空/银河/彩虹/极光是天空穹顶整幅图，
+    不键控，尺寸沿既有天空件（太阳月亮 64、云 128）的档位。"""
+
+    def K(n, pal, **kw):          # 键控透明粒子/表情
+        return Asset(n, "sky", (32, 32), [H(c) for c in pal], "none",
+                     transparent=True, **kw)
+
+    def S(n, pal, size):          # 整幅天空图（不键控）
+        return Asset(n, "sky", size, [H(c) for c in pal], "none")
+
+    def P(n, pal):                # 玩家表情（键控）
+        return Asset(n, "player", (32, 32), [H(c) for c in pal], "none",
+                     transparent=True)
+
+    return [
+        K("particle-rain", ["#8FB4E8", "#C8E2EA"]),
+        K("particle-snow", ["#FFFFFF", "#E7F4F8"]),
+        K("particle-hail", ["#FFFFFF", "#C8E2EA", "#8FB4E8"]),
+        K("particle-leaf-fall", ["#5D9C3C", "#74B84E", "#DCAE3A"]),
+        S("sky-stars", ["#FFFFFF", "#F2F2EC", "#F7DA7A"], (64, 64)),
+        S("sky-milky-way", ["#1A1A2E", "#3A3A5A", "#8A8AC8", "#F2F2EC"], (128, 128)),
+        S("sky-rainbow", ["#D42B2B", "#F79B22", "#F7DA7A", "#74B84E",
+                          "#4E88CE", "#A88AD2"], (128, 128)),
+        S("sky-aurora", ["#3A6E8A", "#6AA8C8", "#8CCB5E", "#A8F2EF"], (128, 128)),
+        K("sky-meteor", ["#FFFFFF", "#F7DA7A", "#F79B22"]),
+        P("face-sleep", SKIN_TONE + ["#8A8A8A", OUTLINE_DARK]),
+        P("face-hungry", SKIN_TONE + ["#8A6741", OUTLINE_DARK]),
+        P("face-hurt", SKIN_TONE + ["#D42B2B", OUTLINE_DARK]),
+        P("face-invincible", SKIN_TONE + ["#F7DA7A", OUTLINE_DARK]),
+        P("face-happy", SKIN_TONE + ["#F45C5C", OUTLINE_DARK]),
+        P("face-scared", SKIN_TONE + ["#3A5AC4", OUTLINE_DARK]),
+    ]
+
+
+def _m11_a4_ui() -> list[Asset]:
+    """任务 A4：UI 17 张（系统件 7 / 动效帧 5 / 光标 5）。
+    三条横向状态条 128×16；箱子格沿 hotbar-slot 用 48×48；
+    数字类动效帧洋红键控（白字黑描边）。"""
+
+    def U(n, pal, size=(32, 32), **kw):
+        return Asset(n, "ui", size, [H(c) for c in pal], "none", **kw)
+
+    def K(n, pal, **kw):          # 键控透明（动效帧/光标）
+        return Asset(n, "ui", (32, 32), [H(c) for c in pal], "none",
+                     transparent=True, **kw)
+
+    return [
+        # 系统件 7
+        U("ui-armor-frame", UI_WARM_GRAY + ["#C8C8C8"]),
+        U("ui-armor-bar", ["#17140F", "#5C5C5C", "#8A8A8A", "#C8C8C8"], (128, 16)),
+        U("ui-charge-bar", ["#17140F", "#8A2400", "#F79B22", "#FFD24A"], (128, 16)),
+        U("ui-boss-bar", ["#17140F", "#8C1B1B", "#D42B2B", "#F45C5C"], (128, 16)),
+        U("ui-chest-slot", ["#1A1A1A", "#8A8A8A", "#000000"], (48, 48), transparent=True),
+        U("ui-map-frame", PLANK_WOOD + ["#F2EAD2", OUTLINE_DARK]),
+        U("ui-enchant-panel", UI_WARM_GRAY + ["#57503F", "#3A342A", "#5A4A8A",
+                                              "#A88AD2"], (64, 64)),
+        # 动效帧 5
+        K("fx-xp-float", ["#7DFC4A", "#FFFFFF", OUTLINE_DARK]),
+        K("fx-damage-number", ["#FFFFFF", "#F2F2F2", OUTLINE_DARK]),
+        K("fx-crit", ["#FFD24A", "#F79B22", "#FFFFFF", OUTLINE_DARK]),
+        K("fx-combo", ["#4E88CE", "#8FB4E8", "#FFFFFF", OUTLINE_DARK]),
+        K("fx-badge-popup", ["#DCAE3A", "#F7DA7A", "#FFFFFF", OUTLINE_DARK]),
+        # 光标 5
+        K("cursor-dig", ["#FFFFFF", "#FFD24A", "#1A1A1A"]),
+        K("cursor-attack", ["#FFFFFF", "#D42B2B", "#1A1A1A"]),
+        K("cursor-talk", ["#FFFFFF", "#74B84E", "#1A1A1A"]),
+        K("cursor-forbidden", ["#D42B2B", "#8C1B1B", "#1A1A1A"]),
+        K("cursor-grab", ["#FFFFFF", "#C8C8C8", "#1A1A1A"]),
+    ]
+
+
+def _m11_a4_codex() -> list[Asset]:
+    """任务 A4：图鉴 27 张（卡框 3 + 徽章 16 + 收集卡 8）。
+    徽章共用 #8B7355 底盘金边（32×32）；卡片类 64×64。"""
+
+    def B(n, accent):             # 徽章：底盘色 + 前景主题色
+        return Asset(n, "codex", (32, 32), [H(c) for c in BADGE_BASE + accent],
+                     "none", transparent=True)
+
+    def C(n, pal):                # 卡片（卡框/收集卡）
+        return Asset(n, "codex", (64, 64), [H(c) for c in pal], "none")
+
+    return [
+        # 卡框 3：普通/稀有/史诗
+        C("card-frame-common", ["#8B7355", "#6B6155", "#D2C4A8", OUTLINE_DARK]),
+        C("card-frame-rare", ["#3A6E8A", "#6AA8C8", "#D2E8F2", OUTLINE_DARK]),
+        C("card-frame-epic", ["#5A4A8A", "#A88AD2", "#E8D8FF", OUTLINE_DARK]),
+        # 徽章 16
+        B("badge-first-night", ["#1A2A4A", "#3A5A8A"]),
+        B("badge-first-iron", ["#5C5C5C", "#C8C8C8"]),
+        B("badge-diamond-age", ["#1E7C7C", "#A8F2EF"]),
+        B("badge-mob-slayer", ["#D42B2B", "#8C1B1B"]),
+        B("badge-skeleton-sniper", ["#EAEAD8", "#C8C8B8"]),
+        B("badge-creeper-survivor", ["#6ED66A", "#3A8A3A"]),
+        B("badge-shepherd", ["#F2F2F2", "#C8C8C8"]),
+        B("badge-harvest", ["#DCAE3A", "#F7DA7A"]),
+        B("badge-baker", ["#B98D57", "#D2A868"]),
+        B("badge-enchanter", ["#5A4A8A", "#A88AD2"]),
+        B("badge-archer", HANDLE_WOOD[:2] + ["#E0E0E0"]),
+        B("badge-hero", ["#F7DA7A", "#D42B2B"]),
+        B("badge-explorer", ["#4A7E2F", "#74B84E"]),
+        B("badge-builder", ["#8A6741", "#B98D57"]),
+        B("badge-fisherman", ["#3A6FB5", "#4E88CE"]),
+        B("badge-completionist", ["#A88AD2", "#F7DA7A"]),
+        # 收集卡 8：矿物 5 + 植物 3
+        C("card-ore-gold", METAL_GOLD + ["#5C4632", OUTLINE_DARK]),
+        C("card-ore-iron", METAL_IRON + ["#5C4632", OUTLINE_DARK]),
+        C("card-ore-alloy", METAL_ALLOY + ["#5C4632", OUTLINE_DARK]),
+        C("card-ore-essence", METAL_ESSENCE + ["#5C4632", OUTLINE_DARK]),
+        C("card-ore-diamond", ["#1E7C7C", "#4CC6C4", "#A8F2EF", "#5C4632", OUTLINE_DARK]),
+        C("card-plant-cherry", ["#D898B0", "#E8B8C8", "#F2D0DC", "#5C4632", OUTLINE_DARK]),
+        C("card-plant-sunflower", ["#DCAE3A", "#F7DA7A", "#A87322", "#5C4632", OUTLINE_DARK]),
+        C("card-plant-fern", ["#2F5D24", "#3F7A2E", "#52963B", "#5C4632", OUTLINE_DARK]),
+    ]
+
+
+def _m11_a5_architecture() -> list[Asset]:
+    """任务 A5：建筑 11 张。village/blueprint 七张是 1024 概念图
+    直用（不降采样不量化）；sign/banner 四张是游戏内贴图 32×32。"""
+
+    def C(n):                      # 1024 概念图直用
+        return Asset(n, "architecture", (1024, 1024), [], "none", direct=True)
+
+    def T(n, pal):                 # 游戏内小贴图
+        return Asset(n, "architecture", (32, 32), [H(c) for c in pal], "none")
+
+    return [
+        C("village-blacksmith"), C("village-farm"), C("village-library"),
+        C("village-well"),
+        C("blueprint-mine"), C("blueprint-shipwreck"), C("blueprint-temple"),
+        T("sign-village", PLANK_WOOD + ["#F2EAD2", OUTLINE_DARK]),
+        T("sign-shop", PLANK_WOOD + ["#F2EAD2", "#DCAE3A", OUTLINE_DARK]),
+        T("banner-plain", ["#C8C8C8", "#F2F2F2", "#8A8A8A", "#5C5C5C"]),
+        T("banner-crest", ["#8C1B1B", "#D42B2B"] + METAL_GOLD[:2] + [OUTLINE_DARK]),
+    ]
+
+
+def _m11_a5_scenes() -> list[Asset]:
+    """任务 A5：场景 11 张，全部 1024 大图直用（主菜单/章节/全景图）。"""
+
+    def C(n):
+        return Asset(n, "scenes", (1024, 1024), [], "none", direct=True)
+
+    return [
+        C("menu-plains-dawn"), C("menu-snow-aurora"), C("menu-jungle-sunset"),
+        C("chapter1-complete"), C("boss-intro"), C("ending"),
+        C("panorama-plains"), C("panorama-desert"), C("panorama-forest"),
+        C("panorama-mountains"), C("panorama-snow"),
+    ]
+
+
+def _m11_a5_marketing() -> list[Asset]:
+    """任务 A5：宣传 8 张，全部 1024 大图直用（logo/商店横幅/宣传卡）。"""
+
+    def C(n):
+        return Asset(n, "marketing", (1024, 1024), [], "none", direct=True)
+
+    return [
+        C("logo-official"), C("logo-spring-festival"), C("logo-christmas"),
+        C("logo-pixel"), C("banner-store"), C("screenshot-frame"),
+        C("teaser-card"), C("qrcode-bg"),
+    ]
+
+
+def _m11_a5_seasonal() -> list[Asset]:
+    """任务 A5：季节/节日 10 张。
+    其中 snow-grass 是方块贴图（归 block 类入库）、item-red-envelope /
+    item-gift-box 是物品图标（归 item 类），其余 7 张按 seasonal 类入
+    Assets/Art/Seasonal；firework-burst / spring-blossom / summer-lotus
+    是键控 sprite，其余游戏内贴图不透明。"""
+
+    def T(n, pal, **kw):           # seasonal 类游戏内贴图
+        return Asset(n, "seasonal", (32, 32), [H(c) for c in pal], "none", **kw)
+
+    def K(n, pal):                 # seasonal 类键控 sprite
+        return Asset(n, "seasonal", (32, 32), [H(c) for c in pal], "none",
+                     transparent=True)
+
+    return [
+        T("lantern-spring", ["#D42B2B", "#F45C5C"] + METAL_GOLD[:2] + [OUTLINE_DARK]),
+        T("tree-christmas", ["#1E3B2A", "#2A5038", "#D42B2B", "#F7DA7A", "#F79B22"]),
+        T("pumpkin-lantern", ["#8A2400", "#D64B0A", "#F79B22", "#FFD24A", OUTLINE_DARK]),
+        K("firework-burst", ["#D42B2B", "#F7DA7A", "#4E88CE", "#A88AD2", "#FFFFFF"]),
+        T("autumn-leaves", ["#A87322", "#DCAE3A", "#8B4433", "#6E3A26"]),
+        K("spring-blossom", ["#D898B0", "#E8B8C8", "#F2D0DC", "#F8E8EE"]),
+        K("summer-lotus", ["#3F7A2E", "#66B04A", "#F2D0DC", "#D898B0"]),
+        # 跨类入库的三张（贴图加载方不同，见 docstring）
+        Asset("snow-grass", "block", (32, 32),
+              [H(c) for c in ["#F2F2F2", "#FFFFFF", "#E7F4F8", "#74B84E"]], "4-side"),
+        Asset("item-red-envelope", "item", (32, 32),
+              [H(c) for c in ["#D42B2B", "#F45C5C", "#F7DA7A", OUTLINE_DARK]],
+              "none", transparent=True),
+        Asset("item-gift-box", "item", (32, 32),
+              [H(c) for c in ["#D42B2B", "#F45C5C", "#F7DA7A", OUTLINE_DARK]],
+              "none", transparent=True),
+    ]
+
+
+ASSETS: dict[str, Asset] = {a.name: a for a in (
+    _blocks() + _ores() + _ui_sky_player() + _items() + _entities()
+    + _m11_a1_blocks() + _m11_a2_items() + _m11_a3_entities() + _m11_a3_effects()
+    + _m11_a3_sky_player() + _m11_a4_ui() + _m11_a4_codex() + _m11_a5_architecture()
+    + _m11_a5_scenes() + _m11_a5_marketing() + _m11_a5_seasonal())}
 
 # moon-full 是中间产物，不单独入库
 INTERMEDIATE = {"moon-full"}
@@ -583,6 +1036,13 @@ INTERMEDIATE = {"moon-full"}
 
 def process_ai(spec: Asset) -> np.ndarray:
     rgb = load_source(spec.source or spec.name)
+
+    # 直用大图（village/blueprint/scenes/marketing 系概念图）：1024 生成后
+    # 原样入库——不键控、不去洋红边、不做调色板量化，像素风约束只管小图
+    if spec.direct:
+        small, _ = downsample(rgb, None, spec.size)
+        return compose(small, np.zeros(small.shape[:2], dtype=bool))
+
     key = magenta_mask(rgb) if spec.transparent else None
     small, transparent = downsample(rgb, key, spec.size)
     small, _ = defringe(small, transparent)
