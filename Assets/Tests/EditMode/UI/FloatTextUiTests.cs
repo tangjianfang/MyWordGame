@@ -49,7 +49,9 @@ namespace MyWorld.Core.Tests.UI
         [Test]
         public void ShowExperience_LazilyMounts_AndEnqueuesGreenPlusText()
         {
-            Assert.That(FloatTextUi.Instance, Is.Null, "前置：从未触发就没有实例（自挂=按需）");
+            // Unity fake-null 语义：EditMode 不回调 OnDestroy，上个测试销毁后静态 _instance
+            // 残留 fake-null——NUnit 的 Is.Null 不认 Unity 重载，这里必须用 == null 判定
+            Assert.That(FloatTextUi.Instance == null, Is.True, "前置：从未触发就没有可用实例（自挂=按需）");
 
             FloatTextUi.ShowExperience(3);
 
@@ -77,7 +79,8 @@ namespace MyWorld.Core.Tests.UI
             FloatTextUi.ShowExperience(-2);
             FloatTextUi.ShowDamage(0f);
 
-            Assert.That(FloatTextUi.Instance, Is.Null, "零/负量不出字也不挂实例（0 经验生物不飘 +0）");
+            // 同上：fake-null 语义用 == null 判定（零/负量在从未挂过实例的干净域里是真 null）
+            Assert.That(FloatTextUi.Instance == null, Is.True, "零/负量不出字也不挂实例（0 经验生物不飘 +0）");
         }
 
         // ─── 队列：多条入队、过期清理、上限 ─────────────────────────────
@@ -86,13 +89,16 @@ namespace MyWorld.Core.Tests.UI
         public void ExpireBefore_KeepsFreshEntries_DropsExpired()
         {
             var ui = FloatTextUi.EnsureInstance();
-            ui.Add("+3", FloatTextUi.FloatKind.Experience); // EditMode 下 Time.time 恒 0 → StartTime=0
+            // EditMode 的 Time.time 是非零真实时刻（不是恒 0）——驱动时刻以入队时刻为锚。
+            // 全限定：本命名空间外层恰有 MyWorld.Core.Tests.Time，裸 Time 会解析到那个命名空间
+            float t0 = UnityEngine.Time.time;
+            ui.Add("+3", FloatTextUi.FloatKind.Experience); // StartTime = t0
             ui.Add("-2", FloatTextUi.FloatKind.Damage);
 
-            Assert.That(ui.ExpireBefore(0.5f), Is.EqualTo(0), "半程内两条都活着");
+            Assert.That(ui.ExpireBefore(t0 + 0.5f), Is.EqualTo(0), "半程内两条都活着");
             Assert.That(ui.EntryCount, Is.EqualTo(2));
 
-            Assert.That(ui.ExpireBefore(FloatTextUi.DurationSeconds), Is.EqualTo(2), "满 1s 两条一起过期");
+            Assert.That(ui.ExpireBefore(t0 + FloatTextUi.DurationSeconds), Is.EqualTo(2), "满 1s 两条一起过期");
             Assert.That(ui.EntryCount, Is.EqualTo(0), "队列清空");
         }
 

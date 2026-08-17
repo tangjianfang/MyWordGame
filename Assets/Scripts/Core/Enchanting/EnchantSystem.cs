@@ -107,6 +107,22 @@ namespace MyWorld.Core.Enchanting
         public void Clear(int slotIndex) => _bySlot.Remove(slotIndex);
 
         /// <summary>
+        /// 读档全量替换（m11 W2-2 C4）：把存档解出的实例灌进本实例。
+        /// <see cref="Default"/> 是只读静态单例不能整体重赋值，运行时恢复侧
+        /// （<c>SaveLoadService.ApplyEnchants</c>）用本方法逐条写回；saved 为 null = 清空
+        ///（旧档无字段 = 全新开始，与其余存档层同语义）。
+        /// </summary>
+        public void ReplaceAllFrom(EnchantStore saved)
+        {
+            _bySlot.Clear();
+            if (saved == null) return;
+            foreach (KeyValuePair<int, Entry> pair in saved._bySlot)
+            {
+                _bySlot[pair.Key] = pair.Value;
+            }
+        }
+
+        /// <summary>
         /// 序列化为 <see cref="MyWorld.Core.Persistence.LevelData.PlayerEnchantments"/> 的形态：
         /// key = 槽位十进制字符串，value = "<c>类型:等级:物品id</c>"（如 "sharpness:3:1402"）。
         /// </summary>

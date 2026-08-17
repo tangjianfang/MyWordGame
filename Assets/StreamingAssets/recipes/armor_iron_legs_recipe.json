@@ -1,0 +1,22 @@
+{
+  "id": "armor_iron_legs_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "iron_ingot",
+    "iron_ingot",
+    "iron_ingot",
+    "iron_ingot",
+    "_",
+    "iron_ingot",
+    "iron_ingot",
+    "_",
+    "iron_ingot"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "iron_legs",
+    "count": 1
+  }
+}

@@ -162,7 +162,10 @@ namespace MyWorld.Unity.Combat
             if (Hand != null) Hand.TriggerSwing();
 
             var def = ctx.GetSelectedDefinition();
-            int damage = ResolveAttackDamage(ctx.Inventory.GetSelected(), ctx.Items);
+            // m11 W2-2 C1：伤害解析带附魔维度（选中槽锋利 +1/级；无附魔零变化）
+            int damage = ResolveAttackDamage(
+                ctx.Inventory.GetSelected(), ctx.Items,
+                MyWorld.Core.Enchanting.EnchantStore.Default, ctx.Inventory.SelectedHotbarIndex);
             bool hitMob = DoAttack(damage);
 
             // 工具耐久：选中的工具如果还没设过 max durability，先设一次（plan3c）。
@@ -237,6 +240,15 @@ namespace MyWorld.Unity.Combat
             if (Hand != null) Hand.TriggerSwing();
             ctx.Inventory.TryRemoveOne(ctx.Inventory.SelectedHotbarIndex);
             YieldRightClickToFeed();
+            // m11 W2-4：喂成一只动物 → FeedAnimal 任务事件（Kind 带被喂生物，
+            // chapter2 ch2_04 限 Sheep；扣料后才发，喂失败不发）
+            MyWorld.Unity.Gameplay.QuestEventBus.Instance?.Raise(
+                new MyWorld.Core.Quests.QuestEvent
+                {
+                    Type = MyWorld.Core.Quests.QuestEventType.FeedAnimal,
+                    Kind = mob.Kind,
+                    Count = 1,
+                });
             return true;
         }
 
@@ -267,12 +279,40 @@ namespace MyWorld.Unity.Combat
         /// 武器 → 物品表 attackDamage（向上取整——stone_sword 5.5 进位 6，不丢半点伤害）。
         /// </summary>
         public static int ResolveAttackDamage(ItemStack? selected, ItemDatabase items)
+            => ResolveAttackDamage(selected, items, null, -1);
+
+        /// <summary>
+        /// m11 W2-2 C1：带附魔的伤害解析——在旧三态基础上加选中槽锋利附魔的
+        /// <see cref="MyWorld.Core.Enchanting.EnchantSystem.AttackBonus"/>（+1/级）。
+        /// enchants 为 null / 槽位越界 / 无附魔记录时与旧签名完全一致（零变化直通）；
+        /// 锋利按「槽位+物品 id」守卫查询（换过物品的槽不白捡附魔）。
+        /// </summary>
+        public static int ResolveAttackDamage(
+            ItemStack? selected, ItemDatabase items,
+            MyWorld.Core.Enchanting.EnchantStore enchants, int slotIndex)
         {
-            if (selected == null || selected.Value.IsEmpty || items == null) return 1;
-            if (!items.TryGetByNumericId(selected.Value.ItemId, out var def) || def == null) return 1;
-            return def.AttackDamage.HasValue && def.AttackDamage.Value > 0f
-                ? Mathf.CeilToInt(def.AttackDamage.Value)
-                : 1;
+            int damage;
+            if (selected == null || selected.Value.IsEmpty || items == null)
+            {
+                damage = 1;
+            }
+            else if (!items.TryGetByNumericId(selected.Value.ItemId, out var def) || def == null
+                     || !(def.AttackDamage.HasValue && def.AttackDamage.Value > 0f))
+            {
+                damage = 1;
+            }
+            else
+            {
+                damage = Mathf.CeilToInt(def.AttackDamage.Value);
+            }
+
+            if (enchants != null && selected != null && !selected.Value.IsEmpty
+                && enchants.TryGet(slotIndex, selected.Value.ItemId, out var kind, out int level))
+            {
+                damage += Mathf.CeilToInt(
+                    MyWorld.Core.Enchanting.EnchantSystem.AttackBonus(kind, level));
+            }
+            return damage;
         }
 
         /// <summary>

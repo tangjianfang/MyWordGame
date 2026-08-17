@@ -317,6 +317,9 @@ namespace MyWorld.Unity.Player
             _views?.MarkBlockChanged(hit.X, hit.Y, hit.Z);
             _audio?.PlayHoeTill();  // av W3-13：锄地音
             ApplyDigDurability(hit.X, hit.Y, hit.Z);
+            // m11 W2-4：锄地成功 → TillSoil 任务事件（chapter2 ch2_02「锄地播种」前半）
+            MyWorld.Unity.Gameplay.QuestEventBus.Instance?.Raise(
+                new MyWorld.Core.Quests.QuestEvent { Type = MyWorld.Core.Quests.QuestEventType.TillSoil });
             return true;
         }
 
@@ -340,6 +343,15 @@ namespace MyWorld.Unity.Player
             ctx.Inventory.TryRemoveOne(ctx.Inventory.SelectedHotbarIndex);
             _views?.MarkBlockChanged(hit.X, hit.Y + 1, hit.Z);
             _audio?.PlayPlant();  // av W3-13：播种音
+            // m11 W2-4：播种成功 → SowSeed 任务事件（ItemId=种子 numericId，chapter2
+            // ch2_02 的条件限定 itemId 1019=seeds_wheat，按种子种类记数）
+            MyWorld.Unity.Gameplay.QuestEventBus.Instance?.Raise(
+                new MyWorld.Core.Quests.QuestEvent
+                {
+                    Type = MyWorld.Core.Quests.QuestEventType.SowSeed,
+                    ItemId = def.NumericId,
+                    Count = 1,
+                });
             return true;
         }
 
@@ -462,7 +474,18 @@ namespace MyWorld.Unity.Player
                 ctx.Inventory.SelectedHotbarIndex, Time.frameCount,
                 out _, out _, out _);
 
-            if (result == FuseResult.NoEnchantableGear)
+            if (result == FuseResult.Ok)
+            {
+                // m11 W2-4：融合成功 = 完成一次附魔 → EnchantItem 任务事件
+                //（chapter2 ch2_06 desc 的实机路径就是「书+青金石合书 → 右键融合」；
+                //  Core 的 EnchantSystem.Enchant 供未来附魔台 UI，当前无实机调用点）
+                MyWorld.Unity.Gameplay.QuestEventBus.Instance?.Raise(
+                    new MyWorld.Core.Quests.QuestEvent
+                    {
+                        Type = MyWorld.Core.Quests.QuestEventType.EnchantItem,
+                    });
+            }
+            else if (result == FuseResult.NoEnchantableGear)
             {
                 ShowInteractionHint(FuseNoGearHintText);
             }
@@ -671,6 +694,14 @@ namespace MyWorld.Unity.Player
                 _views?.MarkBlockChanged(x, y, z);
                 _audio?.PlayHarvest();  // av W3-13：成熟作物 → 收获音
                 SpawnItemDrops(harvest, x, y, z);
+                // m11 W2-4：收获一株成熟作物 → HarvestCrop 任务事件（chapter2 ch2_03
+                // 「第一茬收获」；不区分作物种类，Count 按株记）
+                MyWorld.Unity.Gameplay.QuestEventBus.Instance?.Raise(
+                    new MyWorld.Core.Quests.QuestEvent
+                    {
+                        Type = MyWorld.Core.Quests.QuestEventType.HarvestCrop,
+                        Count = 1,
+                    });
                 return;
             }
 
@@ -692,8 +723,9 @@ namespace MyWorld.Unity.Player
 
             // X2 fix-up：spawn ItemDropEntity。BlockDrops 可能未注入（旧场景 / EditMode
             // 单元测），缺了就 silently no-op，不破坏既有"挖 = 立即空一块"的视觉反馈。
+            // m11 W2-4 E1：salt 传坐标——tall_grass 的 30% 麦种条目每次挖掘独立掷骰
             if (_blockDrops == null) return;
-            SpawnItemDrops(_blockDrops.DropsFor(before), x, y, z);
+            SpawnItemDrops(_blockDrops.DropsFor(before, x * 31 + y * 7 + z), x, y, z);
         }
 
         /// <summary>
@@ -741,7 +773,7 @@ namespace MyWorld.Unity.Player
         /// </para>
         /// </summary>
         public static float BreakTime(int blockId, Biome biome)
-            => BreakTime(blockId, biome, QualifiedToolTier);
+            => BreakTime(blockId, biome, QualifiedToolTier, float.NaN, 1f);
 
         /// <summary>
         /// m10 A3：加选中物品 toolTier 维度的挖掘耗时（秒）。规则分两层：
@@ -764,7 +796,12 @@ namespace MyWorld.Unity.Player
         /// 调用方已知的 JSON hardness（守卫测试 / 未来接注册表的挖掘计时传它）。
         /// 缺省 NaN = 未知，行为与旧三参调用完全一致；负数（不可破坏）不参与即挖与基准回退。
         /// </param>
-        public static float BreakTime(int blockId, Biome biome, int toolTier, float hardness = float.NaN)
+        /// <param name="digTimeMultiplier">
+        /// m11 W2-2：效率附魔的挖掘时间乘数（<see cref="SelectedDigTimeMultiplier"/> 解算，
+        /// 效率 L 级 = 1/1.2^L &lt; 1）。缺省 1 = 无附魔，既有调用/守卫测试零变化。
+        /// </param>
+        public static float BreakTime(int blockId, Biome biome, int toolTier,
+            float hardness = float.NaN, float digTimeMultiplier = 1f)
         {
             // ① m11 ②即挖：hardness 已知且 ≈0 → 0.15s（NaN 与负数都不进本分支）
             if (hardness >= 0f && hardness < InstantBreakHardness)
@@ -805,7 +842,26 @@ namespace MyWorld.Unity.Player
             }
 
             return BlockGating.BreakSeconds(baseSeconds, minToolTier, toolTier)
-                   * BiomeMultiplier(blockId, biome);
+                   * BiomeMultiplier(blockId, biome)
+                   * (digTimeMultiplier > 0f ? digTimeMultiplier : 1f);
+        }
+
+        /// <summary>
+        /// m11 W2-2 C2：选中槽装备的效率附魔 → 挖掘时间乘数（<see cref="EnchantSystem.DigTimeMultiplier"/>）。
+        /// 查 <see cref="EnchantStore"/>（EditMode 直注优先、运行时 <see cref="EnchantStore.Default"/>，
+        /// 与融合路由同一份）；无附魔 / 无上下文返回 1（零变化直通）。
+        /// 当前挖掘仍是瞬时破坏（无计时消费方），本乘数供未来 MiningTimed 接线与守卫测试。
+        /// </summary>
+        public float SelectedDigTimeMultiplier()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Inventory == null) return 1f;
+            int idx = ctx.Inventory.SelectedHotbarIndex;
+            var stack = ctx.Inventory.GetSlot(idx);
+            if (stack.IsEmpty) return 1f;
+            return ResolveEnchants().TryGet(idx, stack.ItemId, out var kind, out int level)
+                ? EnchantSystem.DigTimeMultiplier(kind, level)
+                : 1f;
         }
 
         /// <summary>即挖判定的 hardness 阈值：[0, 本值) 视为秒挖方块（12 花草 + 9 作物）。</summary>
@@ -904,6 +960,14 @@ namespace MyWorld.Unity.Player
 
             int idx = ctx.Inventory.SelectedHotbarIndex;
             var stack = ctx.Inventory.GetSlot(idx);
+            // m11 W2-2：耐久附魔按比例减缓磨损——每次消耗以 5/(5+L) 概率真正扣 1 点
+            //（非耐久附魔恒 true 直通，行为零变化）。salt 用坐标哈希（同一次挥镐不同
+            // 方块不同结果，同方块重放可复现），与碎块掷点同款确定性纪律
+            if (ResolveEnchants().TryGet(idx, stack.ItemId, out var ench, out int enchLevel)
+                && !EnchantSystem.ShouldWearDurability(ench, enchLevel, x * 31 + y * 7 + z))
+            {
+                return; // 这次免磨损（上限不动，期望耐用 ×(1+0.2L)）
+            }
             var after = stack.WithDurabilityUsed(def.MaxDurability);
             ctx.Inventory.SetSlot(idx, after);
             if (after.IsEmpty)

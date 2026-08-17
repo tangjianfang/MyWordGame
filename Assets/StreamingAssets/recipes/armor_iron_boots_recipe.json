@@ -1,0 +1,19 @@
+{
+  "id": "armor_iron_boots_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 2,
+  "pattern": [
+    "iron_ingot",
+    "_",
+    "iron_ingot",
+    "iron_ingot",
+    "_",
+    "iron_ingot"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "iron_boots",
+    "count": 1
+  }
+}

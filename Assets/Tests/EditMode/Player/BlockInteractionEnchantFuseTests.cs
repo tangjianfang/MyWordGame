@@ -5,6 +5,7 @@
 // EditMode 驱动不了 Input.GetMouseButtonDown，直调 public 入口 UseAt。
 // 融合的纯逻辑（掷类型/找目标/消耗）由 EnchantSystemTests（双链）覆盖。
 using System.Reflection;
+using MyWorld.Core.Blocks;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Enchanting;
 using MyWorld.Core.Items;
@@ -93,7 +94,7 @@ namespace MyWorld.Core.Tests.Player
         /// <summary>从 (8,70,8) 柱正上方垂直下探拿命中（与 BlockInteractionUseRoutingTests 同款）。</summary>
         private MyWorld.Core.Physics.VoxelRayHit CastDownAtColumn()
         {
-            var source = new MyWorld.Unity.Player.InteractionRaySource(_world, _registry);
+            var source = new MyWorld.Core.Voxel.InteractionRaySource(_world, _registry);
             return MyWorld.Core.Physics.VoxelRaycaster.Cast(
                 source, new MyWorld.Core.Math.Float3(8.5f, 74.5f, 8.5f),
                 new MyWorld.Core.Math.Float3(0f, -1f, 0f), 10f);

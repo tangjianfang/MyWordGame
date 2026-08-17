@@ -149,6 +149,15 @@ namespace MyWorld.Unity.UI
 
             // 用 IMGUI 弹一条提示（无 GUI 信息通道，简化为 Debug.Log）
             Debug.Log($"附魔 {def?.DisplayName ?? "工具"} → +Sharpness Lv{rolled.Level}，攻击 {newDamage}");
+
+            // m11 W2-4 B7：占位台路径同样算「完成一次附魔」（扣了真经验与青金石，
+            // 是实机可触发的附魔动作）→ EnchantItem 任务事件。真附魔路径
+            //（附魔书融合）在 BlockInteraction.TryFuseEnchantedBook 成功处另发
+            MyWorld.Unity.Gameplay.QuestEventBus.Instance?.Raise(
+                new MyWorld.Core.Quests.QuestEvent
+                {
+                    Type = MyWorld.Core.Quests.QuestEventType.EnchantItem,
+                });
         }
 
         public int SelectedLevel { get => _selectedLevel; set => _selectedLevel = value; }

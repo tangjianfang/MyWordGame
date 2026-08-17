@@ -261,6 +261,13 @@ namespace MyWorld.Unity.Persistence
             if (_context.FarmSystem != null) data.FarmStates = _context.FarmSystem.ExportFarmStates();
             _context.ChestSystem?.SaveTo(data);
             _context.BedSystem?.SaveTo(data);
+            // m11 W2-2 C4：装备附魔整表往返（照 Farm/Chest 挂法）。附魔存全局
+            // EnchantStore.Default（PlayerContext 挂不了字段，W2-2 的取舍），
+            // 空表不写字段（留 null，旧档语义一致）
+            if (MyWorld.Core.Enchanting.EnchantStore.Default.Count > 0)
+            {
+                data.PlayerEnchantments = MyWorld.Core.Enchanting.EnchantStore.Default.ToSaveDictionary();
+            }
             return data;
         }
 
@@ -334,6 +341,9 @@ namespace MyWorld.Unity.Persistence
             ApplyFarm(data.FarmStates);
             ApplyChest(data);
             ApplyBed(data);
+            // m11 W2-2 C4：附魔恢复（农田/箱子/床之后）。坏行由 FromSaveDictionary
+            // 逐条读容忍跳过；旧档无字段 = null = 清空（全新开始）
+            ApplyEnchants(data.PlayerEnchantments);
             return true;
         }
 
@@ -355,6 +365,15 @@ namespace MyWorld.Unity.Persistence
         private void ApplyBed(LevelData data)
         {
             _context.BedSystem?.LoadFrom(data);
+        }
+
+        /// <summary>装备附魔恢复（m11 W2-2 C4）：存档字典 → 新实例 → 灌回全局 Default。
+        /// 坏行跳过（<see cref="MyWorld.Core.Enchanting.EnchantStore.FromSaveDictionary"/>
+        /// 逐条读容忍），null = 清空全新开始。</summary>
+        private void ApplyEnchants(Dictionary<string, string> saved)
+        {
+            MyWorld.Core.Enchanting.EnchantStore.Default.ReplaceAllFrom(
+                MyWorld.Core.Enchanting.EnchantStore.FromSaveDictionary(saved));
         }
 
         private void ApplyTime(float timeTick)

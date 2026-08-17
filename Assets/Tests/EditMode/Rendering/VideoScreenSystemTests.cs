@@ -5,6 +5,8 @@
 //
 // 注意：本测试 EditMode 不能真起 VideoPlayer（缺文件 + 没有图像资源），只验证
 // 缺失分支；mp4 存在时的接管路径由实机验证。
+using MyWorld.Unity.Bootstrap;
+using MyWorld.Unity.Rendering;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -21,10 +23,14 @@ namespace MyWorld.Core.Tests.Rendering
             try
             {
                 var vss = go.AddComponent<VideoScreenSystem>();
+                // mp4 已真入库（av W3-14）——「缺失分支」经测试注入口确定性驱动，
+                // 不再依赖「测试机恰好没有这个文件」的巧合
+                vss.VideoFilePathOverride = System.IO.Path.Combine(
+                    Application.streamingAssetsPath, "video", "definitely-missing-test.mp4");
                 // 注册表从 streamingAssetsPath/blocks 加载（照 BlockDefinitionFilesTests 的 SetUp 模式）
                 string blocksDir = System.IO.Path.Combine(
                     Application.streamingAssetsPath, "blocks");
-                var registry = MyWorld.Core.Blocks.BlockRegistryLoader.Load();
+                var registry = BlockRegistryLoader.Load();
                 var library = BlockMaterialLibrary.Load(registry,
                     System.IO.Path.Combine(blocksDir, "textures"));
 

@@ -331,7 +331,8 @@ namespace MyWorld.Core.Tests.UI
         public void 进度_总线无链_链文件缺失形态_安全返回空快照()
         {
             BindChain(Chain8);
-            _bus.Bind(null, null); // 链文件缺失 / 加载失败：总线在但 Quests 为 null（C2 语义）
+            // 强转消歧（CS0121）：null 显式走 Bind(PlayerContext, QuestCampaign) 重载
+            _bus.Bind(null, (QuestCampaign)null); // 链文件缺失 / 加载失败：总线在但 Quests 为 null（C2 语义）
 
             QuestProgressSummary s = HelpMenuUi.GetProgressSummary();
 

@@ -95,18 +95,32 @@ namespace MyWorld.Unity.Gameplay
             int defense = 0;
             float moveSpeed = 0f;
             int maxHealth = 0;
+            bool fullIron = true; // m11 W2-4 B6：四槽是否恰好是铁套四件（边沿触发 EquipArmorFull）
             if (ArmorSlots != null && Items != null)
             {
                 for (int i = 0; i < ArmorInventory.SlotCount; i++)
                 {
                     ItemStack stack = ArmorSlots.GetSlot(i);
-                    if (stack.IsEmpty) continue;
-                    if (!Items.TryGetByNumericId(stack.ItemId, out var worn)) continue;
+                    if (stack.IsEmpty)
+                    {
+                        fullIron = false;
+                        continue;
+                    }
+                    if (!Items.TryGetByNumericId(stack.ItemId, out var worn))
+                    {
+                        fullIron = false;
+                        continue;
+                    }
+                    fullIron &= worn.Id == IronSetIds[i];
                     GearBonuses piece = GearBonuses.FromDefinition(worn);
                     defense += piece.Defense;
                     moveSpeed += piece.MoveSpeedBonus;
                     maxHealth += piece.MaxHealthBonus;
                 }
+            }
+            else
+            {
+                fullIron = false;
             }
 
             // 手持源：m10 语义原样（选中格一件，拿走失效）
@@ -116,7 +130,28 @@ namespace MyWorld.Unity.Gameplay
             MaxHealthBonus = maxHealth + held.MaxHealthBonus;
             Health.Current = GearBonusMath.ClampCurrentToEffectiveMax(
                 Health.Current, Health.Max, MaxHealthBonus);
+
+            // m11 W2-4 B6：四槽穿齐铁套的瞬间发一次 EquipArmorFull（chapter2 ch2_05）。
+            // 边沿触发（非满→满才发）：本方法每帧调，不判边沿会每帧重复 Raise。
+            // 「铁套」按 items 表 id 精确对表（铁盔/铁胸/铁护腿/铁靴各在其部位槽），
+            // 金/合金/机元套不认——任务文案就是「穿齐铁盔甲」。
+            if (fullIron && !_fullIronArmorRaised)
+            {
+                QuestEventBus.Instance?.Raise(new MyWorld.Core.Quests.QuestEvent
+                {
+                    Type = MyWorld.Core.Quests.QuestEventType.EquipArmorFull,
+                });
+            }
+            _fullIronArmorRaised = fullIron;
         }
+
+        /// <summary>铁套四件的物品 id，下标 = 穿戴槽号（0 头 / 1 胸 / 2 腿 / 3 脚），
+        /// 与 items/iron_helmet|iron_chest|iron_legs|iron_boots.json 一致。</summary>
+        private static readonly string[] IronSetIds =
+            { "iron_helmet", "iron_chest", "iron_legs", "iron_boots" };
+
+        /// <summary>上一帧是否处于「铁套穿齐」状态（EquipArmorFull 的边沿检测）。</summary>
+        private bool _fullIronArmorRaised;
 
         private void Update() => RefreshGearBonuses();
 

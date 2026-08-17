@@ -199,5 +199,12 @@
     "drops": [
       { "itemId": "enchanting_table", "countMin": 1, "countMax": 1 }
     ]
+  },
+  {
+    "blockId": "tall_grass",
+    "blockNumericId": 1063,
+    "drops": [
+      { "itemId": "seeds_wheat", "countMin": 1, "countMax": 1, "chance": 0.3 }
+    ]
   }
 ]

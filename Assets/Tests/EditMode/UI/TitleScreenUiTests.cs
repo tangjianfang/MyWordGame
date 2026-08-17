@@ -4,6 +4,7 @@
 //   - StartGame 销毁遮罩、解锁、关指针门、通知 Bgm
 //   - mp4 缺失 → 不抛（纯色回退）
 using System.Reflection;
+using MyWorld.Unity.UI;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -18,6 +19,14 @@ namespace MyWorld.Core.Tests.UI
                 "Awake", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(method, Is.Not.Null, mb.GetType().Name + " 应有私有 Awake");
             method.Invoke(mb, null);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            // 指针门/输入锁是静态状态：Awake 会置位，跨夹具泄漏会污染后续测试
+            MyWorld.Unity.Player.BlockInteraction.InputLocked = false;
+            MyWorld.Unity.UI.UiCursorGate.Reset();
         }
 
         [Test]
@@ -62,6 +71,10 @@ namespace MyWorld.Core.Tests.UI
             }
             finally
             {
+                // Awake 开了静态指针门（计数制）：不还回去会污染后续测试的 IsOpen 断言
+                //（本夹具字母序在前，泄漏正好砸中第二个测试的 StartGame 断言）
+                MyWorld.Unity.Player.BlockInteraction.InputLocked = false;
+                if (MyWorld.Unity.UI.UiCursorGate.IsOpen) MyWorld.Unity.UI.UiCursorGate.Close();
                 Object.DestroyImmediate(go);
             }
         }

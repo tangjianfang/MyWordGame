@@ -21,6 +21,14 @@ namespace MyWorld.Unity.Rendering
         /// <summary>StreamingAssets 下的 mp4 文件名（由 generate_media --videos 出）。</summary>
         public const string VideoFileName = "laptop-loop.mp4";
 
+        /// <summary>
+        /// 测试注入口（av W2-11 收口）：覆盖 mp4 查找路径——null = 默认
+        /// StreamingAssets/video/<see cref="VideoFileName"/>。mp4 已真入库后，
+        /// 「缺失分支」（告警早退、材质保持占位）只能经它确定性驱动，不再依赖
+        /// 「测试机恰好没有这个文件」的巧合。
+        /// </summary>
+        public string VideoFilePathOverride;
+
         private bool _warned;
 
         /// <summary>
@@ -40,7 +48,8 @@ namespace MyWorld.Unity.Rendering
                 Warn($"注册表无贴图槽 {ScreenTextureName}（laptop_block.json 顶面应引用）");
                 return;
             }
-            string path = Path.Combine(Application.streamingAssetsPath, "video", VideoFileName);
+            string path = VideoFilePathOverride ?? Path.Combine(
+                Application.streamingAssetsPath, "video", VideoFileName);
             if (!File.Exists(path))
             {
                 Warn($"视频缺失: {path}（保持占位贴图）");

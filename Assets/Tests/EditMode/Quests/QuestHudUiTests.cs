@@ -136,7 +136,8 @@ namespace MyWorld.Core.Tests.Quests
         [Test]
         public void 进度_无链或全链完成时返回零()
         {
-            _bus.Bind(null, null);
+            // 强转消歧（CS0121）：null 显式走 Bind(PlayerContext, QuestCampaign) 重载
+            _bus.Bind(null, (QuestCampaign)null);
             Assert.That(_bus.QuestProgress().Progress, Is.EqualTo(0), "无链（Quests=null）时安全返回 0");
             Assert.That(_bus.QuestProgress().Required, Is.EqualTo(0), "无链时分母也是 0");
 
@@ -179,7 +180,7 @@ namespace MyWorld.Core.Tests.Quests
         [Test]
         public void 文本_总线无链_返回null()
         {
-            _bus.Bind(null, null); // 链文件缺失 / 加载失败的形态
+            _bus.Bind(null, (QuestCampaign)null); // 链文件缺失 / 加载失败的形态（强转消歧 CS0121）
             Assert.That(_hud.GetHudText(), Is.Null, "无任务链时右上角不画卡");
         }
 

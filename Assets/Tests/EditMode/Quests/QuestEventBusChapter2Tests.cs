@@ -147,9 +147,13 @@ namespace MyWorld.Core.Tests.Quests
         {
             BindSingle(@"{ ""type"": ""SleepInBed"" }");
 
-            _ctx.Time.CurrentTick = 20000f; // 存档时是深夜
-            _bus.ResetNightBaseline(); // WorldBootstrap 读档后的动作：基线 = 恢复后的时刻
-            _ctx.Time.CurrentTick = 6000f; // 读档恢复成白天（ApplyTime 直接赋值）
+            // WorldBootstrap 的真实时序：读档时 ApplyTime 直接赋值跳变时刻 →
+            // **跳变之后**才 ResetNightBaseline（基线 = 恢复后的时刻，见其文档
+            // 「读档恢复时间后由 WorldBootstrap 调用」）→ 之后每帧 Watch 从恢复值
+            // 起步比较，跳变帧对观察者不可见
+            _ctx.Time.CurrentTick = 20000f; // 读档前世界已走到深夜
+            _ctx.Time.CurrentTick = 6000f;  // TryRestore 的 ApplyTime 跳回存档值（白天）
+            _bus.ResetNightBaseline();      // WorldBootstrap 读档后的动作
             _bus.WatchNightCrossing();
 
             Assert.That(_bus.Quests.CompletedCount, Is.EqualTo(0), "读档的时间跳变不得误判成睡觉");

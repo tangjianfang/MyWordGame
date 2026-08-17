@@ -110,6 +110,10 @@ namespace MyWorld.Core.Tests.UI
         [Test]
         public void 穿脱后_三属性即时刷新()
         {
+            // 选中槽挪到空格：脱下的头盔会回到背包第一个空位（0 槽）——若 0 槽正是
+            // 选中槽，手持源会按「拿着未穿的盔甲照样生效」语义接力 +1，
+            // 那就不是「穿戴源归零」的干净观测了
+            _ctx.Inventory.SelectedHotbarIndex = 7;
             PutInBag("iron_helmet", 0);
             _ui.ClickSlot(0);
             Assert.That(_ctx.Defense, Is.EqualTo(1), "穿上当场刷新（不等下一帧 Update）");

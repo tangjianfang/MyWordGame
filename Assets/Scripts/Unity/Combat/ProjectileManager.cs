@@ -179,7 +179,17 @@ namespace MyWorld.Unity.Combat
                 float dz = arrow.Position.Z - m.Position.Z;
                 if (dx * dx + dy * dy + dz * dz < radiusSq)
                 {
-                    MobAI.TakeHit(m, attackerPos, arrow.Damage);
+                    // m11 W2-4 B5：弓杀的死亡事件出口——近战致死走 CombatController.DoAttack
+                    // 的 RaiseDied，弓箭致死原先没人发（KillKind 任务/死亡观察全漏）。
+                    // DamageSource.Projectile 会被 QuestEventBus.HandleEntityDied 翻译成
+                    // Weapon="bow"（chapter2 ch2_07「用弓击败骷髅」的条件限定）
+                    bool killed = MobAI.TakeHit(m, attackerPos, arrow.Damage);
+                    if (killed)
+                    {
+                        CombatEvents.RaiseDied(new DamageEvent(
+                            DamageSource.Projectile, arrow.Damage, attacker: 0,
+                            victim: m.EntityId, hit: arrow.Position));
+                    }
                     return true;
                 }
             }

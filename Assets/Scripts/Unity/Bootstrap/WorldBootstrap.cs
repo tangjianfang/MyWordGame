@@ -292,27 +292,49 @@ namespace MyWorld.Unity.Bootstrap
                         ?? gameObject.AddComponent<MyWorld.Unity.UI.CraftingInventoryUi>();
             if (_playerContext.Recipes != null) invUi.Bind(_playerContext.Recipes);
 
-            // 24. 任务事件总线（m6 C2）：挂在 PlayerContext 同物体上，加载首章任务链。
-            // 挖/拾/合/烧/夜五事件源经 QuestEventBus.Instance?.Raise 喂给它；
-            // 链文件缺失 / 坏 JSON 只 warn，Quests 保持 null = 事件转发 no-op，游戏照常玩。
+            // 23.5 穿戴栏 UI（m11 W2-1 D2 集成接线）：背包界面右侧的头/胸/腿/脚 4 格。
+            //     Backpack 引用接上后随背包同开同关（自身的 E 键/指针门逻辑停用，
+            //     门由背包登记，不重复计数——ArmorSlotsUi 的跟随模式正是为此设计）。
+            var armorSlotsUi = gameObject.AddComponent<MyWorld.Unity.UI.ArmorSlotsUi>();
+            armorSlotsUi.Backpack = invUi;
+
+            // 24. 任务事件总线（m6 C2）：挂在 PlayerContext 同物体上，装订任务书。
+            // m11 W2-4 B8：chapter1 + chapter2 双章装订（QuestCampaign 章节顺序解锁，
+            // 一章完成才开下一章）；chapter2.json 存在才追加，文件缺失只 warn 降级单章
+            //（旧档行为不变）。首章缺失 / 坏 JSON 只 warn，Quests 保持 null =
+            // 事件转发 no-op，游戏照常玩。
             // m6 C4 起必须放在 TryRestore **之前**：任务进度恢复在 TryRestore 内经
             // QuestEventBus.Instance.Quests.Restore 落进 bus.Quests，总线还没绑就等于跳过。
             var questBus = gameObject.AddComponent<MyWorld.Unity.Gameplay.QuestEventBus>();
             try
             {
                 string chapterPath = Path.Combine(Application.streamingAssetsPath, "quests", "chapter1.json");
-                questBus.Bind(_playerContext, File.Exists(chapterPath)
-                    ? MyWorld.Core.Quests.QuestSystem.LoadChapter(chapterPath)
-                    : null);
-                if (!File.Exists(chapterPath))
+                string chapter2Path = Path.Combine(Application.streamingAssetsPath, "quests", "chapter2.json");
+                if (File.Exists(chapterPath))
                 {
+                    if (File.Exists(chapter2Path))
+                    {
+                        questBus.Bind(_playerContext,
+                            MyWorld.Core.Quests.QuestCampaign.Load(chapterPath, chapter2Path));
+                    }
+                    else
+                    {
+                        questBus.Bind(_playerContext,
+                            MyWorld.Core.Quests.QuestCampaign.Load(chapterPath));
+                        Debug.LogWarning($"[WorldBootstrap] 未找到 {chapter2Path}，任务书降级为单章。");
+                    }
+                }
+                else
+                {
+                    // 强转消歧（CS0121）：null 显式走 Bind(PlayerContext, QuestCampaign) 重载
+                    questBus.Bind(_playerContext, (MyWorld.Core.Quests.QuestCampaign)null);
                     Debug.LogWarning($"[WorldBootstrap] 未找到 {chapterPath}，任务链不生效（事件转发 no-op）。");
                 }
             }
             catch (System.Exception ex)
             {
-                questBus.Bind(_playerContext, null);
-                Debug.LogWarning($"[WorldBootstrap] 加载 chapter1.json 失败：{ex.Message}。任务链不生效。");
+                questBus.Bind(_playerContext, (MyWorld.Core.Quests.QuestCampaign)null);
+                Debug.LogWarning($"[WorldBootstrap] 加载任务书失败：{ex.Message}。任务链不生效。");
             }
 
             // 25. 存档服务（m4 B4：30s 自动 + 退出保存；启动时恢复玩家/时间/熔炉/掉落物/任务链）。

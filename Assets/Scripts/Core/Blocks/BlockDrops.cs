@@ -23,8 +23,23 @@ namespace MyWorld.Core.Blocks
     /// </summary>
     public sealed class BlockDrops
     {
-        private readonly Dictionary<ushort, ItemStack[]> _byNumericId =
-            new Dictionary<ushort, ItemStack[]>();
+        /// <summary>单条掉落：物品栈 + 触发概率（千分比，1000 = 恒掉）。
+        /// m11 W2-4 E1 起支持 chance 字段（tall_grass 30% 掉麦种——农业首发种子来源）。</summary>
+        private readonly struct DropEntry
+        {
+            public readonly ItemStack Stack;
+            /// <summary>触发概率千分比 [0,1000]：1000 恒掉、0 恒不掉、300 = 30%。</summary>
+            public readonly int ChancePermille;
+
+            public DropEntry(ItemStack stack, int chancePermille)
+            {
+                Stack = stack;
+                ChancePermille = chancePermille;
+            }
+        }
+
+        private readonly Dictionary<ushort, DropEntry[]> _byNumericId =
+            new Dictionary<ushort, DropEntry[]>();
 
         /// <summary>已配置的 block 数（调试 / 测试用）。</summary>
         public int Count => _byNumericId.Count;
@@ -122,7 +137,7 @@ namespace MyWorld.Core.Blocks
                     $"block_drops 条目（blockId={blockId ?? "<null>"}）缺少 drops 字段。");
             }
 
-            var entries = new List<ItemStack>(dropsToken.Count);
+            var entries = new List<DropEntry>(dropsToken.Count);
             foreach (var entryToken in dropsToken)
             {
                 var entryObj = entryToken as JObject;
@@ -137,7 +152,7 @@ namespace MyWorld.Core.Blocks
             _byNumericId[(ushort)blockNumericId.Value] = entries.ToArray();
         }
 
-        private static ItemStack ParseDropEntry(string blockId, JObject entryObj, ItemDatabase items)
+        private static DropEntry ParseDropEntry(string blockId, JObject entryObj, ItemDatabase items)
         {
             string itemId = (string)entryObj["itemId"];
             if (string.IsNullOrWhiteSpace(itemId))
@@ -161,20 +176,64 @@ namespace MyWorld.Core.Blocks
             int stackCap = def.MaxStack > 0 ? def.MaxStack : 64;
             if (countMax > stackCap) countMax = stackCap;
 
+            // m11 W2-4 E1：chance 触发概率（可选，默认 1 = 恒掉）。写严格：越界抛
+            //（0 允许 = 显式声明「恒不掉」，与空 drops 等价但语义留给数据作者）
+            double chance = (double?)entryObj["chance"] ?? 1.0;
+            if (chance < 0.0 || chance > 1.0 || double.IsNaN(chance))
+            {
+                throw new InvalidDataException(
+                    $"block_drops 条目（blockId={blockId}, itemId={itemId}）的 chance={chance} 不在 [0,1]。");
+            }
+            int chancePermille = (int)System.Math.Round(chance * 1000.0);
+
             int seed = ComputeSeed(blockId, itemId);
             int count = RollCount(seed, min: countMin, max: countMax);
-            return new ItemStack(def.NumericId, count);
+            return new DropEntry(new ItemStack(def.NumericId, count), chancePermille);
         }
 
         /// <summary>
-        /// 取该 block 的掉落物列表。空数组 = 不掉落（空气、未注册方块、bedrock 等）。
-        /// 返回的数组是 <see cref="ItemStack"/>?[]；调用方可直接遍历 spawn <see cref="MyWorld.Core.Items.ItemDropEntity"/>。
+        /// 取该 block 的掉落物列表（salt=0 的确定性掷骰）。空数组 = 不掉落
+        ///（空气、未注册方块、bedrock 等）。带 chance 的条目按「blockId+itemId 派生 seed」
+        /// 掷骰——同一次进程内恒定；要每次挖掘不同结果请用 <see cref="DropsFor(ushort, int)"/>
+        /// 传坐标等可变 salt（挖掘路径已传）。
         /// </summary>
         public ItemStack[] DropsFor(ushort blockNumericId)
         {
-            return _byNumericId.TryGetValue(blockNumericId, out var list)
-                ? list
-                : Array.Empty<ItemStack>();
+            return DropsFor(blockNumericId, 0);
+        }
+
+        /// <summary>
+        /// m11 W2-4 E1：带 salt 的掉落查询——chance 条目按「seed ^ salt」掷骰，
+        /// 不同 salt 独立掷（挖掘传方块坐标，同一方块两次挖结果可不同——与 MC 打草
+        /// 得种子同语义）；无 chance 条目（恒掉）与 salt 无关，行为与旧版完全一致。
+        /// 同 (block, salt) 结果恒定（整数哈希，跨机器一致）。
+        /// </summary>
+        public ItemStack[] DropsFor(ushort blockNumericId, int salt)
+        {
+            if (!_byNumericId.TryGetValue(blockNumericId, out DropEntry[] entries))
+            {
+                return Array.Empty<ItemStack>();
+            }
+
+            // 快路径：全部恒掉（绝大多数条目）直接复用原数组语义逐条拷出
+            var result = new List<ItemStack>(entries.Length);
+            for (int i = 0; i < entries.Length; i++)
+            {
+                DropEntry entry = entries[i];
+                if (entry.ChancePermille <= 0) continue; // 恒不掉
+                if (entry.ChancePermille >= 1000)
+                {
+                    result.Add(entry.Stack);
+                    continue;
+                }
+                // 概率条目：千分比掷骰（整数哈希，确定性；seed 混入方块号/条目序/调用方 salt）
+                int seed = salt ^ (blockNumericId * 31) ^ (i * 101);
+                if (RollCount(seed, 1, 1000) <= entry.ChancePermille)
+                {
+                    result.Add(entry.Stack);
+                }
+            }
+            return result.ToArray();
         }
 
         /// <summary>

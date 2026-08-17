@@ -199,9 +199,19 @@ namespace MyWorld.Unity.Player
                 return amount;
             }
 
-            ctx.Inventory.SetSlot(
-                ctx.Inventory.SelectedHotbarIndex,
-                stack.WithDurabilityUsed(definition.MaxDurability));
+            // m11 W2-2 C3：盾的耐久附魔按比例减缓磨损（5/(5+L) 概率真正扣 1 点，
+            // 非耐久附魔恒 true 直通）。salt 用 frameCount——每次挨打大概率不同帧；
+            // 减伤本身不受附魔影响（只有磨损掷骰让路）
+            int idx = ctx.Inventory.SelectedHotbarIndex;
+            if (MyWorld.Core.Enchanting.EnchantStore.Default.TryGet(
+                    idx, stack.ItemId, out var ench, out int enchLevel)
+                && !MyWorld.Core.Enchanting.EnchantSystem.ShouldWearDurability(
+                    ench, enchLevel, Time.frameCount))
+            {
+                return amount * 0.5f; // 这次免磨损，减伤照常
+            }
+
+            ctx.Inventory.SetSlot(idx, stack.WithDurabilityUsed(definition.MaxDurability));
             return amount * 0.5f;
         }
 

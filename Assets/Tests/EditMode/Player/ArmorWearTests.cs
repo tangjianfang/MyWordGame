@@ -106,6 +106,10 @@ namespace MyWorld.Core.Tests.Player
         public void 脱下盔甲_对应加成当场收回()
         {
             Wear("iron_chest", 0);
+            // 选中槽挪到空格：脱下的胸甲会回到背包第一个空位（0 槽）——若 0 槽正是
+            // 选中槽，手持源会按「拿着未穿的盔甲照样生效」语义接力 +2，那就不是
+            // 「穿戴源收回」的干净观测了（手持语义由另一条测试单独守）
+            _ctx.Inventory.SelectedHotbarIndex = 5;
             _ctx.RefreshGearBonuses();
             Assert.That(_ctx.Defense, Is.EqualTo(2), "前置：穿着铁胸甲防御 2");
 
@@ -118,6 +122,8 @@ namespace MyWorld.Core.Tests.Player
         public void 穿戴机元胸甲_血上限提高_脱下钳回()
         {
             Wear("machine_essence_chest", 0);
+            // 同上：选中槽挪空，脱下的胸甲回背包后不经手持源接力
+            _ctx.Inventory.SelectedHotbarIndex = 5;
             _ctx.RefreshGearBonuses();
             Assert.That(_ctx.EffectiveMaxHealth, Is.EqualTo(22f), "机元胸甲血上限 +2");
 

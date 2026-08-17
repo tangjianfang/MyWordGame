@@ -131,7 +131,9 @@ namespace MyWorld.Core.Tests.Quests
         [Test]
         public void 未绑定任务系统_Raise为安全noOp()
         {
-            _bus.Bind(_ctx, null); // 链文件缺失 / 加载失败时的形态
+            // 强转消歧：Bind(PlayerContext, QuestCampaign) 与旧重载 Bind(PlayerContext, QuestSystem)
+            // 对 null 二义（CS0121），m11 W2-4 双重载并存后 null 必须显式指定走任务书重载
+            _bus.Bind(_ctx, (QuestCampaign)null); // 链文件缺失 / 加载失败时的形态
 
             Assert.DoesNotThrow(() => _bus.Raise(new QuestEvent { Type = QuestEventType.ObtainItem, ItemId = 1000, Count = 1 }));
             Assert.That(_bus.Quests, Is.Null);
