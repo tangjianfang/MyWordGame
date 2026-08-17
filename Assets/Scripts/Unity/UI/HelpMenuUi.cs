@@ -310,6 +310,17 @@ namespace MyWorld.Unity.UI
             "4. 天黑前用方块搭一个庇护所，夜里小心怪物出没",
         };
 
+        // ─── 挖矿门槛提示行（m10 C3，spec §4） ────────────────────────────────
+        // 按键表正下方的一行整宽提示：更深的矿石需要更好的镐。链文本塞不进左栏
+        // 说明列的 190px（约 24 字 ≈ 312px，会压到右栏键名），放表下走 660px 整宽。
+        // 材料顺序即门槛递增顺序，与 blocks/*.json 的 minToolTier 阶梯一一对应
+        // （石 1=木镐 / 粗铁 2=石镐 / 金与合金 3=铁镐 / 机元 4=钻石镐）——
+        // EditMode 测试 HelpMenuUiTests.挖矿提示行_* 拿真实 JSON 对照，单边改动会被抓住。
+
+        /// <summary>m10 C3（spec §4）：挖矿门槛提示行全文（「怎么玩」页按键表正下方）。
+        /// 括号里的链与 BlockRegistry 各矿石 minToolTier 阶梯同向（EditMode 测试对照真数据）。</summary>
+        internal const string MiningTierHint = "挖到不同矿石需要更好的镐（石→铁→金/合金→机元）";
+
         private void OnGUI()
         {
             if (!IsOpen) return;
@@ -357,7 +368,14 @@ namespace MyWorld.Unity.UI
                 y += 24;
             }
 
+            // m10 C3（spec §4）：按键表正下方补一行挖矿门槛提示——m10 起挖矿有工具
+            // 门槛（低于 minToolTier 挖得掉但无掉落），按键表查不到「为什么挖不动矿」，
+            // 这行直接把镐的进阶链写给孩子。行高 22 + 布局间距与上方分组一致，
+            // 任务进度区整体下移 26px 后底部仍有约 50px 余量（菜单高 660）。
             y += 10;
+            GUI.Label(new Rect(bg.x + 24, y, 660, 22), MiningTierHint, white);
+            y += 26;
+
             GUI.Label(new Rect(bg.x + 24, y, 400, 22), "怎么开始：四步上手", white);
             y += 26;
             for (int i = 0; i < Steps.Length; i++)

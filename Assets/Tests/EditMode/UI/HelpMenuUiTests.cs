@@ -1,11 +1,13 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using MyWorld.Core.Blocks;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Persistence;
 using MyWorld.Core.Player;
@@ -623,6 +625,33 @@ namespace MyWorld.Core.Tests.UI
                 "按键表应有 Alt+F4 行，且落在渲染行数范围内（左栏 8 行截不住右栏第 9 行）");
             Assert.That(desc, Is.EqualTo("直接退出（自动存档）"),
                 "说明要写明自动存档——Alt+F4 走 OnApplicationQuit 同步落盘，是既有行为");
+        }
+
+        [Test]
+        public void 挖矿提示行_镐门槛链与方块表一致()
+        {
+            // m10 C3（spec §4 遗留）：「怎么玩」按键表正下方的挖矿门槛提示行——
+            // 文案里的材料链必须与真实 blocks/*.json 的 minToolTier 阶梯同向，
+            // 单边改动（改门槛数据不改文案 / 改文案不改数据）都会被这里抓住
+            Assert.That(HelpMenuUi.MiningTierHint, Does.Contain("挖到不同矿石需要更好的镐"),
+                "提示行主句要与 spec §4 一致（孩子问「为什么挖不动」时的答案）");
+            Assert.That(HelpMenuUi.MiningTierHint, Does.Contain("石→铁→金/合金→机元"),
+                "门槛链按递增顺序列四种材料（石=木镐→铁=石镐→金/合金=铁镐→机元=钻石镐）");
+
+            // 真数据对照：按文案顺序读各矿 minToolTier，阶梯必须与链一致
+            string dir = Path.Combine(Application.streamingAssetsPath, "blocks");
+            var registry = BlockRegistry.FromJson(
+                Directory.GetFiles(dir, "*.json").Select(File.ReadAllText));
+            Assert.That(registry.GetById("stone").MinToolTier, Is.EqualTo(1),
+                "石头门槛 1=木镐（徒手挖得掉但 4s 且无掉落）");
+            Assert.That(registry.GetById("raw_iron_ore").MinToolTier, Is.EqualTo(2),
+                "粗铁门槛 2=石镐");
+            Assert.That(registry.GetById("gold_ore").MinToolTier, Is.EqualTo(3),
+                "金矿门槛 3=铁镐");
+            Assert.That(registry.GetById("summer_alloy_ore").MinToolTier, Is.EqualTo(3),
+                "夏季合金门槛 3=铁镐（与金同档，文案并列「金/合金」）");
+            Assert.That(registry.GetById("machine_essence_ore").MinToolTier, Is.EqualTo(4),
+                "机元门槛 4=钻石镐（链上最深一层）");
         }
     }
 }
