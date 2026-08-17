@@ -54,8 +54,11 @@ namespace MyWorld.Core.Tests.Combat
         }
 
         /// <summary>
-        /// 白天（dayNightPhase=0.25，即正午 6000 tick）+ Plains + 友好候选 [Pig, Cow, Chicken, Villager] 应至少有一次命中。
-        /// Pig/Cow/Chicken/Villager 的 MinLight=9，light=15 满足；Plains 在白名单。
+        /// 白天（dayNightPhase=0.25，即正午 6000 tick）+ Plains + 白天候选组应至少有一次命中。
+        /// m11 集成点②起 spawn_rules.json 合并了 9 被动条目，白天 Plains 可刷出的
+        /// kind 扩为 {Pig, Cow, Chicken, Villager, Sheep, Rabbit, Hamster}（Fox/Deer/Panda/
+        /// Raccoon/Penguin/Goat 的条目不含 Plains）——断言改为「不在夜晚敌对组」，
+        /// 白名单式断言会随条目演进而反复过时。
         /// </summary>
         [Test]
         public void TickSpawn_Daytime_SpawnsFriendlyMob()
@@ -70,9 +73,9 @@ namespace MyWorld.Core.Tests.Combat
                     hits++;
                     var spawned = _mgr.ActiveMobs[_mgr.ActiveMobs.Count - 1];
                     Assert.That(spawned.Kind,
-                        Is.EqualTo(MobKind.Pig).Or.EqualTo(MobKind.Cow)
-                            .Or.EqualTo(MobKind.Chicken).Or.EqualTo(MobKind.Villager),
-                        "白天刷出的 mob 应是友好 kind 之一");
+                        Is.Not.EqualTo(MobKind.Zombie).And.Not.EqualTo(MobKind.Skeleton)
+                            .And.Not.EqualTo(MobKind.Spider).And.Not.EqualTo(MobKind.Creeper),
+                        "白天刷出的 mob 不应是敌对 kind（四敌对全部 minLight=0 但不在白天候选组）");
                 }
             }
             Assert.That(hits, Is.GreaterThan(0),

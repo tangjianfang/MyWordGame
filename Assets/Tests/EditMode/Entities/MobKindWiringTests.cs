@@ -1,14 +1,15 @@
-// m11 P0（前置·串行独占）→ W1-1（战斗）演进：12 新生物枚举与分派接线守卫。
+// m11 P0（前置·串行独占）→ W1-1（战斗）→ 集成点② 演进：12 新生物枚举与分派接线守卫。
 // P0 阶段（commit f317e33）只接线、不写专属 AI 且不加条目；W1-1 起：
 //   - 骷髅/蜘蛛/苦力怕换上专属 AI（远程风筝/夜间 4.5 追击/引信自爆），
 //     spawn_rules.json + drop_tables.json 加了三敌对条目，夜间会真的刷出；
 //     专属行为断言在 Entities/HostileAiTests（W1-1 新增）。
-//   - 9 被动 kind 仍等价猪组（wander + 受击逃 3s），spawn 条目照计划由集成点②
-//     合并 W1-2 的建议清单后投放——PickKind_RealRules_NinePassives_StillNotConfigured
-//     守卫「无条目不刷」这条性质在投放前持续有效。
+//   - 集成点②起 spawn_rules.json 合并了 W1-2 汇报的 9 被动条目（全部 minLight 9），
+//     白天按群系真的刷出——守卫随之翻转为「配置群系内可命中 / 夜间与未配置群系不刷」
+//     （PickKind_RealRules_NinePassives_MergedByIntegrationPoint2_*）。
 // MobManager 侧（UsesPartTable/MobKindToTypeId/昼夜候选表）的映射守卫在
 // Combat/MobManagerSpawnTests.cs（MobManager 是 MonoBehaviour，编辑器链专用）。
 using System;
+using System.Collections.Generic;
 using System.IO;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Math;
@@ -150,22 +151,69 @@ namespace MyWorld.Core.Tests.Entities
         }
 
         [Test]
-        public void PickKind_RealRules_NinePassives_StillNotConfigured_NeverSpawn()
+        public void PickKind_RealRules_NinePassives_MergedByIntegrationPoint2_DayOnlyInConfiguredBiomes()
         {
-            // 9 被动 kind 仍无条目（W1-2 只写模型，spawn/drop 条目照 _part2 总则由
-            // 集成点②合并投放）——未配置的 kind ShouldSpawn 恒 false，
-            // MobManager 白天候选表带着它们也不会真的刷出（投放前持续守卫）。
+            // m11 集成点②：spawn_rules.json 已合并 W1-2 的 9 被动条目（全部 minLight 9）——
+            // 白天（light 15 ≥ 9）在各自声明群系内能命中；夜间光照 0 < 9 一律不刷
+            // （真实光照采样在 MobManager/ChunkLightSystem 侧，规则层只看传入 lightLevel）。
+            // 群系表与 W1-2 汇报的建议条目一一对应，配错群系名这里直接红。
             var rules = MobSpawnRules.Load(RealSpawnRulesPath());
-            foreach (var kind in NewPassiveKinds)
+            var biomeCoverage = new Dictionary<MobKind, Biome[]>
+            {
+                { MobKind.Sheep,   new[] { Biome.Plains, Biome.Forest } },
+                { MobKind.Rabbit,  new[] { Biome.Plains, Biome.Forest, Biome.Snow } },
+                { MobKind.Fox,     new[] { Biome.Forest } },
+                { MobKind.Deer,    new[] { Biome.Forest, Biome.Mountains } },
+                { MobKind.Panda,   new[] { Biome.Forest } },
+                { MobKind.Penguin, new[] { Biome.Snow } },
+                { MobKind.Goat,    new[] { Biome.Mountains, Biome.Snow } },
+                { MobKind.Raccoon, new[] { Biome.Forest } },
+                { MobKind.Hamster, new[] { Biome.Plains, Biome.Desert } },
+            };
+
+            foreach (var pair in biomeCoverage)
+            {
+                MobKind kind = pair.Key;
+                foreach (Biome biome in pair.Value)
+                {
+                    int hits = 0;
+                    for (int seed = 0; seed < 100; seed++)
+                    {
+                        if (rules.ShouldSpawn(biome, kind, lightLevel: 15, seed)) hits++;
+                    }
+                    // weight 2-8 → 10%-40%：100 seed 至少命中一次（weight=2 时漏检概率 ~0.9^100）
+                    Assert.That(hits, Is.GreaterThan(0),
+                        $"{kind} 条目声明了 {biome}，白天（光照 15）应能刷出（实际 {hits}/100）");
+                }
+            }
+
+            // 夜间（光照 0 < minLight 9）：黑暗处一律不刷——被动动物不摸黑出门
+            foreach (MobKind kind in NewPassiveKinds)
             {
                 for (int seed = 0; seed < 50; seed++)
                 {
-                    Assert.That(rules.ShouldSpawn(Biome.Plains, kind, lightLevel: 15, seed), Is.False,
-                        $"{kind} 在真实 spawn_rules.json 尚无条目，白天不应刷出");
-                    Assert.That(rules.ShouldSpawn(Biome.Forest, kind, lightLevel: 0, seed), Is.False,
-                        $"{kind} 在真实 spawn_rules.json 尚无条目，夜间不应刷出");
+                    Assert.That(rules.ShouldSpawn(Biome.Plains, kind, lightLevel: 0, seed), Is.False,
+                        $"{kind} minLight=9，夜间光照 0 不应刷出");
                 }
             }
+
+            // 未声明群系一个 seed 都不许命中（防条目抄错群系名导致全图乱刷）
+            Assert.That(NotConfiguredBiomeHits(rules, MobKind.Sheep, Biome.Desert), Is.Empty, "Sheep 条目不含 Desert");
+            Assert.That(NotConfiguredBiomeHits(rules, MobKind.Fox, Biome.Plains), Is.Empty, "Fox 条目不含 Plains");
+            Assert.That(NotConfiguredBiomeHits(rules, MobKind.Penguin, Biome.Plains), Is.Empty, "Penguin 条目不含 Plains");
+            Assert.That(NotConfiguredBiomeHits(rules, MobKind.Hamster, Biome.Snow), Is.Empty, "Hamster 条目不含 Snow");
+        }
+
+        /// <summary>统计某 kind 在「未配置群系」的命中 seed 列表（期望恒空）。</summary>
+        private static List<int> NotConfiguredBiomeHits(
+            MobSpawnRules rules, MobKind kind, Biome biome)
+        {
+            var hits = new List<int>();
+            for (int seed = 0; seed < 100; seed++)
+            {
+                if (rules.ShouldSpawn(biome, kind, lightLevel: 15, seed)) hits.Add(seed);
+            }
+            return hits;
         }
 
         [Test]

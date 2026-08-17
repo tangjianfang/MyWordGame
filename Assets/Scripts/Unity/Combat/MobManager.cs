@@ -85,6 +85,13 @@ namespace MyWorld.Unity.Combat
         private Transform _player;
         private MobSpawnRules _rules;
 
+        // m11 W1-4（集成点②）：真实光照采样器——非空时刷怪光照从体积采样
+        // （白天 max(天光,方块光)、夜间纯方块光），空时退回昼夜相位近似（白天 15/夜晚 0）
+        private MyWorld.Unity.World.ChunkLightSystem _lightSampler;
+
+        /// <summary>已消费过的最近一次爆炸产物（引用比对去重，见 <see cref="TickExplosionDrops"/>）。</summary>
+        private MyWorld.Core.Combat.ExplosionResult _lastHandledExplosion;
+
         private void OnEnable()
         {
             CombatEvents.OnDamageTaken += HandleDamageTaken;
@@ -157,6 +164,15 @@ namespace MyWorld.Unity.Combat
             _rules = rules;
         }
 
+        /// <summary>
+        /// m11 W1-4（集成点②）：注入光照采样器（WorldBootstrap 挂 ChunkLightSystem 后调用）。
+        /// null（未挂 / 测试）时刷怪光照退回昼夜相位近似，既有行为不变。
+        /// </summary>
+        public void BindLightSampler(MyWorld.Unity.World.ChunkLightSystem lightSampler)
+        {
+            _lightSampler = lightSampler;
+        }
+
         public IReadOnlyList<Mob> ActiveMobs => _mobs;
 
         private void Update()
@@ -216,6 +232,11 @@ namespace MyWorld.Unity.Combat
                 PlayerContext.Instance.Death.Tick(dt);
             }
 
+            // 2.5) m11 W1-1（集成点②）：消费爆炸产物——苦力怕在 MobAI.Tick 里起爆
+            //     （Core 侧 Detonate 破坏方块 + 滚掉落），这里把掉落实例化成
+            //     ItemDropEntity 让玩家能捡（与 SpawnDropsForMob 同一条管线）
+            TickExplosionDrops();
+
             // 3) spawn：用 _spawnAccum 控制频率，到点调用 TickSpawn 走规则判定
             _spawnAccum += dt * SpawnChancePerSecond;
             while (_spawnAccum >= 1f && _mobs.Count < MaxMobs)
@@ -247,6 +268,65 @@ namespace MyWorld.Unity.Combat
                     RemoveMobAt(i);
                 }
             }
+        }
+
+        /// <summary>
+        /// m11 W1-1（集成点②）：消费 <see cref="MyWorld.Core.Combat.Explosion.LastResult"/>——
+        /// 苦力怕起爆在 Core 侧结算（Detonate 破坏方块 + 按 BoundDrops 滚掉落），
+        /// Unity 侧负责把掉落清单实例化成 <see cref="ItemDropEntity"/> 进
+        /// <see cref="PlayerContext.ItemDrops"/>（掉落物视图/吸附/入包全走既有管线）。
+        /// <para>
+        /// 幂等：按<b>引用</b>比对最近已消费的产物（每次 Detonate 都新建 result 实例），
+        /// Update 每帧调用只发一次；掉落位置在破坏方块清单上确定性轮转
+        /// （<c>i % Count</c>，不持随机数对象，与掉落表的确定性纪律一致）。
+        /// 无掉落（BoundDrops 未注入 = 方块直接消失）或无 PlayerContext 时 no-op。
+        /// </para>
+        /// </summary>
+        public void TickExplosionDrops()
+        {
+            var result = MyWorld.Core.Combat.Explosion.LastResult;
+            if (result == null || ReferenceEquals(result, _lastHandledExplosion)) return;
+            _lastHandledExplosion = result;
+
+            var context = PlayerContext.Instance;
+            if (context == null || result.Drops.Count == 0 || result.DestroyedBlocks.Count == 0) return;
+
+            for (int i = 0; i < result.Drops.Count; i++)
+            {
+                var stack = result.Drops[i];
+                if (stack.IsEmpty) continue;
+
+                var (bx, by, bz) = result.DestroyedBlocks[i % result.DestroyedBlocks.Count];
+                var drop = new ItemDropEntity(stack, new Float3(bx + 0.5f, by + 0.5f, bz + 0.5f));
+                drop.SpawnTime = Time.time; // 0.5s 拾取宽限期从爆心落地起算
+                context.ItemDrops.Add(drop);
+            }
+        }
+
+        /// <summary>
+        /// m11 W1-6（集成点②）：外部系统（繁殖幼崽）在指定位置刷一只 mob。
+        /// 不占 TickSpawn 的 MaxMobs 名额（玩家主动经营的结果不该挤掉自然刷新），
+        /// 返回 null 仅在防御性路径（列表为空）出现——正常必然返回新刷的实体。
+        /// </summary>
+        public Mob SpawnMobAt(MobKind kind, Float3 position)
+        {
+            SpawnMob(MobKindToTypeId(kind), kind, position);
+            return _mobs.Count > 0 ? _mobs[_mobs.Count - 1] : null;
+        }
+
+        /// <summary>按 EntityId 找 mob（繁殖系统长大恢复缩放等按 id 反查）。找不到返回 false。</summary>
+        public bool TryGetMobById(int entityId, out Mob mob)
+        {
+            for (int i = 0; i < _mobs.Count; i++)
+            {
+                if (_mobs[i].EntityId == entityId)
+                {
+                    mob = _mobs[i];
+                    return true;
+                }
+            }
+            mob = null;
+            return false;
         }
 
         /// <summary>
@@ -343,7 +423,15 @@ namespace MyWorld.Unity.Combat
             if (surfaceY < 0) return;
 
             bool isNight = IsNightPhase(dayNightPhase);
+            // m11 W1-4（集成点②）：光照优先从 ChunkLightSystem 的体积采样
+            // （白天 max(天光,方块光)、夜间纯方块光——火把圈夜间也 ≥9，被动生物可亮处刷新）；
+            // 采样器未挂 / 落点在体积外退回昼夜相位近似（白天 15 / 夜晚 0，既有行为）
             int light = isNight ? 0 : 15;
+            if (_lightSampler != null
+                && _lightSampler.TrySampleLight(wx, surfaceY + 1, wz, isNight, out int sampledLight))
+            {
+                light = sampledLight;
+            }
             Biome biome = _generator != null ? _generator.BiomeAt(wx, wz) : Biome.Plains;
 
             int type;

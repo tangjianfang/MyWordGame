@@ -65,6 +65,17 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Skeleton:
                 case MobKind.Spider:
                 case MobKind.Creeper:
+                // m11 W1-2（集成点②合并）：9 被动同理走部位表（FileNameOf 已补映射，
+                // 走 LegacySingleCube 的话白天刷出的羊/鹿/企鹅全是灰方块）
+                case MobKind.Sheep:
+                case MobKind.Rabbit:
+                case MobKind.Fox:
+                case MobKind.Deer:
+                case MobKind.Panda:
+                case MobKind.Penguin:
+                case MobKind.Goat:
+                case MobKind.Raccoon:
+                case MobKind.Hamster:
                     BuildFromPartTable(kind);
                     break;
                 default:
@@ -146,15 +157,15 @@ namespace MyWorld.Unity.Combat
 
             // m11 W1-1：新苦力怕引信膨胀——引信倒数进度驱动整体放大（最高 1.3×），
             // 起爆 / 取消后回到 1。旧苦力怕（mobTypeId=5）不膨胀（保持既有视觉）。
+            // m11 W1-6（集成点②）：先乘 Mob.VisualScale（繁殖幼崽 0.5，长大回 1）——
+            // 旧路径「无条件写回 Vector3.one」会把幼崽缩放每帧踩掉。
+            float scale = Mob.VisualScale > 0f ? Mob.VisualScale : 1f;
             if (Mob.Kind == MobKind.Creeper)
             {
                 float progress = 1f - Mathf.Clamp01(Mob.FuseTimer / MyWorld.Core.Entities.MobAI.NewCreeperFuseDuration);
-                transform.localScale = Vector3.one * (1f + progress * 0.3f);
+                scale *= 1f + progress * 0.3f;
             }
-            else if (transform.localScale != Vector3.one)
-            {
-                transform.localScale = Vector3.one;
-            }
+            transform.localScale = Vector3.one * scale;
 
             // m8 A2 拼装路径：朝向 + 逐部位染色
             if (_assembled != null)

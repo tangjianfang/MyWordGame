@@ -6,5 +6,15 @@
   "Villager": { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 6 },
   "Skeleton": { "biomes": ["Plains", "Forest", "Mountains"], "minLight": 0, "weight": 4 },
   "Spider":   { "biomes": ["Plains", "Forest", "Mountains"], "minLight": 0, "weight": 3 },
-  "Creeper":  { "biomes": ["Plains", "Forest"], "minLight": 0, "weight": 3 }
+  "Creeper":  { "biomes": ["Plains", "Forest"], "minLight": 0, "weight": 3 },
+
+  "Sheep":    { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 8 },
+  "Rabbit":   { "biomes": ["Plains", "Forest", "Snow"], "minLight": 9, "weight": 6 },
+  "Fox":      { "biomes": ["Forest"], "minLight": 9, "weight": 4 },
+  "Deer":     { "biomes": ["Forest", "Mountains"], "minLight": 9, "weight": 5 },
+  "Panda":    { "biomes": ["Forest"], "minLight": 9, "weight": 2 },
+  "Penguin":  { "biomes": ["Snow"], "minLight": 9, "weight": 5 },
+  "Goat":     { "biomes": ["Mountains", "Snow"], "minLight": 9, "weight": 5 },
+  "Raccoon":  { "biomes": ["Forest"], "minLight": 9, "weight": 4 },
+  "Hamster":  { "biomes": ["Plains", "Desert"], "minLight": 9, "weight": 4 }
 }

@@ -26,6 +26,22 @@ namespace MyWorld.Unity.Gameplay
         public HungerSystem HungerSystem;
         public FurnaceSystem FurnaceSystem;
 
+        // ─── m11 第 1 波（集成点②）：农业 / 箱子 / 床 / 繁殖四个 Core 系统的汇聚点 ───
+        // 模式照 FurnaceSystem：WorldBootstrap 建好实例挂上来，SaveLoadService 读写快照，
+        // tick 宿主（FarmingHost）推进。可空 = 数据表缺失时降级（右键路由与存档层都判 null）。
+
+        /// <summary>农田系统（锄地/播种/生长/收获，进度进 LevelData.FarmStates）。</summary>
+        public MyWorld.Core.Farming.FarmSystem FarmSystem;
+
+        /// <summary>喂食繁殖系统（发情配对→孕期→幼崽记录；孕期/幼崽不入档，读档重置）。</summary>
+        public MyWorld.Core.Farming.BreedingSystem BreedingSystem;
+
+        /// <summary>箱子内容存储（坐标→内容行，全量往返 LevelData.ChestContents）。</summary>
+        public MyWorld.Core.Blocks.ChestSystem ChestSystem;
+
+        /// <summary>床系统（两格放置/夜间跳早晨/重生点，LevelData.BedSpawnPoints）。</summary>
+        public MyWorld.Core.Blocks.BedSystem BedSystem;
+
         /// <summary>世界里正在飞的掉落物（B7 <see cref="ItemDropEntity"/>）。
         /// 挖方块时 spawn；m7 B1 起 <see cref="MyWorld.Unity.Player.PlayerController.PickupNearbyDrops"/>
         /// 每帧按吸附语义推进（进 2.5m 圈飞向玩家，贴脸入包），

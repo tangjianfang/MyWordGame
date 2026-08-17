@@ -480,6 +480,31 @@ namespace MyWorld.Core.Tests.Visual
                 "配色白名单应覆盖全部九被动生物");
         }
 
+        [Test]
+        public void 集成点②接线_九被动走Load与Build门面_与直读JSON同源()
+        {
+            // m11 集成点②：FileNameOf 补了 9 被动映射、MobModels.Build 门面同步转调——
+            // 此前测试只能绕过 Load 直读文件（LoadNineKindModel），接线后主链路
+            // （MobManager 刷怪 → MobView.Setup → MobModels.Build）全走 Load。
+            // 本测守「门面 == 直读 JSON」逐部位一致，防映射/缓存层分叉。
+            foreach (MobKind kind in NinePassiveKinds)
+            {
+                MobPart[] viaLoad = MobModelLibrary.Load(kind);
+                MobPart[] viaBuild = MobModels.Build(kind);
+                MobPart[] viaFile = LoadNineKindModel(kind);
+
+                Assert.That(viaLoad.Length, Is.EqualTo(viaFile.Length),
+                    kind + " 经 FileNameOf 定位加载的部位数应与直读 JSON 一致");
+                for (int i = 0; i < viaFile.Length; i++)
+                {
+                    Assert.That(viaLoad[i].Name, Is.EqualTo(viaFile[i].Name),
+                        kind + " 第 " + i + " 部位名经 Load 与直读应一致");
+                    Assert.That(viaBuild[i].Color.r, Is.EqualTo(viaFile[i].Color.r).Within(0.0001f),
+                        kind + " Build 门面与直读 JSON 同源（色 R）");
+                }
+            }
+        }
+
         private static MobPart? Find(MobPart[] parts, string name)
         {
             foreach (var part in parts)

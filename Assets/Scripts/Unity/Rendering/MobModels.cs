@@ -67,6 +67,17 @@ namespace MyWorld.Unity.Rendering
                 case MobKind.Skeleton:
                 case MobKind.Spider:
                 case MobKind.Creeper:
+                // m11 W1-2（集成点②合并）：9 被动造型 JSON 同批入库——spawn_rules 条目
+                // 合并后白天真的会按群系刷出，此处门面同步转调 Library
+                case MobKind.Sheep:
+                case MobKind.Rabbit:
+                case MobKind.Fox:
+                case MobKind.Deer:
+                case MobKind.Panda:
+                case MobKind.Penguin:
+                case MobKind.Goat:
+                case MobKind.Raccoon:
+                case MobKind.Hamster:
                     // 五生物真值已外置 mobs/models/*.json（m11 I1）——
                     // 门面只转调，加载/缓存/报错策略统一在 Library
                     return MobModelLibrary.Load(kind);

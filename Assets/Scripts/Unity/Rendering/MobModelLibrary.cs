@@ -180,9 +180,19 @@ namespace MyWorld.Unity.Rendering
                 case MobKind.Skeleton: return "skeleton.json";
                 case MobKind.Spider: return "spider.json";
                 case MobKind.Creeper: return "creeper.json";
+                // m11 W1-2（集成点②合并）：9 被动造型 JSON 已入库，文件名 = kind 小写——
+                // FileNameOf 补映射后 Load/Build 门面即可加载（守卫测试已断言部位表本身）
+                case MobKind.Sheep: return "sheep.json";
+                case MobKind.Rabbit: return "rabbit.json";
+                case MobKind.Fox: return "fox.json";
+                case MobKind.Deer: return "deer.json";
+                case MobKind.Panda: return "panda.json";
+                case MobKind.Penguin: return "penguin.json";
+                case MobKind.Goat: return "goat.json";
+                case MobKind.Raccoon: return "raccoon.json";
+                case MobKind.Hamster: return "hamster.json";
                 default:
-                    // 旧三类（Passive/Hostile/Neutral）没有独立造型 JSON，保底表在 MobModels 内；
-                    // 9 被动新生物（Sheep…Hamster）的模型由 W1-2 落 JSON 后在此补映射
+                    // 旧三类（Passive/Hostile/Neutral）没有独立造型 JSON，保底表在 MobModels 内
                     throw new ArgumentException(
                         "MobKind." + kind + " 无独立造型 JSON（旧三类走 MobModels 保底表）", nameof(kind));
             }

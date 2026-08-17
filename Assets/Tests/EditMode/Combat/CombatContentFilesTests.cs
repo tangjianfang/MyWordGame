@@ -67,6 +67,9 @@ namespace MyWorld.Core.Tests.Combat
             AssertDropContains(table, MobKind.Skeleton, 1300, "骷髅应掉箭（arrow=1300）");
             AssertDropContains(table, MobKind.Spider, 1501, "蜘蛛应掉线（string_=1501）");
             AssertDropContains(table, MobKind.Creeper, 1502, "苦力怕应掉火药（gunpowder=1502）");
+            // m11 W1-2（集成点②合并）：9 被动里只有羊有掉落（wool=1009），其余动物
+            // v1 不掉（对应物品未注册，等后续波次）
+            AssertDropContains(table, MobKind.Sheep, 1009, "羊应掉羊毛（wool=1009，1-2 张）");
         }
 
         /// <summary>多条目 + 概率掷骰：扫 200 个 seed，只要任一 seed 掷出该物品即算条目存在。</summary>

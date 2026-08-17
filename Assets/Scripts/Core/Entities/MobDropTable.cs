@@ -206,9 +206,21 @@ namespace MyWorld.Core.Entities
                 case "Skeleton": return MobKind.Skeleton;
                 case "Spider": return MobKind.Spider;
                 case "Creeper": return MobKind.Creeper;
+                // m11 W1-2（集成点②合并）：9 被动名进白名单——drop_tables.json 追加了 Sheep→wool
+                // 条目，ParseKind 不认识会把整份表判废（Load 抛异常）。其余 8 只 v1 无条目
+                // （对应物品未注册，等后续波次），名字先接进白名单不改变行为
+                case "Sheep": return MobKind.Sheep;
+                case "Rabbit": return MobKind.Rabbit;
+                case "Fox": return MobKind.Fox;
+                case "Deer": return MobKind.Deer;
+                case "Panda": return MobKind.Panda;
+                case "Penguin": return MobKind.Penguin;
+                case "Goat": return MobKind.Goat;
+                case "Raccoon": return MobKind.Raccoon;
+                case "Hamster": return MobKind.Hamster;
                 default:
                     throw new System.ArgumentException(
-                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Skeleton/Spider/Creeper）");
+                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Skeleton/Spider/Creeper/Sheep/Rabbit/Fox/Deer/Panda/Penguin/Goat/Raccoon/Hamster）");
             }
         }
     }

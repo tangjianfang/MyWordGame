@@ -66,7 +66,11 @@ namespace MyWorld.Unity.Bootstrap
             // 3. 世界 + 生成器
             _world = new World();
             CurrentWorld = _world;
-            var generator = new WorldGenerator((int)seed);
+            // m11 W1-3（集成点②）：改走 4 参 DI 构造器显式注入植被表 + 方块注册表。
+            // Core 的自动加载靠「从进程目录向上找 Assets/StreamingAssets」，编辑器进程
+            // 指向安装目录、standalone 指向 Builds/，都走不到工程目录——不注入的话
+            // 正式链路会静默退回 oak-only 旧路径（Preview 已实证的 8 树种/12 花草全没了）
+            var generator = CreateGenerator(_registry);
 
             // 4. 材质库
             _materials = BlockMaterialLibrary.Load(_registry, BlockRegistryLoader.TextureDirectory);
@@ -131,6 +135,20 @@ namespace MyWorld.Unity.Bootstrap
             catch (System.Exception ex)
             {
                 Debug.LogWarning($"[WorldBootstrap] 加载 block_drops.json 失败：{ex.Message}。挖方块不掉落。");
+            }
+
+            // 9.5 爆炸系统静态注入（m11 W1-1 集成点②）：苦力怕自爆在 Core
+            //     <see cref="MyWorld.Core.Combat.Explosion"/>.Detonate 里结算，注册表判
+            //     「不可破坏/液体不炸」，掉落表滚被炸方块的掉落——不注入则方块直接消失。
+            //     掉落实体化由 MobManager.TickExplosionDrops 消费 LastResult 完成。
+            MyWorld.Core.Combat.Explosion.BoundRegistry = _registry;
+            try
+            {
+                MyWorld.Core.Combat.Explosion.BoundDrops = BlockDropsLoader.Load(items);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[WorldBootstrap] 爆炸掉落表注入失败（被炸方块不掉落）：{ex.Message}");
             }
 
             // 10. 手部
@@ -218,6 +236,42 @@ namespace MyWorld.Unity.Bootstrap
             var furnaceUi = gameObject.AddComponent<MyWorld.Unity.UI.CraftingFurnaceUi>();
             furnaceUi.Bind(_playerContext.FurnaceSystem);
 
+            // 22.5 农业/箱子/床三层系统（m11 第 1 波集成点②）：实例挂 PlayerContext
+            //     （照熔炉模式），SaveLoadService 快照链与 FarmingHost tick 都从这里取。
+            //     必须在步骤 25 TryRestore **之前**建好——读档要往里面灌状态。
+            //     跨表校验失败（物品表缺种子/产物、方块表缺 bed）只 warn 降级不阻塞启动：
+            //     实例留 null，右键路由与存档层都判 null 跳过。
+            try
+            {
+                _playerContext.FarmSystem = new MyWorld.Core.Farming.FarmSystem(items, (int)seed);
+                _playerContext.BreedingSystem = new MyWorld.Core.Farming.BreedingSystem();
+            }
+            catch (System.Exception ex)
+            {
+                _playerContext.FarmSystem = null;
+                _playerContext.BreedingSystem = null;
+                Debug.LogWarning($"[WorldBootstrap] 农田/繁殖系统初始化失败（物品表缺引用？），农业降级停用：{ex.Message}");
+            }
+            try
+            {
+                _playerContext.ChestSystem = new MyWorld.Core.Blocks.ChestSystem(items);
+                _playerContext.BedSystem = new MyWorld.Core.Blocks.BedSystem(_registry);
+            }
+            catch (System.Exception ex)
+            {
+                _playerContext.ChestSystem = null;
+                _playerContext.BedSystem = null;
+                Debug.LogWarning($"[WorldBootstrap] 箱子/床系统初始化失败（方块表缺 bed？），该层降级停用：{ex.Message}");
+            }
+
+            // 农业系统 tick 宿主（m11 W1-6 集成点②）：0.5s 累计器批量推进作物生长
+            // （按 TimeOfDay 世界时钟换算 tick）与繁殖计时，孕期到点的幼崽刷成 0.5 缩放 mob
+            if (_playerContext.FarmSystem != null || _playerContext.BreedingSystem != null)
+            {
+                var farmingHost = gameObject.AddComponent<MyWorld.Unity.Gameplay.FarmingHost>();
+                farmingHost.Bind(_world, _playerContext, _mobManager);
+            }
+
             // 23. 合成背包 UI（plan-3 task B6：Bind RecipeDatabase；优先用现成组件，重复 AddComponent 会双倍 OnGUI）
             var invUi = GetComponent<MyWorld.Unity.UI.CraftingInventoryUi>()
                         ?? gameObject.AddComponent<MyWorld.Unity.UI.CraftingInventoryUi>();
@@ -284,6 +338,21 @@ namespace MyWorld.Unity.Bootstrap
             //     退出，期间保持暂停）。死亡画面可见时 Esc 让位。挂在帮助菜单之后：
             //     Awake 用 GetComponent 复用同物体的 HelpMenuUi / SettingsPanelUi。
             gameObject.AddComponent<MyWorld.Unity.UI.PauseMenuUi>();
+
+            // 31. 方块光照采样系统（m11 W1-4 集成点②）：玩家周界 3×3 区块 × 96 层的
+            //     光照体积（契约顺序：先天光 → 填 lightEmission → 方块光），2s 定时重建。
+            //     MobManager 刷怪光照改从体积采样（白天 max(天光,方块光)、夜间纯方块光
+            //     ——火把圈夜里 ≥9，被动生物可在亮处刷新），替代「白天恒 15/夜晚恒 0」近似。
+            var lightSystem = gameObject.AddComponent<MyWorld.Unity.World.ChunkLightSystem>();
+            lightSystem.Bind(_world, _registry, _player.transform);
+            _mobManager.BindLightSampler(lightSystem);
+
+            // 32. 箭实体宿主（m11 W1-1 集成点②）：订阅 MobAI.OnProjectileFired，骷髅射的箭
+            //     有了 tick 推进、0.25 格箭棕小方块视觉与「命中方块转可拾取掉落」；
+            //     箭伤在 ProjectileEntity.Tick 内经 CombatEvents 结算（与近战同一条
+            //     伤害入口），视觉挂世界根节点（与掉落物视图同层）。
+            var projectiles = gameObject.AddComponent<MyWorld.Unity.Combat.ProjectileManager>();
+            projectiles.Bind(_world, _player.transform, _playerContext, worldRoot);
         }
 
         private void Update()
@@ -325,6 +394,32 @@ namespace MyWorld.Unity.Bootstrap
         {
             if (systemWidth <= 0 || systemHeight <= 0) return null;
             return (systemWidth, systemHeight, FullScreenMode.FullScreenWindow);
+        }
+
+        /// <summary>
+        /// 构造世界生成器（m11 W1-3 集成点②）：优先 4 参 DI 构造——从 StreamingAssets
+        /// 显式加载植被表（trees/flowers.json）与群系表（biomes.json）注入，保证正式链路
+        /// 新树种/花草真的生成（与 MyWorld.Preview 同一份数据，行为一致）。
+        /// 任一环节失败只 warn 并退回 1 参构造器（Core 自动加载 + 失败退 oak-only），
+        /// 地形永远能生成——植被表数据本身的错误由 VegetationTableTests / 守卫测试兜。
+        /// </summary>
+        private WorldGenerator CreateGenerator(BlockRegistry registry)
+        {
+            try
+            {
+                string vegetationDir = Path.Combine(Application.streamingAssetsPath, "vegetation");
+                var vegetation = MyWorld.Core.WorldGen.VegetationTable.Load(
+                    File.ReadAllText(Path.Combine(vegetationDir, "trees.json")),
+                    File.ReadAllText(Path.Combine(vegetationDir, "flowers.json")));
+                var biomeConfigs = MyWorld.Core.WorldGen.BiomeConfigLoader.Load(
+                    Path.Combine(Application.streamingAssetsPath, "biomes.json"));
+                return new WorldGenerator((int)seed, biomeConfigs, vegetation, registry);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[WorldBootstrap] 植被表/群系表加载失败，生成器退回 oak-only 旧路径：{ex.Message}");
+                return new WorldGenerator((int)seed);
+            }
         }
 
         /// <summary>拿到区块 GameObject 的父节点。由 <see cref="MyWorld.Unity.EditorTools.PreviewSceneBuilder"/> 在场景里建一个名为 <c>世界</c> 的空 GameObject，这里按名查找。</summary>

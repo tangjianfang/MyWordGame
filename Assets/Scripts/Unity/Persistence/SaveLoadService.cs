@@ -251,6 +251,13 @@ namespace MyWorld.Unity.Persistence
                 // 恢复侧按 null 全新开始）。SaveState 只读纯数据，主线程冻结语义与其余层一致
                 Quest = QuestEventBus.Instance?.Quests?.SaveState(),
             };
+
+            // m11 第 1 波（集成点②）：农田 / 箱子 / 床三层。各系统自持导出逻辑——
+            // 可空（数据表缺失时 WorldBootstrap 没建实例）跳过该层，LevelData 对应字段
+            // 留 null，读档侧同样按 null 全新开始，与熔炉/任务链同一兼容策略。
+            if (_context.FarmSystem != null) data.FarmStates = _context.FarmSystem.ExportFarmStates();
+            _context.ChestSystem?.SaveTo(data);
+            _context.BedSystem?.SaveTo(data);
         }
 
         /// <summary>玩家全套快照：位置/速度取 Core 状态（未绑定时为默认值），生命/饥饿/经验/背包取 PlayerContext。</summary>
@@ -277,7 +284,8 @@ namespace MyWorld.Unity.Persistence
 
         // ─── 启动恢复（B3）──────────────────────────────────────────────
 
-        /// <summary>启动恢复。恢复顺序 = spec：时间 → 玩家 → 熔炉 → 掉落物 → 任务链（m6 C4 追加）。
+        /// <summary>启动恢复。恢复顺序 = spec：时间 → 玩家 → 熔炉 → 掉落物 → 任务链（m6 C4 追加）
+        /// → 农田 → 箱子 → 床（m11 第 1 波集成点②追加）。
         /// <para>降级策略（读容忍）：level.dat 损坏/为空 → 重命名 <c>.corrupt</c> 留案、全新开始返回 false；
         /// seed 不符 → 防串档，整档忽略但**不**重命名；level.dat 不存在 → 全新开始。</para>
         /// 返回是否真的恢复了状态。</summary>
@@ -314,7 +322,32 @@ namespace MyWorld.Unity.Persistence
             ApplyFurnace(data.Furnace);
             ApplyDrops(data.Drops);
             ApplyQuest(data.Quest);
+            // m11 第 1 波（集成点②）：农田 → 箱子 → 床。各层自带 null 容忍
+            //（旧档无字段 / 系统实例未建都跳过），坏一层不挡其余层
+            ApplyFarm(data.FarmStates);
+            ApplyChest(data);
+            ApplyBed(data);
             return true;
+        }
+
+        /// <summary>农田作物状态恢复：ImportFarmStates 自带逐条读容忍（坏键跳过），
+        /// null（旧档 / FarmSystem 未建）= 全新开始。恢复的阶段计时从当前时刻重计
+        ///（存档不记阶段进度，Core 侧既定取舍）。</summary>
+        private void ApplyFarm(Dictionary<string, string> states)
+        {
+            _context.FarmSystem?.ImportFarmStates(states);
+        }
+
+        /// <summary>箱子内容恢复：LoadFrom 全量替换 + null 容忍（旧档空字典归一由 Codec 兜）。</summary>
+        private void ApplyChest(LevelData data)
+        {
+            _context.ChestSystem?.LoadFrom(data);
+        }
+
+        /// <summary>床数据恢复：LoadFrom 全量替换（末条 = 当前重生点，Core 侧既定约定）。</summary>
+        private void ApplyBed(LevelData data)
+        {
+            _context.BedSystem?.LoadFrom(data);
         }
 
         private void ApplyTime(float timeTick)

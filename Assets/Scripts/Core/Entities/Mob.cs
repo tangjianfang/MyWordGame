@@ -50,6 +50,11 @@ namespace MyWorld.Core.Entities
         // mob 不入存档（level.dat 只存 seed/时间/玩家/熔炉/掉落物），无序列化面。
         public bool KilledByPlayer;
 
+        // m11 W1-6（集成点②）：视觉缩放（繁殖幼崽 = BreedingSystem.BabyScale 0.5，长大回 1）。
+        // 纯视觉字段——碰撞/命中/掉落一律按成体结算，只有 MobView 读它写 transform.localScale。
+        // 默认 1 = 既有行为；<=0 按兜底 1 处理（防御式，正常流程不会写出非正值）。
+        public float VisualScale = 1f;
+
         public bool IsAlive => State != MobState.Dead && State != MobState.Dying;
 
         public static Mob Create(int mobTypeId, Float3 position)
