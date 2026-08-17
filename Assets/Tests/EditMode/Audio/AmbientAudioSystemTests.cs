@@ -3,6 +3,7 @@
 //   - PickTrack 纯函数：cave / night / day 三选
 //   - Tick 节流 + clip 缺失静默
 using System.Reflection;
+using MyWorld.Unity.Audio;
 using NUnit.Framework;
 using UnityEngine;
 

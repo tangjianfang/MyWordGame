@@ -4,6 +4,7 @@
 //   - IdleIntervalSeconds 确定性 + 在 8–20 区间
 //   - TickIdle 远距离重置 / 近距离累计 / clip 缺失静默
 using System.Reflection;
+using MyWorld.Unity.Audio;
 using NUnit.Framework;
 using UnityEngine;
 

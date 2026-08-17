@@ -8,6 +8,7 @@
 // 注意：EditMode 无 AudioClip 资源，所以 Tick 只断状态推进 + 不抛；fade 的音量曲线
 // 在实机（含真 clip）才验。
 using System.Reflection;
+using MyWorld.Unity.Audio;
 using NUnit.Framework;
 using UnityEngine;
 
