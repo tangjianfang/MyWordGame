@@ -10,7 +10,7 @@ MyWordGame 是一个自研体素沙盒游戏（Unity 6 + 纯 C# Core 层），�
 全部在**仓库根目录**执行，**不需要安装 Unity**：
 
 ```bash
-dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 573 个）
+dotnet test tools/dotnet/MyWorld.Tools.sln                # 全部测试（当前 dotnet 573 / EditMode 996，双链同源只增不减）
 dotnet test tools/dotnet/MyWorld.Tools.sln --filter "FullyQualifiedName~GreedyMesherTests"   # 单个测试类
 dotnet build tools/dotnet/MyWorld.Tools.sln              # 编译三个工程
 
@@ -73,6 +73,12 @@ Build 产物与日志在 `.gitignore` 内（`[Bb]uilds/` + `/unity-*.log`）。
 
 设计（specs/）与实施计划（plans/）拆开存放：前者回答"做成什么样"，后者回答"按什么顺序改哪些文件"。
 两份都要能脱离上下文独立读懂。实施计划超过单文件长度时拆 `_part2.md` 等后缀继续追加。
+
+**里程碑工作流**（m3 起固定）：spec → plan → 按 superpowers SDD 执行（每 task 派子代理实现→评审→
+必要时修复轮，最后全分支终审+一次修复波）。SDD 工作区在 `.superpowers/sdd/<plan 名>/`（gitignored，
+收尾即删——恢复进度靠 `git log`，不靠工作区）。**孩子提的需求**先落 `docs/小孩子玩后需求/` 原文，
+然后对照真实 Minecraft 设计参数逐条评估：合理项照用、不合理项修正并把勘误写回 spec
+（spec 与实现打架时以实现为准修文档，评审会抓这种漂移）。
 
 ## 分层与硬约束
 
@@ -168,6 +174,9 @@ StreamingAssets 下还有其余 JSON 数据表，模式与方块一致（`_forma
 `art/` 是图片资源的需求提出处，完整流程与硬性约束见 `art/README.md`。要点：
 
 - 需求写在 `art/requests/`（含调色板、AI 提示词、后处理步骤、验收清单），产物先落 `art/incoming/`（不入版本管理），验收后才移进 `Assets/`
+- **程序占位快路径**（m6 起常用）：`art/scripts/*.py` 确定性哈希生成像素占位（贴图/图标）直接入
+  `Assets/`，`art/requests/` 同步立需求并在 `art/README.md` 索引标注「程序占位，待正式美术替换」——
+  新物品没有贴图会显示品红占位块，这条路径保证贴图引用差集恒为空
 - 方块贴图统一 **32×32**、无抗锯齿、**四边无缝**；生成时要 512/1024，再用**最近邻**降采样
 - 入库后要把 `art/README.md` 需求索引表的状态改成「已入库」
 
