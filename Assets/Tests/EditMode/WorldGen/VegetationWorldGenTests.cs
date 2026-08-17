@@ -350,7 +350,7 @@ namespace MyWorld.Core.Tests.WorldGen
             // 这里再显式点名雪原的差异形状，防将来把 biomes 改糊）
             foreach (string forbidden in new[] { "birch", "cherry", "sequoia", "jungle" })
             {
-                Assert.That(speciesColumns[forbidden], Does.Not.Contain(Biome.Snow),
+                Assert.That(speciesColumns[forbidden], Does.Not.Contain("Snow"),
                     $"雪原不应出现 {forbidden}");
             }
 

@@ -235,15 +235,15 @@ namespace MyWorld.Core.Tests.Combat
             // 9 被动 kind 进白天组、不进夜晚组
             foreach (var kind in M11PassiveKinds)
             {
-                Assert.That(day, Does.Contain(kind), $"{kind} 应在白天候选组（被动生物）");
-                Assert.That(night, Does.Not.Contain(kind), $"{kind} 不应在夜晚候选组");
+                Assert.That(day, Does.Contain(kind.ToString()), $"{kind} 应在白天候选组（被动生物）");
+                Assert.That(night, Does.Not.Contain(kind.ToString()), $"{kind} 不应在夜晚候选组");
             }
 
             // 骷髅/蜘蛛/苦力怕进夜晚组、不进白天组
             foreach (var kind in M11HostileKinds)
             {
-                Assert.That(night, Does.Contain(kind), $"{kind} 应在夜晚候选组（敌对生物）");
-                Assert.That(day, Does.Not.Contain(kind), $"{kind} 不应在白天候选组");
+                Assert.That(night, Does.Contain(kind.ToString()), $"{kind} 应在夜晚候选组（敌对生物）");
+                Assert.That(day, Does.Not.Contain(kind.ToString()), $"{kind} 不应在白天候选组");
             }
         }
 

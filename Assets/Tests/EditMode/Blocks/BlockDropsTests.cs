@@ -395,8 +395,12 @@ namespace MyWorld.Core.Tests.Blocks
                 Assert.That(File.Exists(itemPath), Is.True,
                     $"家具物品 {itemId} 应有定义文件 {itemPath}");
 
-                var root = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(itemPath));
-                string declared = (string)root["blockId"];
+                // 轻量 JSON 扫描（不依赖 Newtonsoft——EditMode 测试链惯例，见 RecipeFilesTests）
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    File.ReadAllText(itemPath), "\"blockId\"\\s*:\\s*\"([^\"]+)\"");
+                Assert.That(match.Success, Is.True,
+                    $"items/{itemId}.json 应声明 blockId 字段");
+                string declared = match.Groups[1].Value;
                 Assert.That(declared, Is.EqualTo(blockId),
                     $"items/{itemId}.json 的 blockId 字段应指向 {blockId}——摆放路由将按它把物品解算成方块");
                 Assert.That(blocks.GetById(declared).Id, Is.EqualTo(blockId),

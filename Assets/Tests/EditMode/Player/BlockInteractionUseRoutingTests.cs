@@ -10,6 +10,7 @@ using MyWorld.Core.Entities;
 using MyWorld.Core.Farming;
 using MyWorld.Core.Items;
 using MyWorld.Core.Math;
+using MyWorld.Core.Player;
 using MyWorld.Core.Time;
 using MyWorld.Core.Voxel;
 using MyWorld.Unity.Gameplay;

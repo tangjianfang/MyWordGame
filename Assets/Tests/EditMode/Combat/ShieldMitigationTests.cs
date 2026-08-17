@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using MyWorld.Core.Entities;
 using MyWorld.Core.Items;
+using MyWorld.Core.Player;
 using MyWorld.Unity.Gameplay;
 using MyWorld.Unity.Player;
 using NUnit.Framework;
