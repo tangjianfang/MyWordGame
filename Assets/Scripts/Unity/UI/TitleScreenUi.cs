@@ -49,7 +49,11 @@ namespace MyWorld.Unity.UI
                 }
                 return;
             }
-            _rt = new RenderTexture(1280, 720, 0) { filterMode = FilterMode.Bilinear };
+            // 2026-08-19 视频分辨率升级（MiniMax 6s 1080P 上限）：RT 同步升到 1920×1080，
+            // 避免源视频 1920×1080 → RT 1280×720 降采样造成 "2K/4K 显示器上看着糊"。
+            // Bilinear 拉伸在 1920×1080 → 4K 显示器时仍平滑，主菜单视频是 GUI.DrawTexture
+            // 全屏拉伸渲染——RT 是画质上限的决定点。
+            _rt = new RenderTexture(1920, 1080, 0) { filterMode = FilterMode.Bilinear };
             _rt.Create();
             _player = gameObject.AddComponent<VideoPlayer>();
             _player.renderMode = VideoRenderMode.RenderTexture;

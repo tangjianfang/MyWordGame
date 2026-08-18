@@ -56,8 +56,11 @@ namespace MyWorld.Unity.Rendering
                 return;
             }
 
-            // 320×180 屏幕 RT（16:9），点采样保持像素艺术风格
-            var rt = new RenderTexture(320, 180, 0) { filterMode = FilterMode.Point };
+            // 2026-08-19 笔记本/黑客电脑屏幕 RT 同步升档（MiniMax 6s 1080P 上限）：
+            // 320×180 → 640×360（×2 整数倍，最近邻点采样仍是清晰像素风），
+            // 笔记本屏幕在世界里有缩放，太高没意义（RT 越大占显存越多且屏幕小看不出）。
+            // 注：本 RT 用 Point 滤镜（保留像素感），不像主菜单 RT 用 Bilinear。
+            var rt = new RenderTexture(640, 360, 0) { filterMode = FilterMode.Point };
             rt.Create();
             var player = gameObject.AddComponent<VideoPlayer>();
             player.renderMode = VideoRenderMode.RenderTexture;
