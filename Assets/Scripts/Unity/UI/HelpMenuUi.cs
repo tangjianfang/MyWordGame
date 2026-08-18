@@ -321,6 +321,11 @@ namespace MyWorld.Unity.UI
         /// 括号里的链与 BlockRegistry 各矿石 minToolTier 阶梯同向（EditMode 测试对照真数据）。</summary>
         internal const string MiningTierHint = "挖到不同矿石需要更好的镐（石→铁→金/合金→机元）";
 
+        /// <summary>m13 P0 修：合成网格 SHIFT+click 主背包教学行——孩子"M1和MP背包和工作台里面的物品都没办法合成"
+        /// 真正的根因不是配方也不是 FindMatch，是 UX 没教孩子怎么从主背包（不只是 hotbar）送材料入合成区。
+        /// 提示用户：按 SHIFT+点击主背包物品（或 hotbar 任意格）就能放进合成网格。EditMode 测试钉死文案不漂移。</summary>
+        internal const string CraftingShiftHint = "合成技巧：按 SHIFT + 点击背包物品直接放入合成区（不必先移到 hotbar）";
+
         private void OnGUI()
         {
             if (!IsOpen) return;
@@ -374,6 +379,10 @@ namespace MyWorld.Unity.UI
             // 任务进度区整体下移 26px 后底部仍有约 50px 余量（菜单高 660）。
             y += 10;
             GUI.Label(new Rect(bg.x + 24, y, 660, 22), MiningTierHint, white);
+            y += 26;
+            // m13 P0：合成技巧提示行（SHIFT+click 主背包教学）——紧贴挖矿提示之后，
+            // 与 m10 C3 模式对齐（同位置同风格同点击测试守护契约）
+            GUI.Label(new Rect(bg.x + 24, y, 660, 22), CraftingShiftHint, white);
             y += 26;
 
             GUI.Label(new Rect(bg.x + 24, y, 400, 22), "怎么开始：四步上手", white);

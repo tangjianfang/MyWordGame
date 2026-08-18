@@ -170,6 +170,23 @@ namespace MyWorld.Unity.UI
                 {
                     Event.current.Use();
                 }
+                // m13 P0 修：SHIFT+click 合成格（有物品）→ 把 1 个送回主背包空格位
+                else if (CraftGridInteraction.IsShiftLeftClickIn(r)
+                    && !_craft[idx].IsEmpty)
+                {
+                    int sent = -1;
+                    for (int mi = 0; mi < PlayerInventory.MainSize; mi++)
+                    {
+                        int slotIndex = PlayerInventory.HotbarSize + mi;
+                        if (CraftGridInteraction.TakeBackToMainSlotOne(
+                            ctx.Inventory, ref _craft[idx], slotIndex))
+                        {
+                            sent = slotIndex;
+                            break;
+                        }
+                    }
+                    if (sent >= 0) Event.current.Use();
+                }
             }
 
             // 输出（每次重绘用当前网格重跑 FindMatch——网格变化后输出格自动刷新）
@@ -189,11 +206,50 @@ namespace MyWorld.Unity.UI
                     "装备耐久不满，不能合成（升级要两件完好的同款装备）", ItemSlotDrawer.WhiteStyle());
             }
 
-            // 主背包缩影
+            // m13 P0 修：主背包缩影（替换原 9 格 hotbar-only 视图为 9 hotbar + 18 main）
+            // — 27 主背包格对应 PlayerInventory.HotbarSize..35（=0..8 hotbar + 9..35 main）
+            // — 但工作台尺寸约束紧凑，分两行：上行 9 格 hotbar，下行 9+9 主背包前 18 格
+            // — 排版：上行 220..612 在主框内（420 宽），下行 220..612（两排 9 格×68px + 间隔）
             for (int i = 0; i < 9; i++)
             {
                 var r = new Rect(220 + i * (SlotSize + 4), 300, SlotSize, SlotSize);
-                DrawSlot(r, ctx.Inventory.GetSlot(i));
+                int slotIndex = i;  // hotbar 0..8
+                DrawSlot(r, ctx.Inventory.GetSlot(slotIndex));
+                // SHIFT+click hotbar 格 → 找第一个空格合成位塞入（hotbar 也走同一入口）
+                if (CraftGridInteraction.IsShiftLeftClickIn(r))
+                {
+                    for (int cellIdx = 0; cellIdx < _craft.Length; cellIdx++)
+                    {
+                        if (_craft[cellIdx].IsEmpty
+                            && CraftGridInteraction.PutMainSlotOne(ctx.Inventory, ref _craft[cellIdx], slotIndex))
+                        {
+                            Event.current.Use();
+                            break;
+                        }
+                    }
+                }
+            }
+            // 主背包 27 格（位置：紧贴 hotbar 下方，占 3 行×9 列）
+            for (int i = 0; i < PlayerInventory.MainSize; i++)
+            {
+                int row = i / 9;
+                int col = i % 9;
+                var r = new Rect(220 + col * (SlotSize + 4), 340 + row * (SlotSize + 4), SlotSize, SlotSize);
+                int slotIndex = PlayerInventory.HotbarSize + i;  // 9..35
+                DrawSlot(r, ctx.Inventory.GetSlot(slotIndex));
+                // SHIFT+click 主背包格 → 把 1 个送进合成网格
+                if (CraftGridInteraction.IsShiftLeftClickIn(r))
+                {
+                    for (int cellIdx = 0; cellIdx < _craft.Length; cellIdx++)
+                    {
+                        if (_craft[cellIdx].IsEmpty
+                            && CraftGridInteraction.PutMainSlotOne(ctx.Inventory, ref _craft[cellIdx], slotIndex))
+                        {
+                            Event.current.Use();
+                            break;
+                        }
+                    }
+                }
             }
         }
 

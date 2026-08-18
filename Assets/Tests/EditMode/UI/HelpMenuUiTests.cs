@@ -654,6 +654,20 @@ namespace MyWorld.Core.Tests.UI
             Assert.That(registry.GetById("machine_essence_ore").MinToolTier, Is.EqualTo(4),
                 "机元门槛 4=钻石镐（链上最深一层）");
         }
+
+        [Test]
+        public void m13合成提示行_SHIFT点击背包教学_钉死文案不漂移()
+        {
+            // m13 P0 修：合成网格 SHIFT+click 主背包教学行——孩子"M1和MP背包和工作台里面的物品都没办法合成"
+            // 真正的根因不是配方而是 UX：没教孩子怎么从主背包送材料入合成区。
+            // 这条测试钉死文案必须含 SHIFT、背包、合成区三关键词，任一漂移立刻红测试。
+            Assert.That(HelpMenuUi.CraftingShiftHint, Does.Contain("SHIFT"),
+                "教学文案必须含 SHIFT 关键词——这是 m13 P0 修的核心交互约定");
+            Assert.That(HelpMenuUi.CraftingShiftHint, Does.Contain("背包"),
+                "教学文案必须明确说「背包物品」——直接告诉孩子主背包的物品能用");
+            Assert.That(HelpMenuUi.CraftingShiftHint, Does.Contain("合成区"),
+                "教学文案必须明确说「合成区」——直接告诉孩子放进哪里");
+        }
     }
 }
 #endif

@@ -194,6 +194,23 @@ namespace MyWorld.Unity.UI
                 {
                     Event.current.Use();
                 }
+                // m13 P0 修：SHIFT+click 合成格（有物品）→ 把 1 个送回最近的主背包空格位
+                else if (CraftGridInteraction.IsShiftLeftClickIn(r)
+                    && !_craft[idx].IsEmpty)
+                {
+                    int sent = -1;
+                    for (int mi = 0; mi < PlayerInventory.MainSize; mi++)
+                    {
+                        int slotIndex = PlayerInventory.HotbarSize + mi;
+                        if (CraftGridInteraction.TakeBackToMainSlotOne(
+                            ctx.Inventory, ref _craft[idx], slotIndex))
+                        {
+                            sent = slotIndex;
+                            break;
+                        }
+                    }
+                    if (sent >= 0) Event.current.Use();
+                }
             }
             // 输出（每次重绘用当前网格重跑 FindMatch——网格变化后输出格自动刷新）
             var outRect = new Rect(40 + (CraftWidth + 1) * (SlotSize + 4), 60 + SlotSize / 2, SlotSize, SlotSize);
@@ -205,13 +222,27 @@ namespace MyWorld.Unity.UI
                 Event.current.Use();
             }
 
-            // 主背包
+            // 主背包（m13 P0 修：SHIFT+click 主背包格 → 把 1 个送进合成网格）
             for (int i = 0; i < PlayerInventory.MainSize; i++)
             {
                 int row = i / 9;
                 int col = i % 9;
                 var r = new Rect(40 + col * (SlotSize + 4), 180 + row * (SlotSize + 4), SlotSize, SlotSize);
-                DrawSlot(r, ctx.Inventory.GetSlot(PlayerInventory.HotbarSize + i));
+                int slotIndex = PlayerInventory.HotbarSize + i;
+                DrawSlot(r, ctx.Inventory.GetSlot(slotIndex));
+                // SHIFT+click 主背包格 → 找第一个空格合成位塞入
+                if (CraftGridInteraction.IsShiftLeftClickIn(r))
+                {
+                    for (int cellIdx = 0; cellIdx < _craft.Length; cellIdx++)
+                    {
+                        if (_craft[cellIdx].IsEmpty
+                            && CraftGridInteraction.PutMainSlotOne(ctx.Inventory, ref _craft[cellIdx], slotIndex))
+                        {
+                            Event.current.Use();
+                            break;
+                        }
+                    }
+                }
             }
             // hotbar 缩影在最下方
             for (int i = 0; i < 9; i++)

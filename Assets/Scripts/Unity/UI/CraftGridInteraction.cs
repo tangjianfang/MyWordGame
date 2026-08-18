@@ -11,6 +11,8 @@ namespace MyWorld.Unity.UI
     /// <item>左键点**空格**：从当前选中 hotbar 格放 1 个进去（hotbar 数量 -1）</item>
     /// <item>左键点**有物品的格**：取回 1 个进背包；背包满（<see cref="PlayerInventory.SpaceFor"/> 为 0）
     ///   则取不回，物品留在格子里</item>
+    /// <item>m13 P0 修：SHIFT+左键点**主背包格**（9..35）→ 把该格 1 个送进合成区（不依赖 hotbar 选中）；
+    ///   SHIFT+左键点**合成区有物品的格**→ 把 1 个送回指定主背包格（目标空才送，防覆盖）</item>
     /// </list>
     /// 配方匹配的刷新不用额外做——IMGUI 的 OnGUI 每次重绘都会用当前网格重跑 FindMatch 画输出格。
     /// </summary>
@@ -22,6 +24,16 @@ namespace MyWorld.Unity.UI
             return Event.current != null
                 && Event.current.type == EventType.MouseDown
                 && Event.current.button == 0
+                && r.Contains(Event.current.mousePosition);
+        }
+
+        /// <summary>m13 P0：本次鼠标左键是否带 SHIFT 修饰键（主背包→合成网格路径专用）。</summary>
+        public static bool IsShiftLeftClickIn(Rect r)
+        {
+            return Event.current != null
+                && Event.current.type == EventType.MouseDown
+                && Event.current.button == 0
+                && Event.current.shift
                 && r.Contains(Event.current.mousePosition);
         }
 
@@ -49,6 +61,40 @@ namespace MyWorld.Unity.UI
             inv.TryAdd(cell.WithCount(1), out int leftover);
             if (leftover > 0) return false; // 单个物品要么进包要么没有：leftover>0 = 一格都塞不下
 
+            cell = cell.Count > 1 ? cell.WithCount(cell.Count - 1) : ItemStack.Empty;
+            return true;
+        }
+
+        /// <summary>m13 P0 修：SHIFT+点击主背包格 → 把该格 1 个送进合成网格。
+        /// 这是孩子"M1和MP背包和工作台里面的物品都没办法合成"的修复入口——
+        /// 之前合成网格的**唯一**入料路径是 hotbar 选中格，主背包 27 格完全无路可达。
+        /// 设计选择 SHIFT（而非拖拽或右键）= 与既有"无修饰键走 hotbar 路径"语义区分清楚，
+        /// 用户试一下就知道按 SHIFT 是「从主背包入料」。</summary>
+        public static bool PutMainSlotOne(PlayerInventory inv, ref ItemStack cell, int mainSlotIndex)
+        {
+            if (inv == null || !cell.IsEmpty) return false;
+            if (mainSlotIndex < PlayerInventory.HotbarSize
+                || mainSlotIndex >= PlayerInventory.HotbarSize + PlayerInventory.MainSize) return false;
+            var s = inv.GetSlot(mainSlotIndex);
+            if (s.IsEmpty) return false;
+
+            cell = s.WithCount(1);
+            inv.TryRemoveOne(mainSlotIndex);
+            return true;
+        }
+
+        /// <summary>m13 P0 修：SHIFT+点击合成网格有物品的格 → 把 1 个送回指定主背包槽位。
+        /// 目标格非空就拒绝（防意外覆盖既有材料——和 TakeBackOne 走背包零空间的失败模式对称）。
+        /// 不调 TryAdd 而调 SetSlot 是因为目标槽已知、可控；走堆叠会让用户失去对格位布局的控制。</summary>
+        public static bool TakeBackToMainSlotOne(PlayerInventory inv, ref ItemStack cell, int mainSlotIndex)
+        {
+            if (inv == null || cell.IsEmpty) return false;
+            if (mainSlotIndex < PlayerInventory.HotbarSize
+                || mainSlotIndex >= PlayerInventory.HotbarSize + PlayerInventory.MainSize) return false;
+            var dest = inv.GetSlot(mainSlotIndex);
+            if (!dest.IsEmpty) return false;
+
+            inv.SetSlot(mainSlotIndex, cell.WithCount(1));
             cell = cell.Count > 1 ? cell.WithCount(cell.Count - 1) : ItemStack.Empty;
             return true;
         }
