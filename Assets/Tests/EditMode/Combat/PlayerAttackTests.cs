@@ -135,6 +135,7 @@ namespace MyWorld.Core.Tests.Combat
             _spawned.Clear();
             if (_playerHost != null) Object.DestroyImmediate(_playerHost);
             if (_ctxHost != null) Object.DestroyImmediate(_ctxHost);
+            DifficultyMode.ResetCache(); // m13 W2：宝宝模式静态 bool 跨测试隔离（清回默认 false）
         }
 
         // ─── 伤害解析：纯函数三态 ───────────────────────────────────────────

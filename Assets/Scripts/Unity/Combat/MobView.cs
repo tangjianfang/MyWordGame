@@ -1,3 +1,4 @@
+using MyWorld.Core.Combat;
 using MyWorld.Core.Entities;
 using MyWorld.Unity.Rendering;
 using UnityEngine;
@@ -31,6 +32,14 @@ namespace MyWorld.Unity.Combat
         private MaterialPropertyBlock _block;
         private static readonly int ColorId = Shader.PropertyToID("_BaseColor");
 
+        // m13 W2：血条纯逻辑状态机（受击 3s 淡出 + Boss 常显）。OnGUI 路径在 DrawHealthBar。
+        private MobHealthBarTimer _healthBar;
+
+        // m13 W2：受击广播入口——CombatController 远程命中弹道（m11 W1-1）走 ProjectileEntity
+        // 也只最终调 MobAI.TakeHit；TakeHit 写 HitFlashTimer 但不直接通知 View，所以 View 在
+        // LateUpdate 里靠 HitFlashTimer > 0 ↔ OnHit() 单调计数器对齐——见下。
+        private bool _wasFlashingLastFrame;
+
         private void Awake()
         {
             _block = new MaterialPropertyBlock();
@@ -53,6 +62,10 @@ namespace MyWorld.Unity.Combat
         public void Setup(MobKind kind)
         {
             Kind = kind;
+            // m13 W2：构造期快照血条模式（Boss 常显 / 普通受击 3s 淡出）。
+            // mob kind 在 mob 生命周期内不会改，构造期快照就够。
+            _healthBar = new MobHealthBarTimer(kind);
+            _wasFlashingLastFrame = false;
             switch (kind)
             {
                 case MobKind.Pig:
@@ -157,6 +170,17 @@ namespace MyWorld.Unity.Combat
             if (Mob == null) return;
             transform.position = new Vector3(Mob.Position.X, Mob.Position.Y, Mob.Position.Z);
 
+            // m13 W2：血条计时——LateUpdate 推一帧，并侦测「这一帧进入 HitFlashTimer > 0」的边沿，
+            // 作为受击事件喂给 timer（Core TakeHit 不直接通知 View，跨域事件总线现阶段不值得，
+            // 见 timer 注释）。Boss timer.VisibleKind=true 不递减、永远 alpha=1。
+            if (_healthBar != null)
+            {
+                bool flashingNow = Mob.HitFlashTimer > 0f;
+                if (flashingNow && !_wasFlashingLastFrame) _healthBar.OnHit();
+                _wasFlashingLastFrame = flashingNow;
+                _healthBar.Tick(Time.deltaTime);
+            }
+
             // m11 W1-1：新苦力怕引信膨胀——引信倒数进度驱动整体放大（最高 1.3×），
             // 起爆 / 取消后回到 1。旧苦力怕（mobTypeId=5）不膨胀（保持既有视觉）。
             // m11 W1-6（集成点②）：先乘 Mob.VisualScale（繁殖幼崽 0.5，长大回 1）——
@@ -219,5 +243,68 @@ namespace MyWorld.Unity.Combat
 
         /// <summary>引信白闪是否激活：旧苦力怕（mobTypeId=5）与新苦力怕（MobKind.Creeper）共用引信视觉。</summary>
         private bool FuseFlashing() => Mob.FuseTimer > 0f && (Mob.IsCreeper || Mob.Kind == MobKind.Creeper);
+
+        // ─── m13 W2：怪物头顶血条（IMGUI 路径） ────────────────────────────────
+
+        /// <summary>普通 mob 血条宽度（米）：spec 给的 0.6-1.2m 区间取中位 0.9m。
+        /// Boss 直接放大到 <see cref="BossHealthBarWidth"/>，常显大号，符合 spec「Boss 大号」。</summary>
+        private const float HealthBarWidth = 0.9f;
+        private const float BossHealthBarWidth = 1.8f;
+
+        /// <summary>血条像素高度（GUI 坐标，y 向下）。普通 8px、Boss 12px。</summary>
+        private const float HealthBarHeightPx = 8f;
+        private const float BossHealthBarHeightPx = 12f;
+
+        /// <summary>血条离 mob 头顶的纵向偏移（米）：原 cube 顶 +0.2m，
+        /// 让条画在头部上方不与身体重叠。BOSS 因为大号模型偏移到 +0.5m。</summary>
+        private const float HeadOffsetY = 0.5f;
+        private const float BossHeadOffsetY = 1.0f;
+
+        /// <summary>
+        /// OnGUI 入口——IMGUI 路径画头顶血条（取舍注释见 <see cref="MobHealthBarTimer"/>）。
+        /// 调用方：Unity IMGUI 系统每帧至少两次（Layout + Repaint 事件），
+        /// 我们只在 Repaint 画，避免重复设置 GUI state。
+        /// </summary>
+        private void OnGUI()
+        {
+            if (Mob == null || _healthBar == null) return;
+            // 尸体不画血条（A2 评审 Minor 2：尸体免再伤就免再看见血条）
+            if (!Mob.IsAlive) return;
+            // 死亡掉落到 Dying 状态后立刻看不到血条——切 IsAlive=false 前置短路
+            if (Event.current.type != EventType.Repaint) return;
+
+            float alpha = _healthBar.Alpha;
+            if (alpha <= 0f) return;
+
+            float width = _healthBar.VisibleKind ? BossHealthBarWidth : HealthBarWidth;
+            float heightPx = _healthBar.VisibleKind ? BossHealthBarHeightPx : HealthBarHeightPx;
+            float yOffset = _healthBar.VisibleKind ? BossHeadOffsetY : HeadOffsetY;
+
+            // 把 mob 头顶世界坐标投到屏幕坐标；相机为 null 时静默跳过（EditMode 无相机）
+            var cam = Camera.main;
+            if (cam == null) return;
+            Vector3 worldTop = transform.position + Vector3.up * yOffset;
+            Vector3 screen = cam.WorldToScreenPoint(worldTop);
+            if (screen.z < 0f) return; // 在相机背后不画
+
+            // WorldToScreenPoint y 是「向上为正」，GUI 坐标系是「向下为正」，需翻转
+            float guiY = Screen.height - screen.y;
+            // x 直接用屏幕坐标，y 减半高使条中心对齐头顶
+            float halfW = width * 8f; // 1m ≈ 8 屏像素（粗略，给孩子档够用；不对齐相机距）
+            float x = screen.x - halfW;
+            float y = guiY - heightPx;
+
+            // 背景：红底（m13 W2 spec：红底绿条）；alpha 调制让淡出生效
+            var prevColor = GUI.color;
+            GUI.color = new Color(0.6f, 0.1f, 0.1f, alpha);
+            GUI.DrawTexture(new Rect(x - 1f, y - 1f, halfW * 2f + 2f, heightPx + 2f), Texture2D.whiteTexture);
+
+            // 前景：绿条按当前血量比缩放
+            float fillRatio = MobHealthBarTimer.FillRatio(Mob.Health.Current, Mob.Health.Max);
+            GUI.color = new Color(0.2f, 0.85f, 0.2f, alpha);
+            GUI.DrawTexture(new Rect(x, y, halfW * 2f * fillRatio, heightPx), Texture2D.whiteTexture);
+
+            GUI.color = prevColor;
+        }
     }
 }

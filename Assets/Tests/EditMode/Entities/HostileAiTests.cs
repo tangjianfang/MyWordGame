@@ -32,6 +32,7 @@ namespace MyWorld.Core.Tests.Entities
             CombatEvents.Reset();
             Explosion.BoundRegistry = null;
             Explosion.BoundDrops = null;
+            DifficultyMode.ResetCache(); // m13 W2：宝宝模式静态 bool 跨测试隔离（清回默认 false）
         }
 
         // ─── Mob.Create 15-26 建档 ──────────────────────────────────────────

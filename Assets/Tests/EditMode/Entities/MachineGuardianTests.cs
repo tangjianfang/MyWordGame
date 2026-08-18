@@ -38,6 +38,7 @@ namespace MyWorld.Core.Tests.Entities
             CombatEvents.Reset();
             MobAI.OnBossSummon -= OnSummon;
             MobAI.DropTable = null; // 本 fixture 不注入真表（掉落链直接调 RollAll），还场防外泄
+            DifficultyMode.ResetCache(); // m13 W2：宝宝模式静态 bool 跨测试隔离（清回默认 false）
         }
 
         private void OnTaken(DamageEvent ev) => _taken.Add(ev);

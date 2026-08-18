@@ -9,6 +9,13 @@ namespace MyWorld.Core.Tests.Entities
     [TestFixture]
     public class MobTests
     {
+        [SetUp]
+        public void SetUp() => DifficultyMode.ResetCache();
+
+        [TearDown]
+        public void TearDown() => DifficultyMode.ResetCache();
+
+
         [Test]
         public void Create_Pig_HasPassiveKind()
         {

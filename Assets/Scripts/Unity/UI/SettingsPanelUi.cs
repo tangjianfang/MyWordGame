@@ -55,6 +55,12 @@ namespace MyWorld.Unity.UI
         /// 读回；点击开关时经 <see cref="PeaceMode.SetEnabled"/> 写回并即时生效）。</summary>
         public bool CurrentPeacefulMode { get; private set; }
 
+        /// <summary>m13 W2：宝宝模式开关当前态（Awake 经
+        /// <see cref="DifficultyModeBridge.LoadAndApply"/> 同步：先盘后 Core 缓存；
+        /// 点击 toggle 时经 <see cref="DifficultyModeBridge.Apply"/> 同时写盘 + 写 Core，
+        /// 切难度立即生效，不改存档，详情见 <see cref="DifficultyModeBridge"/> 注释）。</summary>
+        public bool CurrentBabyMode { get; private set; }
+
         private PlayerController _player;
 
         // ─── PlayerPrefs 封装（三设置同构：Load 带默认值 / Save 钳到量程） ────────
@@ -92,6 +98,7 @@ namespace MyWorld.Unity.UI
             CurrentFov = LoadFov();
             CurrentMusicVolume = LoadMusicVolume();  // av W1-7
             CurrentPeacefulMode = PeaceMode.Enabled; // m11 W3-5
+            CurrentBabyMode = DifficultyModeBridge.LoadFromPrefs(); // m13 W2：仅读盘，Core 缓存由 WorldBootstrap.Awake 统一灌入（这里只是 UI 显隐）
             ApplySettings();
         }
 
@@ -111,10 +118,11 @@ namespace MyWorld.Unity.UI
 
         // ─── 绘制（宿主 OnGUI 内调；布局平移自 HelpMenuUi.DrawSettings 前半） ────
 
-        /// <summary>面板内容总高度（px）：四行滑条各 70 + 开关行 70 + 提示行 20 = 370。
+        /// <summary>面板内容总高度（px）：四行滑条各 70 + 和平模式开关行 70 + 宝宝难度行 70 + 提示行 20 = 440。
         /// 宿主按它在自己的面板里预留区域，并在 <see cref="Rect.yMax"/> 之下排列
-        /// 后续内容（HelpMenuUi 的「保存并退出」按钮就是这么接在下面的）。</summary>
-        public const float PanelHeight = 370f;  // m11 W3-5：300 → 370（和平模式开关行 +70）
+        /// 后续内容（HelpMenuUi 的「保存并退出」按钮就是这么接在下面的）。
+        /// m13 W2：370 → 440（追加宝宝难度行 +70）。</summary>
+        public const float PanelHeight = 440f;  // m11 W3-5：300→370（和平 +70）；m13 W2：370→440（宝宝 +70）
 
         /// <summary>把四滑条 + 和平模式开关 + 「改动立即生效」提示行画进 <paramref name="area"/>
         /// （宿主 OnGUI 内调）。拖动任一滑条即写 PlayerPrefs 并即时生效——
@@ -186,8 +194,22 @@ namespace MyWorld.Unity.UI
                 CurrentPeacefulMode = peace;
                 PeaceMode.SetEnabled(peace);
             }
+            y += 70;
 
-            y += 70;  // m11 W3-5：五行内容 70×5 + 提示行 20 = 370
+            // m13 W2：宝宝模式难度（仿和平模式同款 70px 行节奏，紧贴和平模式之后）。
+            // 点击 toggle 经 DifficultyModeBridge.Apply 同时写 PlayerPrefs + Core 缓存，
+            // MobAI.TakeHit 入口处即时读到新值——切难度不留半截状态，不改存档（键独立于
+            // level.dat，进退出世界不变）。孩子档默认关（普通），与 PeaceMode 同款契约。
+            GUI.Label(new Rect(area.x, y, 660, 22),
+                "难度：宝宝模式（怪 1 血 / 一击必杀）/ 普通（现值）", ItemSlotDrawer.WhiteStyle());
+            bool baby = GUI.Toggle(new Rect(area.x, y + 26, 200, 24), CurrentBabyMode, " 宝宝模式");
+            if (baby != CurrentBabyMode)
+            {
+                CurrentBabyMode = baby;
+                DifficultyModeBridge.Apply(baby); // 先盘后缓存，崩在任意一步都有合理回退
+            }
+
+            y += 70;  // m13 W2：六行内容 70×6 + 提示行 20 = 440
             GUI.Label(new Rect(area.x, y, 660, 20),
                 "设置改动立即生效并自动保存。", ItemSlotDrawer.WhiteStyle());
         }

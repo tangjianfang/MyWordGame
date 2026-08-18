@@ -37,11 +37,12 @@ namespace MyWorld.Core.Tests.UI
         [SetUp]
         public void SetUp()
         {
-            // 每个测试前清掉四键，避免上个测试写入的值影响「默认值」断言
+            // 每个测试前清掉五键（含 m13 W2 宝宝模式），避免上个测试写入的值影响「默认值」断言
             PlayerPrefs.DeleteKey(SettingsPanelUi.SensitivityKey);
             PlayerPrefs.DeleteKey(SettingsPanelUi.VolumeKey);
             PlayerPrefs.DeleteKey(SettingsPanelUi.FovKey);
             PlayerPrefs.DeleteKey(SettingsPanelUi.MusicVolumeKey);  // av W1-7
+            PlayerPrefs.DeleteKey(MyWorld.Unity.Gameplay.DifficultyModeBridge.Key); // m13 W2
         }
 
         [TearDown]
@@ -51,6 +52,7 @@ namespace MyWorld.Core.Tests.UI
             PlayerPrefs.DeleteKey(SettingsPanelUi.VolumeKey);
             PlayerPrefs.DeleteKey(SettingsPanelUi.FovKey);
             PlayerPrefs.DeleteKey(SettingsPanelUi.MusicVolumeKey);  // av W1-7
+            PlayerPrefs.DeleteKey(MyWorld.Unity.Gameplay.DifficultyModeBridge.Key); // m13 W2
         }
 
         [Test]
@@ -190,14 +192,93 @@ namespace MyWorld.Core.Tests.UI
             }
         }
 
+        /// <summary>
+        /// 宿主按 PanelHeight 预留区域并在其下排列后续内容（如「保存并退出」按钮）——
+        /// av W1-7：四行滑条各 70 + 提示行 20 = 300；旧三滑条是 220，改布局时这个常量要跟着动。
+        /// m11 W3-5：追加和平模式开关行 +70 → 370。
+        /// m13 W2：追加宝宝难度行 +70 → 440。
+        /// </summary>
         [Test]
         public void 面板高度_常量与内容行匹配()
         {
-            // 宿主按 PanelHeight 预留区域并在其下排列后续内容（如「保存并退出」按钮）——
-            // av W1-7：四行滑条各 70 + 提示行 20 = 300；旧三滑条是 220，改布局时这个常量要跟着动。
-            // m11 W3-5：追加和平模式开关行 +70 → 370
-            Assert.That(SettingsPanelUi.PanelHeight, Is.EqualTo(370f),
-                "四滑条 70×4 + 开关行 70 + 提示行 20 = 370");
+            Assert.That(SettingsPanelUi.PanelHeight, Is.EqualTo(440f),
+                "四滑条 70×4 + 开关行 70 + 难度行 70 + 提示行 20 = 440（m13 W2 追加难度行）");
+        }
+
+        // ─── m13 W2：宝宝难度行（仿和平模式 toggle 的 PlayerPrefs + Awake 读回契约）──
+
+        [Test]
+        public void 宝宝模式_键名_BabyMode_未存键_LoadFromPrefs返回false()
+        {
+            // SetUp 已清键；LoadFromPrefs 读默认值 0 = false，与 PeaceMode.Load 同款契约
+            Assert.That(MyWorld.Unity.Gameplay.DifficultyModeBridge.LoadFromPrefs(), Is.False,
+                "宝宝模式未存键应默认关 = false（孩子不该被静默切到宝宝档）");
+            Assert.That(MyWorld.Unity.Gameplay.DifficultyModeBridge.Key, Is.EqualTo("BabyMode"),
+                "键名是全局硬约束（任务卡 W2 指定），改名旧档读不回");
+        }
+
+        [Test]
+        public void 宝宝模式_Apply写盘_往返一致()
+        {
+            MyWorld.Unity.Gameplay.DifficultyModeBridge.Apply(true);
+            Assert.That(MyWorld.Unity.Gameplay.DifficultyModeBridge.LoadFromPrefs(), Is.True,
+                "Apply(true) 后 LoadFromPrefs 应回读到 true");
+            Assert.That(PlayerPrefs.GetInt(MyWorld.Unity.Gameplay.DifficultyModeBridge.Key, 0), Is.EqualTo(1),
+                "Apply(true) 后 PlayerPrefs 键应为 1");
+
+            MyWorld.Unity.Gameplay.DifficultyModeBridge.Apply(false);
+            Assert.That(MyWorld.Unity.Gameplay.DifficultyModeBridge.LoadFromPrefs(), Is.False,
+                "Apply(false) 后 LoadFromPrefs 应回读到 false");
+            Assert.That(PlayerPrefs.GetInt(MyWorld.Unity.Gameplay.DifficultyModeBridge.Key, 0), Is.EqualTo(0),
+                "Apply(false) 后 PlayerPrefs 键应为 0");
+        }
+
+        [Test]
+        public void 宝宝模式_Apply同时写Core缓存_MobAI读取即时生效()
+        {
+            // 切难度立即生效（任务卡 W2 第 2 条）：Apply(true) → Core 静态缓存立即为 true，
+            // 不需重读 PlayerPrefs。MobAI.TakeHit 入口处直接读 DifficultyMode.Enabled。
+            MyWorld.Core.Entities.DifficultyMode.ResetCache();
+            Assert.That(MyWorld.Core.Entities.DifficultyMode.Enabled, Is.False, "前置：默认 false");
+
+            MyWorld.Unity.Gameplay.DifficultyModeBridge.Apply(true);
+            Assert.That(MyWorld.Core.Entities.DifficultyMode.Enabled, Is.True,
+                "Apply(true) 应同时把 Core 缓存也置 true（切难度立即生效的关键）");
+        }
+
+        [Test]
+        public void Awake_从PlayerPrefs读回宝宝模式()
+        {
+            // 面板 Awake 仅用 LoadFromPrefs 显隐 CurrentBabyMode；Core 缓存由 WorldBootstrap.Awake
+            // 灌入，本测试只验面板字段读回正确（与和平模式测试同款模式）。
+            MyWorld.Unity.Gameplay.DifficultyModeBridge.Apply(true);
+
+            var panel = NewPanel();
+            try
+            {
+                Assert.That(panel.CurrentBabyMode, Is.True,
+                    "面板 Awake 应从 PlayerPrefs 读回宝宝模式（已落盘开）");
+            }
+            finally
+            {
+                Object.DestroyImmediate(panel.gameObject);
+            }
+        }
+
+        [Test]
+        public void Awake_宝宝模式未存键_默认false()
+        {
+            // 反向：SetUp 已清键
+            var panel = NewPanel();
+            try
+            {
+                Assert.That(panel.CurrentBabyMode, Is.False,
+                    "未存键时面板 Awake 应读回默认 false（普通档）");
+            }
+            finally
+            {
+                Object.DestroyImmediate(panel.gameObject);
+            }
         }
     }
 }

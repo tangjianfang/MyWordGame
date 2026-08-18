@@ -277,10 +277,18 @@ namespace MyWorld.Core.Entities
         /// 按原 AI 行动（spec 非目标「AI 大改」）。
         /// <para>
         /// m9 A3（修断环③）：致死一击<b>内联</b>走 <see cref="TransitionToDying"/> 死亡序列
-        /// （Dying + LastDrops + <see cref="Mob.KilledByPlayer"/> 死因标记），不再等下一帧
+        ///（Dying + LastDrops + <see cref="Mob.KilledByPlayer"/> 死因标记），不再等下一帧
         /// Tick 兜底——旧 Unity 路径由 CombatController 直置 Dying，绕得 LastDrops 永远
         /// 不可达（Tick 首行 <c>!IsAlive</c> 早退），打死不掉肉。苦力怕自爆仍在 TickCreeper
         /// 里直置 Dying（它没有玩家击杀语义，也不走本入口），两路互不影响。
+        /// </para>
+        /// <para>
+        /// m13 W2：宝宝模式（<see cref="DifficultyMode.Enabled"/> = true）入口处一次性把
+        /// damage 缩到 mob.Health.Max——一击必杀。设计取舍注释见 <see cref="DifficultyMode"/>：
+        /// 选「入口处判定」而非「建档时缩放 MaxHealth」，因为后者会让切难度后场上现存的
+        /// mob 仍是旧血，得重载场景才一致；而入口处即时生效，下一次受击就按新规则结算，
+        /// 切难度不留半截状态。Boss（机元守卫）也走同一规则——孩子的「一级一击必杀」原话
+        /// 不区分 Boss 与普通怪，统一处理符合预期。
         /// </para>
         /// <para>
         /// 尸体（Dying/Dead）再受击整体短路（A2 评审 Minor 2）：不闪红、不重掷掉落、
@@ -294,6 +302,14 @@ namespace MyWorld.Core.Entities
         public static bool TakeHit(Mob mob, Float3 attackerPos, float damage)
         {
             if (!mob.IsAlive) return false; // 尸体免再伤（A2 评审 Minor 2）
+
+            // m13 W2：宝宝模式一击必杀——damage 取 mob.Health.Max，等同「扣到 0」；
+            // 健康已扣过的 mob（再受击）也会按当时的 MaxHealth 算一次——本设定「一击必杀」
+            // 含义就是「任意已扣血 mob 再挨一下也死」，不会因残血复活再一击。
+            if (DifficultyMode.Enabled && damage > 0f)
+            {
+                damage = mob.Health.Max;
+            }
 
             mob.Health.Damage(damage);
             mob.LastAttackerPos = attackerPos;

@@ -16,6 +16,13 @@ namespace MyWorld.Core.Tests.Entities
     [TestFixture]
     public class MobFleeTests
     {
+        [SetUp]
+        public void SetUp() => DifficultyMode.ResetCache();
+
+        [TearDown]
+        public void TearDown() => DifficultyMode.ResetCache();
+
+
         private static float HorizontalDistance(Float3 a, Float3 b)
         {
             float dx = a.X - b.X, dz = a.Z - b.Z;

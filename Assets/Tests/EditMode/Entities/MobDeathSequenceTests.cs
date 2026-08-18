@@ -31,6 +31,7 @@ namespace MyWorld.Core.Tests.Entities
         public void TearDown()
         {
             MobAI.DropTable = null;
+            DifficultyMode.ResetCache(); // m13 W2：宝宝模式静态 bool 跨测试隔离（清回默认 false）
         }
 
         private static string DropTablesJsonPath()

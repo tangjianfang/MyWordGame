@@ -22,6 +22,13 @@ namespace MyWorld.Core.Tests.Entities
     [TestFixture]
     public class MobKindWiringTests
     {
+        [SetUp]
+        public void SetUp() => DifficultyMode.ResetCache();
+
+        [TearDown]
+        public void TearDown() => DifficultyMode.ResetCache();
+
+
         /// <summary>P0 Interfaces 固定的 12 新生物（名字/枚举值一字不差——存档 spawn 数据按值序列化，W1 任务卡按名引用）。</summary>
         private static readonly (string Name, MobKind Kind, int Value)[] NewKinds =
         {
