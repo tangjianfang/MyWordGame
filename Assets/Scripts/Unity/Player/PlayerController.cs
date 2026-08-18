@@ -1,5 +1,6 @@
 using MyWorld.Core.Blocks;
 using MyWorld.Core.Math;
+using MyWorld.Core.Physics;
 using MyWorld.Core.Player;
 using MyWorld.Core.Quests;
 using MyWorld.Core.Voxel;
@@ -41,8 +42,22 @@ namespace MyWorld.Unity.Player
         private float _pitch;
         private float _lastFootstepTime = -1f;
 
+        /// <summary>m13 W1：飞行态状态机（纯 Core）。<c>Bind</c> 重新创建一份 =
+        /// 存档不记飞行态的入口；玩家从读档位置直接落在步行态。EditMode 测试可走
+        /// <see cref="InjectFlightStateForTest"/> 注入受控实例。</summary>
+        private FlightState _flight = new FlightState();
+
         public PlayerState State => _state;
         public PlayerMotorSettings Settings => _settings;
+
+        /// <summary>当前飞行态（true = 在飞）。HUD 与 Gameplay 侧只读用，
+        /// 切换请走 <see cref="FlightTickToggle"/> 让双击窗口 / 触地退出走完整通道。</summary>
+        public bool IsFlying => _flight.Enabled;
+
+        /// <summary>飞行 HUD 文案。文案常量化锁死（与 <c>CraftingShiftHint</c> 模式一致），
+        /// EditMode / 验收剧本都可直读断言。</summary>
+        public const string FlightHudLabelOn = "飞行：开";
+        public const string FlightHudLabelOff = "飞行：关";
 
         /// <summary>相机所在位置——射线拾取要用，所以公开出去。</summary>
         public Transform Eye => eye;
@@ -161,6 +176,10 @@ namespace MyWorld.Unity.Player
             // 危险的窗口，打断「复活即被守尸连杀」的死亡循环。fix1 起怪物近战 /
             // 苦力怕爆炸 / 摔落 / 饥饿四类伤害源都经本方法进入，无敌帧同时生效。
             if (Time.time < InvincibleUntil) return;
+            // m13 W1：飞行中掉血豁免——避免低空飞过头顶时被僵尸一爪拍下来再摔残，
+            // 也避免飞上生物头顶被苦力怕炸到。退出飞行（触地 / 切换）后伤害立即恢复。
+            // 注意：必须走这里而不是各伤害源分头判——CLAUDE.md B8 唯一入口契约。
+            if (_flight != null && _flight.Enabled) return;
             if (amount <= 0) return;
             var ctx = GetComponent<PlayerContext>();
             if (ctx == null) return;
@@ -235,6 +254,11 @@ namespace MyWorld.Unity.Player
         /// 公开出来是为了让 EditMode 测试 / 无头驱动手动步进。</summary>
         public void TickFallDamage()
         {
+            // m13 W1：飞行中掉血豁免的另一端——本方法不积峰值 / 不扣血。起飞后
+            // 触地那一帧会先经 <see cref="FlightApplyTick"/> 的 OnLanded 强制
+            // _trackingFall = false（参见该方法），所以这里再判一次即可双保险。
+            if (_flight != null && _flight.Enabled) return;
+
             float y = transform.position.y;
             if (!IsGrounded)
             {
@@ -451,6 +475,9 @@ namespace MyWorld.Unity.Player
 
             _spawnPosition = spawnPosition; // m7 A1：复活点 = 世界出生点
             _state = PlayerState.AtRest(spawnPosition);
+            // m13 W1 存档不记飞行态：Bind = 读档 / 新建世界，重新 new 一份让 Enabled 默认 false。
+            // 任何「读档后把旧 Enabled 持久化」的路径都属设计错误，这里是钉死入口。
+            _flight = new FlightState();
             ApplyToTransform();
         }
 
@@ -469,9 +496,140 @@ namespace MyWorld.Unity.Player
             var gearCtx = GetComponent<PlayerContext>();
             _settings.MoveSpeedBonus = gearCtx != null ? gearCtx.MoveSpeedBonus : 0f;
 
+            // m13 W1：飞行态整帧跳过 PlayerMotor —— Core 不知道飞行，Gravity/JumpSpeed
+            // 都不适用。否则一秒内就被 -28m/s² 拽回地面。撞墙 / 撞地仍走 VoxelCollision，
+            // 不然会穿墙。写完 transform 后直接返回，不调 PlayerMotor.Step。
+            if (_flight != null && _flight.Enabled)
+            {
+                FlightApplyTick(out _);
+                return;
+            }
+
             var source = new WorldSolidSource(_world, _registry);
             _state = PlayerMotor.Step(source, _state, input, _settings, dt);
             ApplyToTransform();
+        }
+
+        // ─── m13 W1：飞行系统（创造式） ────────────────────────────────────────
+        // 创造式飞行 = MC 自由模式同等品：双击空格 / F 键切换，飞行中六向 8m/s，
+        // 触地或再切换退出，飞行掉血豁免。状态机本身放 Core（FlightState.cs）——
+        // 本类只做三件事：读键盘喂切换、合成速度写 state、显示一行 IMGUI 提示。
+
+        /// <summary>EditMode 注入用的飞行状态实例（替换默认 new FlightState()）。
+        /// 必须由测试在 Bind 前调用；运行时不开放给 Gameplay 侧——切换入口走
+        /// <see cref="FlightTickToggle"/> 走完整的双击 / F 键 / 触地退出通道。</summary>
+        public void InjectFlightStateForTest(FlightState state) => _flight = state;
+
+        /// <summary>每帧调用一次：检测 Space-down / F-down 切换飞行态。Space 与 F 都走
+        /// 同一条 <see cref="FlightState.TryToggle"/>——「F 键等效」≠ 跳过双击窗口，
+        /// 第一下空 F 不切换，第二下才生效。模态 UI 开着时本方法 no-op（与背包
+        /// / 熔炉抢 Space）。</summary>
+        public void FlightTickToggle()
+        {
+            if (_flight == null) return;
+            if (UiCursorGate.IsOpen) return; // 模态 UI 占用 Space/F，不切飞行
+            if (_world == null) return; // 未 Bind（早期 / 纯逻辑测试）跳过
+
+            if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.F))
+            {
+                _flight.TryToggle(Time.timeAsDouble);
+            }
+        }
+
+        /// <summary>把飞行态下的速度合成（水平 / 竖直）合成后写进 <see cref="PlayerState"/>。
+        /// dt 不参与水平目标速度——飞行不靠摩擦收敛，按住键就是 8m/s，绝对手感。
+        /// <para>飞行中 <see cref="PlayerMotor.Step"/> 整段跳过——重力 / 跳跃初速都来自
+        /// Core，按此路径走会把玩家立刻拽回地面。返回值：从飞行态退出（含触地 / 再切换）
+        /// = false；仍在飞行 = true（已写入 transform）。</para>
+        /// <para>触地退出走 <see cref="FlightState.OnLanded"/>：清竖直速度避免下一帧
+        /// 残留自由落体负速度；插队 <see cref="_trackingFall"/> = false 让随后的
+        /// <see cref="TickFallDamage"/> 不基于飞行峰值扣血。</para></summary>
+        public bool FlightApplyTick(out bool leftFlight)
+        {
+            leftFlight = false;
+            if (_flight == null || !_flight.Enabled) return false;
+
+            // 触地退出：地面已重新接住玩家，强制落地 + 清竖直速度
+            if (_state.IsGrounded)
+            {
+                _flight.OnLanded();
+                leftFlight = true;
+                _state = new PlayerState(_state.Position,
+                    new Float3(_state.Velocity.X, 0f, _state.Velocity.Z),
+                    _state.IsGrounded);
+                _trackingFall = false; // 飞行后再落地不接续历史峰值
+                _fallPeakY = _state.Position.Y;
+                ApplyToTransform();
+                return false;
+            }
+
+            // 读飞行按键（与步行 ReadInput 同一组：WASD + Space + Shift）
+            float right = (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
+            float forward = (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
+            Vector3 direction = transform.right * right + transform.forward * forward;
+            if (direction.sqrMagnitude > 1f) direction.Normalize();
+
+            bool ascend = Input.GetKey(KeyCode.Space);
+            bool descend = Input.GetKey(KeyCode.LeftShift);
+
+            Float3 dir = new Float3(direction.x, 0f, direction.z);
+            Float3 v = FlightState.ComputeVelocity(dir, ascend, descend);
+
+            // 飞行态：跳过 PlayerMotor 的重力 / 摩擦——Core 不能重置
+            // （否则会叠加负向 Gravity 把竖直速度扣回 0）。碰撞检测仍要
+            // 走——不然玩家会穿墙 / 穿地。
+            float dt = Time.deltaTime;
+            Float3 delta = new Float3(v.X * dt, v.Y * dt, v.Z * dt);
+            var source = new WorldSolidSource(_world, _registry);
+            Aabb box = Aabb.FromBottomCenter(_state.Position, _settings.Width, _settings.Height);
+            MoveResult result = VoxelCollision.Move(source, box, delta);
+
+            var pos = new Float3(
+                _state.Position.X + result.Delta.X,
+                _state.Position.Y + result.Delta.Y,
+                _state.Position.Z + result.Delta.Z);
+
+            // 飞行撞墙不归零速度——玩家会以为「没按键怎么不动」；竖直撞天花板 / 地板
+            // 归零避免贴着顶角累积竖直速度。水平撞墙保留水平速度等下次输入调整。
+            float vy = (result.HitY && v.Y != 0f) ? 0f : v.Y;
+            _state = new PlayerState(pos, new Float3(v.X, vy, v.Z), result.IsGrounded);
+            ApplyToTransform();
+            return true;
+        }
+
+        /// <summary>每帧末尾的飞行提示行。在飞行态「关」时不画（零开销），「开」时画一行。
+        /// 提示位置：屏幕底部中央偏上一行，与现有 IMGUI 提示（成就提示 / 教程文案）一致风格。
+        /// <see cref="OnGUI"/> 每帧调用一次，flight 关时第一句 return。EditMode 测试可读
+        /// <see cref="FlightHudLabelOn"/>/<see cref="FlightHudLabelOff"/> 常量直断文案。
+        /// <para>简化实现：单 GameObject 挂 OnGUI 即可——不引入额外 GameObject / Canvas，
+        /// 与 CraftingShiftHint 的「一行 HelpMenuUi OnGUI」同理。</para></summary>
+        private void OnGUI()
+        {
+            if (_flight == null || !_flight.Enabled) return;
+            var previous = GUI.color;
+            GUI.color = Color.white;
+            var rect = new Rect(Screen.width / 2f - 80f, Screen.height - 60f, 160f, 24f);
+            GUI.Box(rect, GUIContent.none);
+            GUI.Label(rect, FlightHudLabelOn, CenteredGuiStyle);
+            GUI.color = previous;
+        }
+
+        private static GUIStyle _centeredGuiStyle;
+        private static GUIStyle CenteredGuiStyle
+        {
+            get
+            {
+                if (_centeredGuiStyle == null)
+                {
+                    _centeredGuiStyle = new GUIStyle(GUI.skin.label)
+                    {
+                        alignment = TextAnchor.MiddleCenter,
+                        fontSize = 14,
+                        fontStyle = FontStyle.Bold,
+                    };
+                }
+                return _centeredGuiStyle;
+            }
         }
 
         // ─── m8 B2 fix1（I1）：暂停恢复的输入残留抑制 ──────────────────────────
@@ -509,6 +667,12 @@ namespace MyWorld.Unity.Player
         private void Update()
         {
             UpdateLook();
+
+            // m13 W1：飞行切换检测。放在最前——和暂停键 Esc 同级（InputDecision 之前）
+            // 让双击窗口计时先走（Time.timeAsDouble 在 Skip 帧也会推进），但本方法的
+            // 内部 IsOpen / _world 守卫会把模态 UI / 未绑定情形都 no-op，不会越权。
+            FlightTickToggle();
+
             switch (InputDecision(Time.timeScale == 0f, _wasPausedLastFrame))
             {
                 case StepInputKind.Skip:
