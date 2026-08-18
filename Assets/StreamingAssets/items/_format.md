@@ -46,6 +46,7 @@
 | `texture` | 字符串 | 否 | `"missing"` | 贴图名，对应 `textures/` 目录下的文件名，**不带 `.png` 后缀**（如 `"lapis"` 对应 `textures/lapis.png`） |
 | `blockId` | 字符串 | 否 | 无关联 | **m11 W1-5 新引入，W3-1 起被放置路由消费**：物品与其「方块形态」的关联声明（如 `chair` ↔ `chair_block`）。写了它的物品右键放置落对应方块并扣 1 个物品（床走双格摆法、门贴地两格，见 BlockInteraction 放置路由）；不写 = 放置回落 placeBlockId 占位、不扣物品。挖掉那个方块掉回哪个物品由 `blocks/drops/block_drops.json` 的条目对齐（1:1 掉回——放置扣 1、挖掉还 1，不做无限复制机）。加载器解析进 `ItemDefinition.BlockId` 但不做跨表校验，悬空引用（写了但 blocks 注册表里没有）由真数据守卫测试 `BlockInteractionPlaceRoutingTests` 抓 |
 | `attackDamage` | 小数 | 否 | 不可作武器 | 主手挥击伤害。不写（null）= 该物品不能当武器挥击 |
+| `range` | 整数 | 否 | `0` | **m13 W3 新增**：远程武器射程（米）。弓 60 / 火枪 25 是合理量级；写 0 或不写 = 不可作为远程武器（近战/材料）。弹道飞行距离 `>= range` 时强制消亡——`ProjectileEntity.Range` 在 Tick 末段判定后 `State = Dead`。负数加载即抛（与 `toolTier` / `maxDurability` 同态度）。弓保留重力抛物线（既有行为），火枪走 `ProjectileEntity.IsStraightLine = true` 直射无重力——由宿主 `BlockInteraction.TryFireMusket` 在发射时设。写太远（数百米）不强制拦——手感问题不是硬卡 |
 | `healAmount` | 小数 | 否 | 不可食用 | 右键吃掉后经 `HungerSystem.Eat` 回的饥饿值。不写或 0 = 不是食物，右键照常放方块 |
 | `isTool` | 布尔 | 否 | `false` | 是否归类为工具（剑/镐/斧/锹）。用于耐久条与方块采集加速判定 |
 | `miningLevel` | 整数 | 否 | `0` | 挖掘档位：0=手 / 1=木 / 2=石 / 3=铁 / 4=钻石 / 5=下界合金 / 6=基岩。**所有工具都可以写**，与 `toolTier` 分工不同，别混用 |

@@ -188,5 +188,44 @@ namespace MyWorld.Core.Tests.Items
                 Throws.InstanceOf<System.IO.InvalidDataException>(),
                 "amount <= 0 没有意义（写了 gearBonus 却不给加成），加载层就拦下");
         }
+
+        // ─── m13 W3：range 字段解析（远程武器射程） ─────────────────────────
+
+        [Test]
+        public void Range_ParsedFromJson_BowAndMusket()
+        {
+            var db = ItemDatabase.FromJson(new[]
+            {
+                @"{ ""id"": ""bow"", ""numericId"": 1301, ""maxStack"": 1,
+                    ""attackDamage"": 1, ""range"": 60 }",
+                @"{ ""id"": ""musket"", ""numericId"": 1607, ""maxStack"": 1,
+                    ""attackDamage"": 6, ""range"": 25 }",
+            });
+            Assert.That(db.GetById("bow").Range, Is.EqualTo(60), "弓射程 60m");
+            Assert.That(db.GetById("musket").Range, Is.EqualTo(25), "火枪射程 25m");
+        }
+
+        [Test]
+        public void Range_Missing_DefaultsToZero()
+        {
+            // 不写 range 的物品（近战/材料）→ Range=0 = 不可作为远程武器。
+            // 与 MaxDurability_Missing_DefaultsToZero 同态度：未声明 = 默认值。
+            var db = ItemDatabase.FromJson(new[] { SwordJson });
+            Assert.That(db.GetById("wooden_sword").Range, Is.EqualTo(0),
+                "未声明 range = 近战/材料（不可作为远程武器）");
+        }
+
+        [Test]
+        public void Range_Negative_Throws()
+        {
+            // 负数没有意义——0 已经是「不可作为远程武器」了，没有比 0 更低的档。
+            // 与 toolTier 负数 / maxDurability 负数同态度：写错立刻报而不是静默当 0。
+            Assert.That(() => ItemDatabase.FromJson(new[]
+                {
+                    @"{ ""id"": ""bad_range"", ""numericId"": 1197, ""range"": -5 }",
+                }),
+                Throws.InstanceOf<System.IO.InvalidDataException>(),
+                "负数 range 没有意义，加载层就拦下");
+        }
     }
 }

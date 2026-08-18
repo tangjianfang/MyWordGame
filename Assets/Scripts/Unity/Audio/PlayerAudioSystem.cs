@@ -47,6 +47,10 @@ namespace MyWorld.Unity.Audio
         [SerializeField] private AudioClip plantClip;
         [SerializeField] private AudioClip harvestClip;
         [SerializeField] private AudioClip toolBreakClip;
+        // ─── m13 W3 火枪音（程序生成兜底，真资源优先）─────────────────────
+        [SerializeField] private AudioClip fireClip;
+        // 咔哒：无弹开火拒绝提示——短促金属干声（手动触发扳机但未击发）。
+        [SerializeField] private AudioClip clickClip;
 
         private AudioSource _source;
 
@@ -77,6 +81,10 @@ namespace MyWorld.Unity.Audio
             plantClip      = LoadClipOrNull("Audio/plant");
             harvestClip    = LoadClipOrNull("Audio/harvest");
             toolBreakClip  = LoadClipOrNull("Audio/tool-break");
+            // m13 W3：火枪音程序生成（缺失不告警——有兜底不算异常），逻辑照 hit 走。
+            fireClip       = LoadOrCreateFireClip();
+            // 咔哒（无弹开火拒绝）：同样程序生成——无 Assets/Resources/Audio/click 时兜底短促金属干声。
+            clickClip      = LoadOrCreateClickClip();
         }
 
         private static AudioClip LoadClipOrNull(string path)
@@ -134,6 +142,72 @@ namespace MyWorld.Unity.Audio
         public void PlayPlant()     { PlayClip(plantClip); }
         public void PlayHarvest()   { PlayClip(harvestClip); }
         public void PlayToolBreak() { PlayClip(toolBreakClip); }
+
+        // ─── m13 W3：火枪开火 + 咔哒（无弹） ─────────────────────────────
+        public void PlayFire()  { PlayClip(fireClip); }
+        public void PlayClick() { PlayClip(clickClip); }
+
+        /// <summary>
+        /// m13 W3：火枪开火音加载——真资源优先，缺失则程序生成 ~120ms 低频冲击（80Hz 主导 +
+        /// 白噪声衰减包络）：「砰！」的一声。LCG 确定性（同 hit 兜底的 Knuth 黄金比种子），
+        /// 与 <see cref="LoadOrCreateHitClip"/> 同思路——clip 创建失败静默返回 null，
+        /// <see cref="PlayClip"/> 跳过。参数与 hit 区别：时长更长（hit 80ms / fire 120ms）、
+        /// 频率更低（hit 高频尖锐 / fire 低频闷响）、振幅峰更高（fire ×0.85 vs hit ×0.6）。
+        /// </summary>
+        private static AudioClip LoadOrCreateFireClip()
+        {
+            var clip = Resources.Load<AudioClip>("Audio/fire");
+            if (clip != null) return clip;
+
+            const int sampleRate = 44100;
+            const int sampleCount = 5292; // 0.12s × 44100
+            var generated = AudioClip.Create("fire_procedural", sampleCount, 1, sampleRate, false);
+            if (generated == null) return null;
+            var data = new float[sampleCount];
+            uint h = 0x9E3779B9u; // 与 hit 同种子——不同生成器取同一确定性根
+            for (int i = 0; i < sampleCount; i++)
+            {
+                h = h * 1664525u + 1013904223u;
+                float noise = ((h >> 16) & 0xFFFF) / 65535f * 2f - 1f; // [-1,1)
+                float t = (float)i / sampleCount;
+                float env = 1f - t;             // 线性衰减
+                // 低通近似：相邻样本差分（高频被吃掉）+ 振幅平方收尾
+                float lp = noise * 0.7f + (i > 0 ? data[i - 1] * 0.3f : 0f);
+                data[i] = lp * env * env * 0.85f;
+            }
+            generated.SetData(data, 0);
+            return generated;
+        }
+
+        /// <summary>
+        /// m13 W3：咔哒音（无弹开火拒绝提示）加载——真资源优先，缺失则程序生成 ~30ms
+        /// 高频金属干声：直接开/关短脉冲（接近「咔」的瞬态），与火枪的「砰」拉开对比。
+        /// 同确定性种子根（Knuth 黄金比）；clip 创建失败静默跳过。
+        /// </summary>
+        private static AudioClip LoadOrCreateClickClip()
+        {
+            var clip = Resources.Load<AudioClip>("Audio/click");
+            if (clip != null) return clip;
+
+            const int sampleRate = 44100;
+            const int sampleCount = 1324; // 0.03s × 44100
+            var generated = AudioClip.Create("click_procedural", sampleCount, 1, sampleRate, false);
+            if (generated == null) return null;
+            var data = new float[sampleCount];
+            uint h = 0x9E3779B9u;
+            for (int i = 0; i < sampleCount; i++)
+            {
+                h = h * 1664525u + 1013904223u;
+                float noise = ((h >> 16) & 0xFFFF) / 65535f * 2f - 1f; // [-1,1)
+                float t = (float)i / sampleCount;
+                // 高频主导：双样本差分（火枪是低通，咔哒反着来） + 短衰减
+                float hp = i > 0 ? (noise - (data[i - 1]) * 0.5f) : noise;
+                float env = 1f - t;
+                data[i] = hp * env * 0.5f;
+            }
+            generated.SetData(data, 0);
+            return generated;
+        }
 
         private void PlayClip(AudioClip clip)
         {

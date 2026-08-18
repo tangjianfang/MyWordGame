@@ -1,0 +1,9 @@
+{
+  "id": "musket",
+  "displayName": "火枪",
+  "numericId": 1607,
+  "maxStack": 1,
+  "attackDamage": 6,
+  "range": 25,
+  "texture": "musket"
+}

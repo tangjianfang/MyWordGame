@@ -4,5 +4,6 @@
   "numericId": 1301,
   "maxStack": 1,
   "attackDamage": 1,
+  "range": 60,
   "texture": "bow"
 }

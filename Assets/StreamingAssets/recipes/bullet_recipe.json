@@ -1,0 +1,22 @@
+{
+  "id": "bullet_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "iron_ingot",
+    "_",
+    "_",
+    "_",
+    "_",
+    "_",
+    "_",
+    "_",
+    "_"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "bullet",
+    "count": 4
+  }
+}

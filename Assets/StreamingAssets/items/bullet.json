@@ -1,0 +1,7 @@
+{
+  "id": "bullet",
+  "displayName": "子弹",
+  "numericId": 1608,
+  "maxStack": 64,
+  "texture": "bullet"
+}

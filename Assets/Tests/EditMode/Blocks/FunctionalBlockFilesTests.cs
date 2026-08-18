@@ -240,9 +240,9 @@ namespace MyWorld.Core.Tests.Blocks
             var recipe = _recipes.FindMatch(input, width: 3, height: 3);
 
             Assert.That(recipe, Is.Not.Null, "木板两行 6 块应能合成木门");
-            // 配方文件名 door_wooden_recipe.json 刻意排在 planks_to_crafting_table 之前：
-            // 后者是 shapeless「4 块木板」且按文件枚举顺序先到先得，排在木门前面会把
-            // 「6 块木板摆两行」错匹配成工作台（FindMatch 不做精确度排序，已报给集成点②）
+            // m11 ②起 FindMatch 同档位内稳定排序：shaped 优先于 shapeless、材料格多者优先
+            // （Recipe.MaterialCount）——6 板门不再依赖「文件名恰好排在 planks_to_crafting_table
+            // 前面」的枚举顺序侥幸赢过 4 板工作台的 shapeless 宽匹配。
             Assert.That(recipe.Id, Is.EqualTo("door_wooden_recipe"));
             Assert.That(recipe.Output.ItemId, Is.EqualTo(_items.GetById("wooden_door").NumericId));
             Assert.That(recipe.Output.Count, Is.EqualTo(3), "6 块木板出 3 扇门（MC 同款）");

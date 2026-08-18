@@ -175,6 +175,9 @@ namespace MyWorld.Unity.Player
                 // m11 ②：弓蓄力一并取消——门开着时本方法提前 return，看不到
                 // GetMouseButtonUp，蓄力会冻结成「永远拉满」，直接作废最干净
                 _bowCharging = false;
+                // m13 W3：火枪开火后装填锁定——门开期间输入被门吞掉，装填窗自然不会被外部刷新。
+                // 装填窗本身在 UseAt → TryFireMusket 内部消费时设，不依赖 Update——门开只是
+                // 把后续右键吃掉，不会让已锁的装填窗失稳。
                 return;
             }
 
@@ -274,6 +277,14 @@ namespace MyWorld.Unity.Player
             if (IsBowSelected())
             {
                 TryStartBowCharge();
+                return;
+            }
+
+            // m13 W3：手持火枪 → 右键整个被开火/装填分支消费（无弹咔哒，装填中拒绝）。
+            // 与弓同思路不要求射线命中：朝天也能开火（直弹道武器不需要视线）。
+            if (IsMusketSelected())
+            {
+                TryFireMusket();
                 return;
             }
 
@@ -804,6 +815,92 @@ namespace MyWorld.Unity.Player
                 Damage = Mathf.Lerp(BowMinDamage, BowMaxDamage, ratio),
             };
             MobAI.OnProjectileFired?.Invoke(arrow);
+        }
+
+        // ─── m13 W3：火枪（手持 musket 右键开火 + 装填 1.5s + 无弹咔哒） ─────
+
+        /// <summary>火枪物品 id（与 items/musket.json 一致；物品判定走字符串 id）。</summary>
+        private const string MusketItemId = "musket";
+
+        /// <summary>子弹物品 id（与 items/bullet.json 一致；消耗时按 numericId 扣背包）。</summary>
+        public const int MusketBulletItemId = 1608;
+
+        /// <summary>装填耗时（秒）：开火后 1.5s 内右键被拒（"咔哒"提示）。</summary>
+        public const float MusketReloadSeconds = 1.5f;
+
+        /// <summary>出膛初速（格/s）。直弹道（无重力）按此速度向准星方向直线前进 25m。</summary>
+        public const float MusketBulletSpeed = 32f;
+
+        /// <summary>火枪伤害（点）。卡片数值：6（来自 design spec + 现行肉搏剑的 4-7 区间）。</summary>
+        public const float MusketBulletDamage = 6f;
+
+        /// <summary>开火完成时刻（Time.time）。<c>Time.time &lt; _musketReloadUntil</c> 时右键被拒。
+        /// 默认 <see cref="float.NegativeInfinity"/>（已可开火）。</summary>
+        private float _musketReloadUntil = float.NegativeInfinity;
+
+        /// <summary>当前是否在装填中。public 给 EditMode 路由测试断言（Update/Input EditMode 驱动不了）。</summary>
+        public bool IsMusketReloading => Time.time < _musketReloadUntil;
+
+        private bool IsMusketSelected()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null) return false;
+            var def = ctx.GetSelectedDefinition();
+            return def != null && def.Id == MusketItemId;
+        }
+
+        /// <summary>
+        /// m13 W3：手持火枪右键消费——分支三条：
+        /// <list type="number">
+        /// <item>装填中（<c>Time.time &lt; _musketReloadUntil</c>）→ 静默拒绝（右键被消费、不开火不放方块）</item>
+        /// <item>无弹（背包 <see cref="MusketBulletItemId"/> = 0）→ 播咔哒 + 右键被消费、不开火</item>
+        /// <item>可开火 → 扣 1 颗子弹 + 直射 ProjectileEntity（<see cref="ProjectileEntity.IsStraightLine"/>
+        ///   = true + <see cref="ProjectileEntity.Range"/> = 25）+ 播放 fire 音 + 锁定装填窗
+        ///   <c>_musketReloadUntil = Time.time + 1.5s</c></item>
+        /// </list>
+        /// <para>
+        /// 与弓分支对齐：EditMode 测试不依赖 <c>Input.GetMouseButtonDown</c>，外部测试直调
+        /// 本方法。玩家宿主 / 视野（<c>_player.Eye</c>）任一为 null 时静默 return——同弓
+        /// 兜底（避免空引用崩在 <see cref="MobAI.OnProjectileFired"/> 之前）。
+        /// </para>
+        /// </summary>
+        public void TryFireMusket()
+        {
+            // 装填窗：上次开火后 1.5s 内的右键一律拒绝。不播咔哒（与 MC 同：装填中拉不动扳机，
+            // 不是「没弹」那种主动反馈）——咔哒是「想开但开不了」的语义，留给无弹路径。
+            if (Time.time < _musketReloadUntil) return;
+
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.Inventory == null) return;
+            if (!IsMusketSelected() || _player == null || _player.Eye == null) return;
+
+            // 无弹：拒绝 + 咔哒。右键仍被消费（不放过方块/吃食物——视觉上是一次开火动作）。
+            if (ctx.Inventory.CountOf(MusketBulletItemId) <= 0)
+            {
+                _audio?.PlayClick();
+                return;
+            }
+
+            // 发射前扣弹：同弓「拉弓途中可能被拖走/用掉」的二段守卫——
+            // 第一次右键到 TryFireMusket 调用期间不会用弹，但保持一致语义（万一后续接入
+            // 别的快速触发路径——双击/连发，不要让扣弹/开火之间有缝）。
+            if (!ctx.Inventory.TryRemoveCount(MusketBulletItemId, 1))
+            {
+                _audio?.PlayClick();
+                return;
+            }
+
+            Float3 origin = ToFloat3(_player.Eye.position);
+            Float3 direction = ToFloat3(_player.Eye.forward);
+            var bullet = new ProjectileEntity(origin, direction * MusketBulletSpeed, ownerEntityId: 0)
+            {
+                Damage = MusketBulletDamage,
+                IsStraightLine = true,   // m13 W3：直射无重力
+                Range = 25f,             // m13 W3：火枪射程 25m
+            };
+            MobAI.OnProjectileFired?.Invoke(bullet);
+            _audio?.PlayFire();
+            _musketReloadUntil = Time.time + MusketReloadSeconds;
         }
 
         // ─── m11 ②：右键交互的一次性文字提示（床白天 / 无箭） ─────────────────

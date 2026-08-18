@@ -1,0 +1,22 @@
+{
+  "id": "musket_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "iron_ingot",
+    "iron_ingot",
+    "_",
+    "plank",
+    "plank",
+    "_",
+    "gunpowder",
+    "_",
+    "_"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "musket",
+    "count": 1
+  }
+}

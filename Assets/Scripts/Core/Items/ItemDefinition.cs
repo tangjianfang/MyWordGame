@@ -26,7 +26,7 @@ namespace MyWorld.Core.Items
     /// 写了部位的物品是「盔甲」，可进玩家穿戴栏（<see cref="MyWorld.Core.Player.ArmorInventory"/>）；
     /// 部位决定进哪个穿戴槽，与 <see cref="GearStat"/> 正交——同材料四件共用一种属性：
     /// 铁系 defense / 夏季合金系 moveSpeed / 机元系 maxHealth；金系加成是攻击
-    ///（走手持 <see cref="ItemDefinition.AttackDamage"/>），盔甲形态无 gearBonus。
+    /// （走手持 <see cref="ItemDefinition.AttackDamage"/>），盔甲形态无 gearBonus。
     /// </summary>
     public enum ArmorPart
     {
@@ -87,7 +87,7 @@ namespace MyWorld.Core.Items
         public int ToolTier;
 
         /// <summary>
-        /// m10 B1 耐久上限：能承受的消耗次数（挖一个方块 / 挥击一次都算 1）。
+        /// m10 B1 耐久上限：能承受的消耗次数（次方块 / 挥击一次都算 1）。
         /// 0 = 无耐久概念（非工具或未声明，永不磨损）；取值 1..255——
         /// <see cref="ItemStack"/> 的 Metadata 只有 8 位存上限（m3 预留编码），
         /// 超范围在 <see cref="ItemDatabase"/> 加载层即抛。镐类必须显式声明
@@ -126,6 +126,16 @@ namespace MyWorld.Core.Items
         /// （BlockInteractionPlaceRoutingTests）。
         /// </summary>
         public string BlockId;
+
+        /// <summary>
+        /// m13 W3：远程武器射程（米）。弓 60（保留抛物线）/ 火枪 25（直射）等——
+        /// 写 0 或不写 = 不可作为远程武器（近战/材料）。弹道飞行距离 <c>&gt;= Range</c>
+        /// 时强制消亡（防无限射程破坏弹道手感与性能）。射程在 <see cref="ItemDatabase"/>
+        /// 加载层校验：缺失默认 0、负数立刻抛（与 toolTier / maxDurability 同态度）。
+        /// 弓保留重力抛物线（既有行为），枪走直射无重力——走
+        /// <see cref="MyWorld.Core.Entities.ProjectileEntity.IsStraightLine"/>。
+        /// </summary>
+        public int Range;
 
         public override string ToString() => $"Item({Id}, id={NumericId})";
     }

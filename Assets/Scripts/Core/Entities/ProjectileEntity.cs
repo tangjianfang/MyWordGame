@@ -53,6 +53,25 @@ namespace MyWorld.Core.Entities
         public const float MaxLifetime = 10f;
 
         /// <summary>
+        /// m13 W3：最大飞行距离（米）。射程由发射方按 <see cref="MyWorld.Core.Items.ItemDefinition.Range"/>
+        /// 注入（弓 60 / 火枪 25 等）；0 = 无射程限制（保留 m11 骷髅箭既有行为，向后兼容）。
+        /// 飞行距离累计 <c>&gt;= Range</c> 时标记 <see cref="ProjectileState.Dead"/> 并停止积分——
+        /// 与 <see cref="MaxLifetime"/> 的「超时」二选一即可，距离达先判距离。
+        /// </summary>
+        public float Range;
+
+        /// <summary>
+        /// m13 W3：直射无重力（枪械路径）。<c>true</c> 时 Tick 跳过 Y 方向重力项——
+        /// <see cref="Gravity"/> 不作用在 <see cref="Velocity.Y"/>，弹道沿出膛方向直线前进。
+        /// 弓保留 <c>false</c>（抛物线既有行为）；火枪发射时由
+        /// <c>BlockInteraction.TryFireMusket</c> 设 <c>true</c> 后注入到 <see cref="ProjectileEntity"/>。
+        /// </summary>
+        public bool IsStraightLine;
+
+        /// <summary>发射起点（用于按 range 算飞行距离：累计位移 = 当前 - Origin）。</summary>
+        public Float3 Origin;
+
+        /// <summary>
         /// 命中实体时结算的伤害（点）。m11 ②起由发射方注入：玩家弓按蓄力比例写 1-4；
         /// 骷髅箭走构造缺省 = <see cref="PlayerHitDamage"/>（卡片数值 2，既有测试钉着）。
         /// </summary>
@@ -86,6 +105,9 @@ namespace MyWorld.Core.Entities
             Velocity = velocity;
             OwnerEntityId = ownerEntityId;
             State = ProjectileState.Flying;
+            // m13 W3：记录发射起点用于按 range 判定消亡——backstop 是 Range=0（m11 骷髅箭），
+            // 此时 <c>ReachedRange</c> 恒为 false，不影响既有行为。
+            Origin = position;
         }
 
         /// <summary>
@@ -111,8 +133,20 @@ namespace MyWorld.Core.Entities
             }
 
             Float3 previous = Position;
-            Velocity = new Float3(Velocity.X, Velocity.Y - Gravity * dt, Velocity.Z);
+            // m13 W3：直射无重力（枪械路径）。true 时 Y 速度不衰减——出膛方向 = 飞行方向。
+            // 弓保留 false（既有行为：抛物线下坠，8-12m 射程肉眼可读）。
+            Velocity = IsStraightLine
+                ? Velocity
+                : new Float3(Velocity.X, Velocity.Y - Gravity * dt, Velocity.Z);
             Position = Position + Velocity * dt;
+
+            // m13 W3：按武器射程消亡。Range>0 且累计位移 ≥ Range 时强制 Dead——
+            // 紧跟在位置积分之后、命中判定之前（达射程就不可能再命中任何东西）。
+            if (ReachedRange())
+            {
+                State = ProjectileState.Dead;
+                return false;
+            }
 
             // 1) 玩家命中优先（贴墙的玩家仍会被打到）。
             //    m11 ②：OwnerEntityId == 0 是玩家自己射的箭——不判玩家命中（MC 同款：
@@ -179,6 +213,21 @@ namespace MyWorld.Core.Entities
             int y = (int)MathF.Floor(p.Y);
             int z = (int)MathF.Floor(p.Z);
             return world.GetBlock(x, y, z) != BlockIds.Air;
+        }
+
+        /// <summary>
+        /// m13 W3：累计位移是否达射程。Range ≤ 0（未注入）= 永远 false——保留 m11
+        /// 骷髅箭既有「无距离上限」行为；测试可通过直接设 <see cref="Range"/> + <see cref="Origin"/>
+        /// 强制触发。位移按欧氏距离算（不算水平投影，符合「米」的直觉）。
+        /// </summary>
+        public bool ReachedRange()
+        {
+            if (Range <= 0f) return false;
+            float dx = Position.X - Origin.X;
+            float dy = Position.Y - Origin.Y;
+            float dz = Position.Z - Origin.Z;
+            float traveled = (float)System.Math.Sqrt(dx * dx + dy * dy + dz * dz);
+            return traveled >= Range;
         }
     }
 }

@@ -38,6 +38,10 @@ namespace MyWorld.Core.Tests.Player
         private const int BoneMealItemId = 1505;
         private const int BowItemId = 1301;
         private const int ArrowItemId = 1300;
+        // m13 W3：火枪 + 子弹 numericId。musket / bullet 物品 id 必须随 ItemDatabase 一并加载
+        // （否则 BuildItems 的 GetById 在路由断言里抛 NullRef）。
+        private const int MusketItemId = 1607;
+        private const int MusketBulletItemId = 1608;
 
         /// <summary>EditMode 下 AddComponent 不会跑 Awake，用反射补一脚（BlockBreakDropTests 同款）。</summary>
         private static void InvokeAwake(MonoBehaviour mb)
@@ -82,8 +86,11 @@ namespace MyWorld.Core.Tests.Player
                 @"{ ""id"": ""hoe_wooden"", ""numericId"": 1430, ""maxStack"": 1,
                     ""isTool"": true, ""toolTier"": 1, ""maxDurability"": 59 }",
                 @"{ ""id"": ""bone_meal"", ""numericId"": 1505 }",
-                @"{ ""id"": ""bow"", ""numericId"": 1301, ""maxStack"": 1, ""attackDamage"": 1 }",
+                @"{ ""id"": ""bow"", ""numericId"": 1301, ""maxStack"": 1, ""attackDamage"": 1, ""range"": 60 }",
                 @"{ ""id"": ""arrow"", ""numericId"": 1300 }",
+                // m13 W3：火枪 + 子弹（BuildItems 必须把路由分支里被引用的物品都注册上）。
+                @"{ ""id"": ""musket"", ""numericId"": 1607, ""maxStack"": 1, ""attackDamage"": 6, ""range"": 25 }",
+                @"{ ""id"": ""bullet"", ""numericId"": 1608, ""maxStack"": 64 }",
             });
         }
 
@@ -391,6 +398,184 @@ namespace MyWorld.Core.Tests.Player
 
         private static float Float3Length(Float3 v)
             => (float)System.Math.Sqrt(v.X * v.X + v.Y * v.Y + v.Z * v.Z);
+
+        // ─── m13 W3：火枪（开火 / 装填 1.5s / 无弹咔哒 / 直射无重力） ─────
+
+        [Test]
+        public void TryFireMusket_WithBullet_FiresProjectile_ConsumesOneBullet_NoReloadYet()
+        {
+            // 玩家面对方块（不要求命中：直射武器对射线无依赖），手持火枪 + 背包 3 颗子弹
+            _world.SetBlock(8, 70, 8, BlockIds.Stone);
+            Select(MusketItemId, 1);
+            _ctx.Inventory.SetSlot(3, new ItemStack(MusketBulletItemId, 3));
+
+            ProjectileEntity fired = null;
+            MobAI.OnProjectileFired += Capture;
+            try
+            {
+                _block.TryFireMusket();
+            }
+            finally
+            {
+                MobAI.OnProjectileFired -= Capture;
+            }
+
+            Assert.That(fired, Is.Not.Null, "开火经 MobAI.OnProjectileFired 抛出");
+            Assert.That(fired.OwnerEntityId, Is.EqualTo(0), "owner=0 表示玩家弹");
+            Assert.That(fired.Damage, Is.EqualTo(BlockInteraction.MusketBulletDamage).Within(1e-4f),
+                "伤害 = MusketBulletDamage（6）");
+            Assert.That(fired.IsStraightLine, Is.True, "火枪：直射无重力（IsStraightLine=true）");
+            Assert.That(fired.Range, Is.EqualTo(25f).Within(1e-4f),
+                "火枪：射程 25m");
+            Assert.That(fired.ReachedRange(), Is.False, "刚开火时位移=0，未达射程");
+            float speed = Float3Length(fired.Velocity);
+            Assert.That(speed, Is.EqualTo(BlockInteraction.MusketBulletSpeed).Within(1e-3f),
+                "初速 = MusketBulletSpeed（32 格/s）");
+            Assert.That(_ctx.Inventory.CountOf(MusketBulletItemId), Is.EqualTo(2),
+                "扣 1 颗子弹：3→2");
+            Assert.That(_block.IsMusketReloading, Is.True,
+                "开火后进入装填中状态（IsMusketReloading=true）");
+
+            void Capture(ProjectileEntity p) => fired = p;
+        }
+
+        [Test]
+        public void TryFireMusket_RightAfterFire_Reloading_SecondFireIgnored()
+        {
+            // 第一次开火后立即第二次：装填窗 1.5s 内右键被拒，无新弹抛出
+            _world.SetBlock(8, 70, 8, BlockIds.Stone);
+            Select(MusketItemId, 1);
+            _ctx.Inventory.SetSlot(3, new ItemStack(MusketBulletItemId, 5));
+
+            // 第一次开火
+            ProjectileEntity firstFire = null;
+            MobAI.OnProjectileFired += Capture;
+            try
+            {
+                _block.TryFireMusket();
+            }
+            finally
+            {
+                MobAI.OnProjectileFired -= Capture;
+            }
+            Assert.That(firstFire, Is.Not.Null, "第一次开火成功");
+            int firstBulletCount = _ctx.Inventory.CountOf(MusketBulletItemId);
+            Assert.That(firstBulletCount, Is.EqualTo(4), "第一次扣 1 颗：5→4");
+            Assert.That(_block.IsMusketReloading, Is.True);
+
+            // 第二次开火（装填中）—— 应被静默拒绝
+            int firedCount = 0;
+            MobAI.OnProjectileFired += _ => firedCount++;
+            try
+            {
+                _block.TryFireMusket();
+                _block.TryFireMusket(); // 多调几次也无害
+            }
+            finally
+            {
+                MobAI.OnProjectileFired -= _ => firedCount++;
+            }
+            Assert.That(firedCount, Is.EqualTo(0),
+                "装填窗内第二次 / 第三次开火均被静默拒绝，无 Projectile 抛出");
+            Assert.That(_ctx.Inventory.CountOf(MusketBulletItemId), Is.EqualTo(firstBulletCount),
+                "装填窗内不扣子弹");
+
+            void Capture(ProjectileEntity p) => firstFire = p;
+        }
+
+        [Test]
+        public void TryFireMusket_ReloadElapsed_CanFireAgain()
+        {
+            // 模拟装填窗过去：EditMode 下 Time.time 永远 0，所以走不到 ReloadSeconds 自动过期。
+            // 改用反射清回 _musketReloadUntil = float.NegativeInfinity（与既有测试反射调 Awake 同款）。
+            _world.SetBlock(8, 70, 8, BlockIds.Stone);
+            Select(MusketItemId, 1);
+            _ctx.Inventory.SetSlot(3, new ItemStack(MusketBulletItemId, 5));
+
+            // 第一次开火
+            _block.TryFireMusket();
+            Assert.That(_block.IsMusketReloading, Is.True);
+
+            // 反射清装填窗
+            var field = typeof(BlockInteraction).GetField(
+                "_musketReloadUntil",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, "BlockInteraction 应有私有 _musketReloadUntil 字段");
+            field.SetValue(_block, float.NegativeInfinity);
+
+            Assert.That(_block.IsMusketReloading, Is.False, "清装填窗后 IsMusketReloading=false");
+
+            // 第二次开火：可开火
+            ProjectileEntity second = null;
+            MobAI.OnProjectileFired += Capture;
+            try
+            {
+                _block.TryFireMusket();
+            }
+            finally
+            {
+                MobAI.OnProjectileFired -= Capture;
+            }
+            Assert.That(second, Is.Not.Null, "装填窗过后能再开火");
+            Assert.That(_ctx.Inventory.CountOf(MusketBulletItemId), Is.EqualTo(3),
+                "第二次再扣 1 颗：5→3");
+
+            void Capture(ProjectileEntity p) => second = p;
+        }
+
+        [Test]
+        public void TryFireMusket_NoBullets_NoFire_DoesNotConsumeBullet()
+        {
+            // 无弹：右键被消费但不开火（不动子弹数、不发 Projectile）
+            _world.SetBlock(8, 70, 8, BlockIds.Stone);
+            Select(MusketItemId, 1);
+            // 背包 0 颗 bullet
+
+            int firedCount = 0;
+            MobAI.OnProjectileFired += _ => firedCount++;
+            try
+            {
+                _block.TryFireMusket();
+            }
+            finally
+            {
+                MobAI.OnProjectileFired -= _ => firedCount++;
+            }
+            Assert.That(firedCount, Is.EqualTo(0), "无弹：不开火，无 Projectile 抛出");
+            Assert.That(_ctx.Inventory.CountOf(MusketBulletItemId), Is.EqualTo(0),
+                "无弹：不消耗子弹（背包里没有也没变）");
+            Assert.That(_block.IsMusketReloading, Is.False,
+                "无弹：装填窗不锁定（拒绝后可以立刻再试——也许玩家下一瞬拿到子弹）");
+        }
+
+        [Test]
+        public void UseAt_Musket_WithBullets_FiresImmediately_NoChargingState()
+        {
+            // 弓流程不回归 + 火枪不走蓄力：手持火枪右键一次直接开火，不进入 IsBowCharging
+            _world.SetBlock(8, 70, 8, BlockIds.Stone);
+            Select(MusketItemId, 1);
+            _ctx.Inventory.SetSlot(3, new ItemStack(MusketBulletItemId, 3));
+
+            int firedCount = 0;
+            MobAI.OnProjectileFired += _ => firedCount++;
+            try
+            {
+                _block.UseAt(CastDownAtColumn());
+            }
+            finally
+            {
+                MobAI.OnProjectileFired -= _ => firedCount++;
+            }
+
+            Assert.That(firedCount, Is.EqualTo(1),
+                "UseAt 走火枪分支：直接开火，无蓄力");
+            Assert.That(_block.IsBowCharging, Is.False,
+                "火枪路径不影响弓的蓄力状态——两条武器分支相互独立");
+            Assert.That(_block.IsMusketReloading, Is.True,
+                "UseAt 走完后进入装填中（与 TryFireMusket 直接调一致）");
+            Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Air),
+                "右键被开火消费，不放方块（即便准星后面有方块）");
+        }
     }
 }
 #endif

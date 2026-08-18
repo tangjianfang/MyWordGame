@@ -187,6 +187,17 @@ namespace MyWorld.Core.Items
                 };
             }
 
+            // m13 W3：远程武器射程（米）。缺失默认 0（=近战/不可作为远程武器），负数立刻抛
+            //（与 toolTier / maxDurability 同态度：写错立刻报而不是静默当 0）。
+            // 取值上限不强制——但超长射程会破坏弹道手感与性能，写太大由玩家自己负责（与挖矿门槛
+            // 不同：挖矿门槛是「不对就挖不掉」的硬卡，射程是「太远看不清」的手感问题）。
+            var range = (int?)root["range"] ?? 0;
+            if (range < 0)
+            {
+                throw new InvalidDataException(
+                    $"物品 {id} 的 range 为 {range}，必须 ≥ 0（0 = 不可作为远程武器；弓 60 / 火枪 25 是合理量级）。");
+            }
+
             var def = new ItemDefinition
             {
                 Id = id,
@@ -207,6 +218,8 @@ namespace MyWorld.Core.Items
                 // 这里不校验跨表引用（ItemDatabase 不持有 BlockRegistry）——悬空 blockId 由
                 // 真数据守卫测试（加载真实 items+blocks 两目录对账）抓，运行时放置路由 warn 后让位
                 BlockId = (string)root["blockId"],
+                // m13 W3：远程武器射程。0 / 不写 = 不可作为远程武器；弓 / 枪才有正数值。
+                Range = range,
             };
 
             return (def, numericIdToken != null);

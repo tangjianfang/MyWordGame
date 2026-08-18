@@ -160,6 +160,132 @@ namespace MyWorld.Core.Tests.Combat
             Assert.That(ProjectileEntity.ArrowItemId, Is.EqualTo(1300));
         }
 
+        // ─── m13 W3：按武器 Range 消亡 + 直射无重力 ─────────────────────────
+
+        [Test]
+        public void Tick_飞行距离小于Range_弹体存活_继续飞行()
+        {
+            // 水平匀速 10 格/s，Range=25：累计位移 < 25 时不应消亡
+            var arrow = new ProjectileEntity(
+                new Float3(0f, 64f, 0f), new Float3(10f, 0f, 0f), ownerEntityId: 7)
+            {
+                Range = 25f,
+            };
+
+            // 走 20 步 0.05s = 1s，水平位移 = 10 × 1 = 10m，远小于 25m
+            for (int i = 0; i < 20; i++)
+            {
+                arrow.Tick(world: null, playerPos: FarAwayPlayer, dt: 0.05f);
+            }
+
+            Assert.That(arrow.State, Is.EqualTo(ProjectileState.Flying),
+                "飞行 10m < Range(25)，弹体应仍 Flying");
+            Assert.That(arrow.ReachedRange(), Is.False,
+                "ReachedRange 应为 false——距离未达射程");
+        }
+
+        [Test]
+        public void Tick_飞行距离达到Range_弹体消亡_状态Dead()
+        {
+            // 水平匀速 10 格/s，Range=5：累计位移 ≥ 5 时强制 Dead
+            var arrow = new ProjectileEntity(
+                new Float3(0f, 64f, 0f), new Float3(10f, 0f, 0f), ownerEntityId: 7)
+            {
+                Range = 5f,
+            };
+
+            bool died = false;
+            // 走 60 步 0.05s = 3s，水平位移 = 30m，远超 5m
+            for (int i = 0; i < 60 && !died; i++)
+            {
+                arrow.Tick(world: null, playerPos: FarAwayPlayer, dt: 0.05f);
+                if (arrow.State == ProjectileState.Dead) died = true;
+            }
+
+            Assert.That(died, Is.True, "累计位移 ≥ Range(5)，弹体应转 Dead");
+            Assert.That(arrow.ReachedRange(), Is.True,
+                "ReachedRange 应为 true——距离达射程");
+            Assert.That(arrow.ToPickup().HasValue, Is.False,
+                "按 Range 消亡的弹体不可拾取（不像 Stuck 命中方块那样转掉落）");
+        }
+
+        [Test]
+        public void Tick_Range为0_永不按距离消亡_保留m11骷髅箭行为()
+        {
+            // Range=0（默认 = 既有 m11 骷髅箭行为）：无距离上限，只看 MaxLifetime
+            var arrow = new ProjectileEntity(
+                new Float3(0f, 64f, 0f), new Float3(1f, 0f, 0f), ownerEntityId: 7)
+            {
+                Range = 0f,
+            };
+
+            // 走 100 步 0.05s = 5s，水平位移 5m——若 Range>0 早消亡了，但 Range=0 必须存活
+            for (int i = 0; i < 100; i++)
+            {
+                arrow.Tick(world: null, playerPos: FarAwayPlayer, dt: 0.05f);
+            }
+            Assert.That(arrow.State, Is.EqualTo(ProjectileState.Flying),
+                "Range=0 不按距离消亡（m11 骷髅箭既有行为保留）");
+            Assert.That(arrow.ReachedRange(), Is.False, "Range≤0 时 ReachedRange 恒 false");
+        }
+
+        [Test]
+        public void Tick_IsStraightLine_直射无重力_Y速度不衰减()
+        {
+            // 直射路径（IsStraightLine=true）：初速水平 10，竖直 10
+            // 无重力下 Y 应恒定（每步 v_y*dt 累计），不会下坠
+            var bullet = new ProjectileEntity(
+                new Float3(0f, 64f, 0f), new Float3(10f, 10f, 0f), ownerEntityId: 0)
+            {
+                IsStraightLine = true,
+                Range = 50f, // 不要按距离消亡，影响断言
+            };
+
+            const float dt = 0.05f;
+            const int steps = 10;
+            for (int i = 0; i < steps; i++)
+            {
+                bullet.Tick(world: null, playerPos: FarAwayPlayer, dt: dt);
+            }
+
+            // X 水平匀速：10 × 0.05 × 10 = 5
+            Assert.That(bullet.Position.X, Is.EqualTo(5f).Within(1e-4f),
+                "直射：水平 X 仍匀速");
+            // Y 直线（无重力）：初速 10 × 0.05 × 10 = 5
+            Assert.That(bullet.Position.Y, Is.EqualTo(64f + 5f).Within(1e-4f),
+                "直射：Y 速度不衰减，无重力下坠——纯直线前进");
+            Assert.That(bullet.Velocity.Y, Is.EqualTo(10f).Within(1e-4f),
+                "直射：Velocity.Y 保持初值不衰减");
+        }
+
+        [Test]
+        public void Tick_非IsStraightLine_保留重力抛物线()
+        {
+            // 弓既有行为：IsStraightLine=false（默认），Y 按重力下坠
+            var arrow = new ProjectileEntity(
+                new Float3(0f, 64f, 0f), new Float3(10f, 10f, 0f), ownerEntityId: 0)
+            {
+                Range = 50f,
+                // IsStraightLine 留默认 false
+            };
+
+            const float dt = 0.05f;
+            const int steps = 10;
+            for (int i = 0; i < steps; i++)
+            {
+                arrow.Tick(world: null, playerPos: FarAwayPlayer, dt: dt);
+            }
+
+            // Y 抛物线下坠：半隐式欧拉 y_n = v_y*dt*n - g*dt²*n(n+1)/2
+            //                = 10*0.05*10 - 12*0.0025*55 = 5 - 1.65 = 3.35
+            float expectedY = 64f + 10f * 0.05f * steps - 12f * 0.0025f * steps * (steps + 1) / 2f;
+            Assert.That(arrow.Position.Y, Is.EqualTo(expectedY).Within(1e-3f),
+                "非直射（弓）：Y 按半隐式欧拉累计重力下坠");
+            // Y 速度应小于初速（重力作用）
+            Assert.That(arrow.Velocity.Y, Is.LessThan(10f),
+                "非直射：Velocity.Y 应小于初值 10（被重力拉小）");
+        }
+
         private static float Length(Float3 v)
         {
             return (float)System.Math.Sqrt(v.X * v.X + v.Y * v.Y + v.Z * v.Z);
