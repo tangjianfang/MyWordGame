@@ -288,6 +288,53 @@ Newtonsoft Json 包是必需的，缺了 Core 编译失败。
   `PlayerController.Awake` / 步骤 9 `BlockInteraction.Bind` 的一次性 `_audio` 缓存点，
   挪后则 footstep/place/break 三音全哑
 
+**飞行与远程战斗约定（milestone-13 起 · 2026-08-19）**：
+
+- **飞行系统**（W1）：Core 真源 `Core/Player/FlightState.cs` 纯数学状态机（双链可测），
+  Unity 侧 `PlayerController` 注入飞行分支。**双击空格（<0.3s 窗口）+ F 键**等效切换；
+  飞行中**空格升 / Shift 降 / WASD 平移**（8m/s ≈ 走速 1.9 倍），无重力、掉血豁免；
+  **触地/再切换**退出；HUD IMGUI 一行；**存档不记飞行态**（重进世界默认步行）。
+  飞行态下 `PlayerController.TakeDamage` 守卫短路——CLAUDE.md "玩家受伤唯一入口" 契约，
+  不直改 `Health.Damage`。**`MobAI.TakeHit` 同款唯一入口契约**——别直扣 mob 血量
+  绕过 `TransitionToDying`。
+- **怪物血条**（W2）：`MobView` 头顶 2D 条 IMGUI 绘制，红底绿前景（宽随体型 0.6-1.2m），
+  受击显示 **3s 淡出**；**Boss（机元守卫 MobKind=27）常显大号**。普通 mob `_healthBar`
+  是构造期快照 `MobHealthBarTimer`，与 `MobHitFeedback` 闪红不重复（两条渲染通道）。
+- **难度系统**（W2）：仿 `PeaceMode` 静态开关模式新增 `Core/Entities/DifficultyMode.cs`
+  （Core 真源，**不放 PlayerPrefs**——Core 禁引 UnityEngine）+ `Unity/Gameplay/DifficultyModeBridge.cs`
+  （Unity 侧 PlayerPrefs 镜像，键名 `BabyMode`）；设置面板「宝宝（怪 1 血）/ 普通（现值）」
+  toggle 行紧贴和平模式 toggle 之后（`SettingsPanelUi.PanelHeight` 370→440）。
+  **宝宝模式 = `MobAI.TakeHit` 入口处 `damage = mob.Health.Max`**（不改 Boss 单独规则；
+  切难度即时生效；不改存档）。**注意：Core 静态 bool 跨测试夹具污染**——所有调用
+  `MobAI.TakeHit` 的测试 TearDown 加 `DifficultyMode.ResetCache()`（m13 W2 引入的纪律）。
+- **远程武器参数化 + 火枪**（W3）：items JSON 新增 `range` 字段（米，`ItemDefinition.Range`
+  int；缺失默认 0=近战；负数抛 `InvalidDataException`）。弓 60（保留重力抛物线）/
+  火枪 25（**直射无重力**，新增 `IsStraightLine` 标记）；`ProjectileEntity` 飞行 ≥ Range 强制
+  `Dead`。**musket 火枪**（numericId=1607，attackDamage=6，range=25）+ **bullet 子弹**
+  （numericId=1608，maxStack=64）；配方 musket=铁锭2+木板2+火药1 / bullet=铁锭1→4（3×3 workbench）。
+  `BlockInteraction.UseAt` 弓分支后插火枪分支：**直射无蓄力** + **装填 1.5s**
+  （`MusketReloadUntil=Time.time+1.5`）+ 弹药扣减（无弹不开火+播咔哒）。
+  音效走 `PlayerAudioSystem.PlayFire()` / `PlayClick()`：Resources 优先真资源，
+  无 .ogg 时**程序生成**120ms 低通（火枪）/ 30ms 高通（咔哒）兜底。
+  弓 JSON 已补 `range: 60`。镐 tier 链：木1/石2/铁3/金4/合金4/机元5——火枪 tier=2 需石镐以上。
+- **武器面板 + 模态 UI 点外关闭**（W4）：R 键 `Unity/UI/WeaponPanelUi.cs` 列表背包全部
+  武器（近战/弓/枪+各自弹药数）+ 点击换到 hotbar 选中槽。模态 UI 5 处（背包/工作台/
+  箱子/穿戴栏/武器面板）**点 UI 外 = 关闭**，与 Esc/E/关闭按钮并存；方案选 A（每 UI 自管
+  mouseDown 位置 + `!IsInsideRect(mousePos, uiRect)` → 关闭），不引 `ModalUiManager`。
+  **SHIFT+click 必须先于点外关闭判断**——保留 m13 P0 commit 70f35da 的合成网格 SHIFT+click
+  主背包入料路径（CraftingInventoryUi / CraftingWorkbenchUi）。
+- **m13 收口铁律**：6 个 commit（`70f35da` P0 / `743601e` + `9a811c3` video / `7b1f1f6`
+  W1 / `e46e14b` W2 / `f2b0ede` W3 / 后续 W4）落地后 **dotnet 974 全绿守住**，但
+  **双链绿≠实机可见**——必跑 `./tools/scripts/build-and-run.sh` 重新出包
+  `Builds/Windows/MyWordGame.exe` 验证，交付时在验收剧本头部标注包构建时间。
+  教训实证：av 赛道 08-18 凌晨提交的 BGM/环境音/标题画面视频在 08-14 旧 exe 里全部
+  "不存在"——孩子在旧包上验收，以为没集成。
+- **并行子代理纪律**（m11 + m13 实战沉淀）：多子代理**共享 working tree 并发**有文件
+  瞬断风险（m13 W2/W3 并行实证——W2 改了 W3 范围测试的 TearDown，W3 改了 W2 范围测试
+  的逻辑）；commit 整理子代理要**明文指定文件归属每个 commit**，避免"按主域"自由发挥
+  带来歧义。`#if UNITY_EDITOR` 测试盲区：dotnet 绿 ≠ Unity 编译过，波次收口必跑
+  EditMode 批处理。
+
 **矿物与装备约定（milestone-10 起）**：
 
 - 挖矿门槛是数据不是代码：`blocks/*.json` 的 `minToolTier`（0 手/1 木/2 石/3 铁/4 钻），

@@ -23,6 +23,25 @@ namespace MyWorld.Unity.UI
         /// <summary>B6：最近一次 CraftForTest 得到的输出；null 表示未匹配、未绑定或配方表为空。</summary>
         public ItemStack? LastOutput { get; private set; }
 
+        /// <summary>
+        /// m13 W4 模态 UI 点外关闭（孩子原话第 9 行）——本面板背景矩形。
+        /// OnGUI 重算、EditMode 测试断言用。E/P/Esc 关闭路径与本属性无关。
+        /// </summary>
+        public Rect BackgroundBounds { get; private set; }
+
+        /// <summary>
+        /// raw 版"点外关闭"谓词（EditMode 测试直调入口）——与 <see cref="WeaponPanelUi"/>
+        /// 同款语义：左键 MouseDown button=0、鼠标位置不在本面板矩形内、且**不带 SHIFT**
+        /// （m13 P0 修复：SHIFT+click 主背包格 → 入合成网格，SHIFT 必须优先于点外关闭）。
+        /// </summary>
+        public bool ShouldCloseOnMouseDown(EventType type, int button, bool shift, Vector2 mousePosition)
+        {
+            if (type != EventType.MouseDown || button != 0) return false;
+            if (shift) return false; // SHIFT 优先：合成面板的入料路径不能误关
+            if (!_open) return false;
+            return !BackgroundBounds.Contains(mousePosition);
+        }
+
         private void Awake()
         {
             _craft = new ItemStack[CraftWidth * CraftHeight];
@@ -180,6 +199,21 @@ namespace MyWorld.Unity.UI
             // 背景框必须 ≥380 才能把全部格子框住（此前底部两行画在框外）
             const float bgH = 380;
             var bg = new Rect(20, 20, bgW, bgH);
+            BackgroundBounds = bg; // m13 W4：点外关闭断言用
+
+            // m13 W4 模态 UI 点外关闭（孩子原话第 9 行）。SHIFT 优先——SHIFT+click
+            // 主背包格走 PutMainSlotOne 入合成网格（m13 P0 修复），不能被本分支误关。
+            // 必须在画任何格子之前判，避免格子命中吞掉 MouseDown 后再点外就来不及了。
+            if (Event.current != null
+                && ShouldCloseOnMouseDown(
+                    Event.current.type, Event.current.button,
+                    Event.current.shift, Event.current.mousePosition))
+            {
+                SetOpen(false);
+                Event.current.Use();
+                return;
+            }
+
             GUI.Box(bg, GUIContent.none);
             GUI.Label(new Rect(30, 24, 200, 18), "背包 (E 关闭)", ItemSlotDrawer.WhiteStyle());
 

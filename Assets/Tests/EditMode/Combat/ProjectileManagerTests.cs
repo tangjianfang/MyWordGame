@@ -95,9 +95,8 @@ namespace MyWorld.Core.Tests.Combat
                 // SpawnMobAt 刷的 mob 视图不挂宿主层级，销毁宿主带不走（FarmingHostTests 同款）
                 if (go.name.StartsWith("Mob_")) Object.DestroyImmediate(go);
             }
-            DifficultyMode.ResetCache(); // m13 W2：宝宝模式静态 bool 跨测试隔离（清回默认 false）
-        }离（清回默认 false）
-}
+            // m13 W2: 宝宝模式静态 bool 跨测试隔离（清回默认 false）
+            DifficultyMode.ResetCache();
         }
 
         [Test]

@@ -52,6 +52,28 @@ namespace MyWorld.Unity.UI
         /// <summary>当前生效的玩家上下文：Bind 注入优先，否则全局单例。</summary>
         private PlayerContext Ctx => _bound != null ? _bound : PlayerContext.Instance;
 
+        /// <summary>
+        /// m13 W4 模态 UI 点外关闭（孩子原话第 9 行）——本面板背景矩形。
+        /// OnGUI 重算、EditMode 测试断言用。穿戴栏跟随背包开合——点外关闭**仅**
+        /// 在自管模式生效（背包未绑定时）；跟随模式由背包的点击外判定接管。
+        /// </summary>
+        public Rect BackgroundBounds { get; private set; }
+
+        /// <summary>
+        /// raw 版"点外关闭"谓词（EditMode 测试直调入口）——与 <see cref="WeaponPanelUi"/>
+        /// 同款语义：左键 MouseDown button=0、鼠标位置不在本面板矩形内。穿戴栏没有
+        /// SHIFT 修饰路径（m11 W2-1 至今未引入），所以不挡 SHIFT。
+        /// </summary>
+        public bool ShouldCloseOnMouseDown(EventType type, int button, bool shift, Vector2 mousePosition)
+        {
+            if (type != EventType.MouseDown || button != 0) return false;
+            if (shift) return false; // 预留：未来若引入 SHIFT 修饰（如批量卸甲），不能误关
+            if (!IsVisible) return false;
+            // 跟随背包时不独立关闭——背包面板自己点外关闭会顺带关穿戴栏
+            if (Backpack != null) return false;
+            return !BackgroundBounds.Contains(mousePosition);
+        }
+
         /// <summary>B6 同款：显式绑定上下文（测试 / 截图管线用）。null = 解绑回退单例。</summary>
         public void Bind(PlayerContext ctx)
         {
@@ -147,7 +169,22 @@ namespace MyWorld.Unity.UI
             var ctx = Ctx;
             if (ctx == null || ctx.Inventory == null || ctx.ArmorSlots == null) return;
 
-            GUI.Box(new Rect(PanelX, PanelY, PanelWidth, PanelHeight), GUIContent.none);
+            var bg = new Rect(PanelX, PanelY, PanelWidth, PanelHeight);
+            BackgroundBounds = bg; // m13 W4：点外关闭断言用
+
+            // m13 W4 模态 UI 点外关闭（孩子原话第 9 行）。跟随背包（Backpack != null）
+            // 时由 ShouldCloseOnMouseDown 拦截——背包点外关闭会顺带关穿戴栏，行为不重复。
+            if (Event.current != null
+                && ShouldCloseOnMouseDown(
+                    Event.current.type, Event.current.button,
+                    Event.current.shift, Event.current.mousePosition))
+            {
+                SetOpen(false);
+                Event.current.Use();
+                return;
+            }
+
+            GUI.Box(bg, GUIContent.none);
             GUI.Label(new Rect(PanelX + 8, PanelY + 4, 140, 18), "穿戴 (E 关闭)",
                 ItemSlotDrawer.WhiteStyle());
 

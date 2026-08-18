@@ -54,6 +54,26 @@ namespace MyWorld.Unity.UI
         public ItemStack Held => _held;
 
         /// <summary>
+        /// m13 W4 模态 UI 点外关闭（孩子原话第 9 行）——本面板背景矩形。
+        /// OnGUI 重算、EditMode 测试断言用。箱子面板的关闭按钮路径独立（背景右上角
+        /// "关闭"按钮），与点外关闭并存。
+        /// </summary>
+        public Rect BackgroundBounds { get; private set; }
+
+        /// <summary>
+        /// raw 版"点外关闭"谓词（EditMode 测试直调入口）——与 <see cref="WeaponPanelUi"/>
+        /// 同款语义：左键 MouseDown button=0、鼠标位置不在本面板矩形内、且**不带 SHIFT**
+        /// （箱子面板 SHIFT 是「整叠转移」语义——SHIFT+click 背包格 = 整叠进箱子，不能误关）。
+        /// </summary>
+        public bool ShouldCloseOnMouseDown(EventType type, int button, bool shift, Vector2 mousePosition)
+        {
+            if (type != EventType.MouseDown || button != 0) return false;
+            if (shift) return false; // SHIFT 优先：箱子的整叠转移路径不能误关
+            if (!_open) return false;
+            return !BackgroundBounds.Contains(mousePosition);
+        }
+
+        /// <summary>
         /// 打开指定坐标的箱子（BlockInteraction 箱子分支入口）。组件懒挂：宿主上已有就复用，
         /// 没有就 AddComponent——WorldBootstrap 禁改，不新增装配步骤。ChestSystem 未就绪
         /// （数据表缺失降级）时返回 null，调用方保持右键 no-op 不放方块。
@@ -163,6 +183,21 @@ namespace MyWorld.Unity.UI
             float h = 24f + 3 * (SlotSize + SlotSpacing) + 16f + 3 * (SlotSize + SlotSpacing) + 12f
                       + (SlotSize + SlotSpacing) + 20f;
             var bg = new Rect((Screen.width - w) / 2f, (Screen.height - h) / 2f, w, h);
+            BackgroundBounds = bg; // m13 W4：点外关闭断言用
+
+            // m13 W4 模态 UI 点外关闭（孩子原话第 9 行）。SHIFT 优先——箱子面板
+            // SHIFT+click = 整叠转移（箱子↔背包），不能被本分支误关。关闭按钮（右上角）
+            // 是独立路径，命中按钮时 Event.current 还在按钮上 → 落在 bg 内 → 不触发本分支。
+            if (Event.current != null
+                && ShouldCloseOnMouseDown(
+                    Event.current.type, Event.current.button,
+                    Event.current.shift, Event.current.mousePosition))
+            {
+                Close();
+                Event.current.Use();
+                return;
+            }
+
             GUI.Box(bg, GUIContent.none);
             GUI.Label(new Rect(bg.x + 20, bg.y + 6, 200, 18), "箱子", ItemSlotDrawer.WhiteStyle());
 

@@ -111,6 +111,14 @@ namespace MyWorld.Core.Tests.Player
             var player = _host.AddComponent<PlayerController>();
             player.Bind(_world, _registry, new Float3(50f, 80f, 50f));
 
+            // m13 W3 火枪：PlayerController.Awake 自动找名为「相机」的子物体作为 eye Transform。
+            // 没有它 BlockInteraction.TryFireMusket 会因 _player.Eye == null 静默拒绝，
+            // 装填窗不开、子弹不扣、Projectile 不抛出——火枪 4 个 EditMode 测试一起炸。
+            // （ReleaseBowCharge_FiresPlayerArrow_ConsumesOneArrow 已在测试体内补同名物体。）
+            var eyeGo = new GameObject("相机");
+            eyeGo.transform.SetParent(_host.transform);
+            InvokeAwake(player);
+
             _block = _host.AddComponent<BlockInteraction>();
             _block.Bind(_world, _registry, null, _host.transform); // views=null：MarkBlockChanged 容错
             _farm = new FarmSystem(_ctx.Items, seed: 123);
