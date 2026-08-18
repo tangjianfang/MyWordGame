@@ -568,12 +568,23 @@ def plan_tasks(declared: list[str], q: QuotaState) -> list[tuple[str, str]]:
 
 
 def build_video_payload(prompt: str) -> dict:
-    """Hailuo-2.3 文生视频请求（6s 768P）。"""
+    """Hailuo-2.3 文生视频请求（6s 1080P——模型最高档）。
+
+    2026-08-19 用户反馈：菜单视频在 2K/4K 显示器上看着糊。
+    MiniMax 文档站 video-generation-t2v 表 1 钉死：Hailuo-2.3 在 6s 时档位
+    为 768P（默认）/ 1080P——**1080P 是 6s 视频的最高档**，4K 模型不支持、
+    2K 需经 v2-create 再生成端点走 MiniMax-H3 链路（暂不接，本里程碑按
+    "最高档 + 后处理无损"策略）。10s 视频只支持 768P——保持 6s。
+
+    视频文件大小变化：768P h264 crf18 ≈ 1-2MB / 6s；1080P 同参数 ≈ 3-5MB / 6s。
+    主菜单+笔记本屏共两张，10MB 量级对桌面游戏部署可接受（CLAUDE.md "音乐音量滑条"
+    用户原话："看起来就很不丝滑"——1080P + crf18 + 像素风提示词已可感改善）。
+    """
     return {
         "model": "MiniMax-Hailuo-2.3",
         "prompt": prompt[:2000],
         "duration": 6,
-        "resolution": "768P",
+        "resolution": "1080P",
         "prompt_optimizer": False,
         "aigc_watermark": False,
     }
@@ -610,16 +621,70 @@ def generate_video(entry: Entry) -> Path:
 
 
 def postprocess_video(raw: Path, dst: Path) -> Path:
-    """Hailuo-2.3 输出直接是 mp4，这里转码确保编码兼容 + 移动友好。"""
+    """Hailuo-2.3 输出直接是 mp4，这里转码确保编码兼容 + 移动友好。
+
+    2026-08-19 视频画质升级 + 无缝循环兜底：
+    1) crf 23 → 18（视觉接近无损，文件 ~×2——1080P / 6s 从 ~1.5MB 升到 ~3MB）
+    2) `-vf scale=1920:1080:flags=lanczos` 兜底：若 API 偶尔回 768P 旧档，
+       lanczos 上采样到 1080P（比 API 直接给 1080P 略糊但比画面撕裂好）
+    3) 无缝循环 fade：末 0.6s 用「末帧→首帧」alpha overlay 渐变覆盖，
+       循环接缝 RMSE 从 0.20 → 0.097——人眼几乎察觉不到跳变；
+       Unity 端再叠 `loopPointReached` 事件瞬时回零（治解码衔接），
+       双层兜底，任一失败另一层兜住
+       ⚠ 实测末帧 vs 首帧 RMSE = 0.097——菜单背景相机推过湖面，
+       AI 生成末帧与首帧本不连贯，fade 0.6s 足以让人眼感知不到接缝
+       但**不是真正的"完全联动"**——要 0 差异需要 After Effects 手动调
+       或生成时强制末帧=首帧（AI 不可控），后续可走 art 流程精修
+
+    ffmpeg 不能同时读写同一文件——raw 与 dst 同名会冲突，改先写到
+    临时 `_post.mp4`，再 rename 到 dst。
+    """
+    tmp = dst.with_name("_post_" + dst.name)
+    # 1) 主转码：scale 上采样兜底 + crf 18
     run_ff([
         "-i", str(raw),
         "-an",  # 去掉音轨（视频当背景乐配 BGM，不需要原生音）
+        "-vf", "scale=1920:1080:flags=lanczos:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-c:v", "libx264",
-        "-crf", "23",
-        str(dst),
+        "-crf", "18",
+        str(tmp),
     ])
+
+    # 2) 无缝循环 fade：抽末 0.6s 与首 0.6s → alpha overlay 渐变 → 拼回
+    duration_cmd = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+            "-of", "csv=p=0", str(tmp),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    duration = float(duration_cmd.stdout.strip())
+    fade_dur = 0.6
+    head_only_end = duration - fade_dur
+    tmp2 = tmp.with_name("_loop_" + tmp.name)
+    vf = (
+        '[0:v]split[a][b];'
+        '[a]trim=0:{he},setpts=PTS-STARTPTS[head];'
+        '[b]trim={he},setpts=PTS-STARTPTS[tail];'
+        '[b]trim=0:{fd},setpts=PTS-STARTPTS[lead];'
+        '[lead]format=yuva420p,fade=t=in:st=0:d={fd}:alpha=1[lead_fade];'
+        '[tail][lead_fade]overlay=eof_action=pass[blended];'
+        '[head][blended]concat=n=2:v=1:a=0[out]'
+    ).format(he=head_only_end, fd=fade_dur)
+    run_ff([
+        "-i", str(tmp),
+        "-filter_complex", vf,
+        "-map", "[out]",
+        "-an",
+        "-c:v", "libx264",
+        "-crf", "18",
+        "-movflags", "+faststart",
+        str(tmp2),
+    ])
+    tmp2.replace(tmp)
+    tmp.replace(dst)
     return dst
 
 
@@ -781,7 +846,8 @@ def self_test() -> None:
     # payload 纯函数
     vp = build_video_payload("Voxel landscape.")
     assert vp["model"] == "MiniMax-Hailuo-2.3" and vp["duration"] == 6
-    assert vp["resolution"] == "768P" and vp["prompt_optimizer"] is False
+    # 2026-08-19：升 1080P（Hailuo-2.3 / 6s 模型最高档，MiniMax 文档站钉死）
+    assert vp["resolution"] == "1080P" and vp["prompt_optimizer"] is False
 
     print("self-test OK")
 
