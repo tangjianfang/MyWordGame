@@ -305,6 +305,19 @@ namespace MyWorld.Unity.Player
                 return; // 食物优先，不再放方块
             }
 
+            // m12 W3：手持药水 → 右键整次被「喝」消费（即时治疗或 30s buff）。
+            // 不要求命中方块（朝天也能喝，照 m7 A3 吃不要求命中的思路）。
+            if (TryDrinkSelectedPotion())
+            {
+                return;
+            }
+
+            // m12 W3：手持乐器（鼓/笛/铃）→ 右键整次被「演奏」消费（程序生成音调）。
+            if (TryPlayHeldInstrument())
+            {
+                return;
+            }
+
             // m11 W2-2：手持附魔书 → 右键整次被融合消费（书消失、背包第一件可附魔装备带魔）。
             // 照食物/弓同思路不要求命中方块：朝天也能把书拍到装备上。
             if (TryFuseEnchantedBook())
@@ -345,6 +358,12 @@ namespace MyWorld.Unity.Player
                 ChestUi.OpenAt(gameObject, PlayerContext.Instance, hit.X, hit.Y, hit.Z);
                 return;
             }
+            if (target == MusicBoxBlockId)
+            {
+                // m12 W3：右键音乐盒播放 8 音符小星星（程序生成音调，无 .ogg 依赖）。
+                MyWorld.Unity.Audio.PlayerAudioSystem.Instance?.PlayTwinkleTune();
+                return;
+            }
             if (target == BlockIds.WoodenDoor || target == IronDoorBlockId)
             {
                 return; // 门：切换由 RedstoneSystem 自己的右键通道做，这里只挡放置（双动）
@@ -370,6 +389,74 @@ namespace MyWorld.Unity.Player
         }
 
         // ─── m12 P0-a/P0-b：挖掘蓄力 + 放置预览 ───────────────────────────────────
+
+        /// <summary>音乐盒方块 numericId——与 blocks/music_box.json 的 numericId 手动保持一致
+        ///（照 planks=1000 / crafting_table=1004 的旧惯例，仅路由比对用）。</summary>
+        private const ushort MusicBoxBlockId = 1064;
+
+        /// <summary>
+        /// m12 W3：手持药水右键喝下——治疗是即时效果（<see cref="Health.Heal"/> 回 4 血），
+        /// 其余起 30s buff（<see cref="MyWorld.Core.Buffs.PotionSystem"/>）。扣 1 瓶，
+        /// <b>不返还空瓶</b>（取舍：MC 的空瓶回收等背包格子语义，v1 从简）。
+        /// </summary>
+        private bool TryDrinkSelectedPotion()
+        {
+            var ctx = PlayerContext.Instance;
+            var def = ctx == null ? null : ctx.GetSelectedDefinition();
+            if (def == null || !def.Id.StartsWith("potion_", System.StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            switch (def.Id)
+            {
+                case "potion_healing":
+                    ctx.Health.Heal(4f); // 即时效果不进 buff 池
+                    break;
+                case "potion_swiftness":
+                    ctx.Potions.Drink(MyWorld.Core.Buffs.BuffKind.Swiftness, Time.time);
+                    break;
+                case "potion_strength":
+                    ctx.Potions.Drink(MyWorld.Core.Buffs.BuffKind.Strength, Time.time);
+                    break;
+                case "potion_leaping":
+                    ctx.Potions.Drink(MyWorld.Core.Buffs.BuffKind.Leaping, Time.time);
+                    break;
+                case "potion_night_vision":
+                    ctx.Potions.Drink(MyWorld.Core.Buffs.BuffKind.NightVision, Time.time);
+                    break;
+                case "potion_water_breathing":
+                    ctx.Potions.Drink(MyWorld.Core.Buffs.BuffKind.WaterBreathing, Time.time);
+                    break;
+                default:
+                    return false; // 未知药水 id 不消费右键（数据表加新药水时这里显式补分支）
+            }
+
+            _audio?.PlayEat(); // 喝药暂复用吃喝音（程序生成兜底同款）
+            ctx.Inventory.TryRemoveOne(ctx.Inventory.SelectedHotbarIndex);
+            return true;
+        }
+
+        /// <summary>m12 W3：手持乐器右键演奏——鼓（低频闷响）/ 笛（中音）/ 铃（高音长衰减），
+        /// 全部程序生成（PlayTone），无 .ogg 依赖。</summary>
+        private bool TryPlayHeldInstrument()
+        {
+            var ctx = PlayerContext.Instance;
+            var def = ctx == null ? null : ctx.GetSelectedDefinition();
+            if (def == null)
+            {
+                return false;
+            }
+
+            var audio = MyWorld.Unity.Audio.PlayerAudioSystem.Instance;
+            switch (def.Id)
+            {
+                case "drum": audio?.PlayTone(140f, 0.18f, 0.9f); return true;
+                case "flute": audio?.PlayTone(660f, 0.35f, 0.5f); return true;
+                case "bell": audio?.PlayTone(880f, 0.6f, 0.6f); return true;
+                default: return false;
+            }
+        }
 
         /// <summary>
         /// m12 P0-a：蓄力一帧（<c>Update</c> 与 EditMode 测试共用——EditMode 驱动不了

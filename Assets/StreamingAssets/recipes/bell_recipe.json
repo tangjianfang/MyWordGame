@@ -1,0 +1,3 @@
+{ "id": "bell_recipe", "tier": "inventory", "width": 2, "height": 2,
+  "pattern": ["iron_ingot", "iron_ingot", "iron_ingot", "_"], "shaped": false,
+  "output": { "item": "bell", "count": 1 } }

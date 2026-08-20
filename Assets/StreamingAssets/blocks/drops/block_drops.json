@@ -3,35 +3,55 @@
     "blockId": "stone",
     "blockNumericId": 1,
     "drops": [
-      { "itemId": "cobblestone", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "cobblestone",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "dirt",
     "blockNumericId": 2,
     "drops": [
-      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "dirt",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "grass",
     "blockNumericId": 3,
     "drops": [
-      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "dirt",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "sand",
     "blockNumericId": 4,
     "drops": [
-      { "itemId": "sand", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "sand",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "snow",
     "blockNumericId": 1008,
     "drops": [
-      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "dirt",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
@@ -43,169 +63,282 @@
     "blockId": "log",
     "blockNumericId": 1001,
     "drops": [
-      { "itemId": "log", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "log",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "leaves",
     "blockNumericId": 1002,
     "drops": [
-      { "itemId": "stick", "countMin": 0, "countMax": 2 }
+      {
+        "itemId": "stick",
+        "countMin": 0,
+        "countMax": 2
+      }
     ]
   },
   {
     "blockId": "gold_ore",
     "blockNumericId": 1009,
     "drops": [
-      { "itemId": "raw_gold", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "raw_gold",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "raw_iron_ore",
     "blockNumericId": 1010,
     "drops": [
-      { "itemId": "raw_iron", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "raw_iron",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "summer_alloy_ore",
     "blockNumericId": 1011,
     "drops": [
-      { "itemId": "summer_alloy", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "summer_alloy",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "machine_essence_ore",
     "blockNumericId": 1012,
     "drops": [
-      { "itemId": "machine_essence", "countMin": 1, "countMax": 1 },
-      { "itemId": "machine_essence_ore", "countMin": 1, "countMax": 1, "chance": 0.15 }
+      {
+        "itemId": "machine_essence",
+        "countMin": 1,
+        "countMax": 1
+      },
+      {
+        "itemId": "machine_essence_ore",
+        "countMin": 1,
+        "countMax": 1,
+        "chance": 0.15
+      }
     ]
   },
   {
     "blockId": "chair_block",
     "blockNumericId": 1013,
     "drops": [
-      { "itemId": "chair", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "chair",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "globe_block",
     "blockNumericId": 1014,
     "drops": [
-      { "itemId": "globe", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "globe",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "hacker_pc_block",
     "blockNumericId": 1015,
     "drops": [
-      { "itemId": "hacker_pc", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "hacker_pc",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "keyboard_block",
     "blockNumericId": 1016,
     "drops": [
-      { "itemId": "keyboard", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "keyboard",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "laptop_block",
     "blockNumericId": 1017,
     "drops": [
-      { "itemId": "laptop", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "laptop",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "mouse_block",
     "blockNumericId": 1018,
     "drops": [
-      { "itemId": "mouse", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "mouse",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "notebook_block",
     "blockNumericId": 1019,
     "drops": [
-      { "itemId": "notebook", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "notebook",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "office_desk_block",
     "blockNumericId": 1020,
     "drops": [
-      { "itemId": "office_desk", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "office_desk",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "table_block",
     "blockNumericId": 1021,
     "drops": [
-      { "itemId": "table", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "table",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "bed",
     "blockNumericId": 1022,
     "drops": [
-      { "itemId": "bed", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "bed",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "chest",
     "blockNumericId": 1023,
     "drops": [
-      { "itemId": "chest", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "chest",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "glass",
     "blockNumericId": 1024,
     "drops": [
-      { "itemId": "glass", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "glass",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "torch",
     "blockNumericId": 1025,
     "drops": [
-      { "itemId": "torch", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "torch",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "wooden_door",
     "blockNumericId": 1026,
     "drops": [
-      { "itemId": "wooden_door", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "wooden_door",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "farmland",
     "blockNumericId": 1050,
     "drops": [
-      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "dirt",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "farmland_wet",
     "blockNumericId": 1051,
     "drops": [
-      { "itemId": "dirt", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "dirt",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "enchanting_table",
     "blockNumericId": 1062,
     "drops": [
-      { "itemId": "enchanting_table", "countMin": 1, "countMax": 1 }
+      {
+        "itemId": "enchanting_table",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   },
   {
     "blockId": "tall_grass",
     "blockNumericId": 1063,
     "drops": [
-      { "itemId": "seeds_wheat", "countMin": 1, "countMax": 1, "chance": 0.3 }
+      {
+        "itemId": "seeds_wheat",
+        "countMin": 1,
+        "countMax": 1,
+        "chance": 0.3
+      }
+    ]
+  },
+  {
+    "blockId": "music_box",
+    "blockNumericId": 1064,
+    "drops": [
+      {
+        "itemId": "music_box",
+        "countMin": 1,
+        "countMax": 1
+      }
     ]
   }
 ]

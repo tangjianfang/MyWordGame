@@ -162,10 +162,12 @@ namespace MyWorld.Unity.Combat
             if (Hand != null) Hand.TriggerSwing();
 
             var def = ctx.GetSelectedDefinition();
-            // m11 W2-2 C1：伤害解析带附魔维度（选中槽锋利 +1/级；无附魔零变化）
+            // m11 W2-2 C1：伤害解析带附魔维度（选中槽锋利 +1/级；无附魔零变化）。
+            // m12 W3：力量药水 +2 攻（短时 buff，读 PlayerContext.Potions）
             int damage = ResolveAttackDamage(
                 ctx.Inventory.GetSelected(), ctx.Items,
-                MyWorld.Core.Enchanting.EnchantStore.Default, ctx.Inventory.SelectedHotbarIndex);
+                MyWorld.Core.Enchanting.EnchantStore.Default, ctx.Inventory.SelectedHotbarIndex,
+                flatBonus: ctx.Potions != null ? ctx.Potions.AttackBonus(Time.time) : 0);
             bool hitMob = DoAttack(damage);
 
             // 工具耐久：选中的工具如果还没设过 max durability，先设一次（plan3c）。
@@ -289,7 +291,8 @@ namespace MyWorld.Unity.Combat
         /// </summary>
         public static int ResolveAttackDamage(
             ItemStack? selected, ItemDatabase items,
-            MyWorld.Core.Enchanting.EnchantStore enchants, int slotIndex)
+            MyWorld.Core.Enchanting.EnchantStore enchants, int slotIndex,
+            int flatBonus = 0)
         {
             int damage;
             if (selected == null || selected.Value.IsEmpty || items == null)
@@ -312,6 +315,9 @@ namespace MyWorld.Unity.Combat
                 damage += Mathf.CeilToInt(
                     MyWorld.Core.Enchanting.EnchantSystem.AttackBonus(kind, level));
             }
+
+            // m12 W3：药水等短时 flat 加成（无 buff 传 0，旧调用零变化）
+            damage += flatBonus;
             return damage;
         }
 

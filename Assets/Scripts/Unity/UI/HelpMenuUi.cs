@@ -338,10 +338,14 @@ namespace MyWorld.Unity.UI
             GUI.Box(bg, GUIContent.none);
             GUI.Label(new Rect(bg.x + 16, bg.y + 10, 400, 22), "帮助（H / Esc 关闭）", ItemSlotDrawer.WhiteStyle());
 
-            // Tab 切换
-            _tab = GUI.Toolbar(new Rect(bg.x + 16, bg.y + 38, 240, 28), _tab, new[] { "怎么玩", "设置" });
+            // Tab 切换（m12 第 1 波起四页：怎么玩 / 成就 / 图鉴 / 设置）
+            _tab = GUI.Toolbar(new Rect(bg.x + 16, bg.y + 38, 480, 28), _tab,
+                new[] { "怎么玩", "成就", "图鉴", "设置" });
 
+            var menuCtx = MyWorld.Unity.Gameplay.PlayerContext.Instance;
             if (_tab == 0) DrawHowToPlay(bg);
+            else if (_tab == 1) AchievementUi.DrawTab(bg, menuCtx != null ? menuCtx.Achievements : null);
+            else if (_tab == 2) CodexUi.DrawTab(bg, menuCtx != null ? menuCtx.Codex : null);
             else DrawSettings(bg);
         }
 

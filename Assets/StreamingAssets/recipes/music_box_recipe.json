@@ -1,0 +1,3 @@
+{ "id": "music_box_recipe", "tier": "workbench", "width": 3, "height": 3,
+  "pattern": ["plank", "plank", "_", "plank", "iron_ingot", "_", "_", "_", "_"], "shaped": false,
+  "output": { "item": "music_box", "count": 1 } }

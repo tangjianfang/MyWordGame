@@ -117,6 +117,14 @@ namespace MyWorld.Unity.Gameplay
         /// </summary>
         public void Raise(QuestEvent evt)
         {
+            // m12 第 1 波：成就 / 图鉴与任务链同源吃事件——**先于 Campaign 判空**转发，
+            // 任务书缺失时成就照常工作（两者解耦，成就不依赖章节推进）
+            if (_ctx != null)
+            {
+                _ctx.Achievements?.OnEvent(evt);
+                _ctx.Codex?.OnQuestEvent(evt);
+            }
+
             if (Campaign == null) return;
 
             // TryComplete 成功后活动章可能已前移，先经 out 参数取住「完成的任务与章节」

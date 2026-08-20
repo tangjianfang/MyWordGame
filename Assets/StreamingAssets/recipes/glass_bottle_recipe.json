@@ -1,0 +1,3 @@
+{ "id": "glass_bottle_recipe", "tier": "inventory", "width": 2, "height": 2,
+  "pattern": ["glass", "glass", "glass", "_"], "shaped": false,
+  "output": { "item": "glass_bottle", "count": 1 } }

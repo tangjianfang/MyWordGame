@@ -1,0 +1,3 @@
+{ "id": "music_box", "displayName": "音乐盒", "numericId": 1064,
+  "textures": { "all": "music-box" },
+  "solid": true, "opaque": true, "lightEmission": 0, "hardness": 1.0 }

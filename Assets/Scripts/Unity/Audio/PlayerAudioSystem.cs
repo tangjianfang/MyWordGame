@@ -214,5 +214,61 @@ namespace MyWorld.Unity.Audio
             if (clip == null || _source == null) return;
             _source.PlayOneShot(clip);
         }
+
+        // ─── m12 W3：程序生成音调（乐器 / 音乐盒） ────────────────────────────────
+
+        private static readonly System.Collections.Generic.Dictionary<int, AudioClip> ToneCache
+            = new System.Collections.Generic.Dictionary<int, AudioClip>();
+
+        /// <summary>播放一个正弦音调（鼓/笛/铃/音乐盒共用）——确定性合成，按频率+时长缓存。</summary>
+        public void PlayTone(float frequency, float duration, float volume)
+        {
+            AudioClip clip = LoadOrCreateToneClip(frequency, duration);
+            if (clip == null || _source == null) return;
+            _source.PlayOneShot(clip, Mathf.Clamp01(volume));
+        }
+
+        /// <summary>音乐盒：8 音符《小星星》前两句（0.4s 一拍顺序播）。连点重头播不叠加。</summary>
+        public void PlayTwinkleTune()
+        {
+            if (!isActiveAndEnabled) return;
+            StopAllCoroutines();
+            StartCoroutine(TwinkleRoutine());
+        }
+
+        private System.Collections.IEnumerator TwinkleRoutine()
+        {
+            // 一闪一闪亮晶晶（C C G G A A G）+ 满天都是小眼睛起句（截 8 音符）
+            float[] notes = { 261.63f, 261.63f, 392f, 392f, 440f, 440f, 392f, 392f };
+            foreach (float freq in notes)
+            {
+                PlayTone(freq, 0.35f, 0.55f);
+                yield return new WaitForSeconds(0.4f);
+            }
+        }
+
+        private static AudioClip LoadOrCreateToneClip(float frequency, float duration)
+        {
+            int key = Mathf.RoundToInt(frequency * 100f) * 1000 + Mathf.RoundToInt(duration * 100f);
+            if (ToneCache.TryGetValue(key, out var cached)) return cached;
+
+            const int sampleRate = 44100;
+            int samples = Mathf.Max((int)(duration * sampleRate), 256);
+            var data = new float[samples];
+            float omega = 2f * Mathf.PI * frequency / sampleRate;
+            for (int i = 0; i < samples; i++)
+            {
+                float t = (float)i / samples;
+                // 指数衰减包络：起音即最大、尾部收零（铃/笛质感）
+                float env = Mathf.Pow(1f - t, 1.6f);
+                data[i] = Mathf.Sin(omega * i) * env * 0.5f;
+            }
+
+            AudioClip clip = AudioClip.Create("tone_" + key, samples, 1, sampleRate, false);
+            if (clip == null) return null;
+            clip.SetData(data, 0);
+            ToneCache[key] = clip;
+            return clip;
+        }
     }
 }

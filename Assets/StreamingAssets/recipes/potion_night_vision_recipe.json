@@ -1,0 +1,3 @@
+{ "id": "potion_night_vision_recipe", "tier": "inventory", "width": 2, "height": 2,
+  "pattern": ["glass_bottle", "coal", "_", "_"], "shaped": false,
+  "output": { "item": "potion_night_vision", "count": 1 } }

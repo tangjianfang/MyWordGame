@@ -1,0 +1,3 @@
+{ "id": "flute_recipe", "tier": "inventory", "width": 2, "height": 2,
+  "pattern": ["plank", "iron_ingot", "_", "_"], "shaped": false,
+  "output": { "item": "flute", "count": 1 } }

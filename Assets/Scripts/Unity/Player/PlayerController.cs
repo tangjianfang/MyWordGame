@@ -513,7 +513,13 @@ namespace MyWorld.Unity.Player
             // DefaultExecutionOrder(-1000)，其 Update 先于本组件跑，同帧拿到的必是新值；
             // 场景里没有 PlayerContext（纯逻辑测试）时视同 0，行为与旧版一致。
             var gearCtx = GetComponent<PlayerContext>();
-            _settings.MoveSpeedBonus = gearCtx != null ? gearCtx.MoveSpeedBonus : 0f;
+            // m12 W3：药水 buff 同点消费——速度 +30% 叠加装备加成；跳跃 ×1.3 乘基础跳速
+            //（无 buff 时 JumpMultiplier 恒 1、MoveSpeedBonus 恒 0，行为与旧版逐值一致）
+            var potions = gearCtx != null ? gearCtx.Potions : null;
+            _settings.MoveSpeedBonus = (gearCtx != null ? gearCtx.MoveSpeedBonus : 0f)
+                + (potions != null ? potions.MoveSpeedBonus(Time.time) : 0f);
+            _settings.JumpSpeed = jumpSpeed
+                * (potions != null ? potions.JumpMultiplier(Time.time) : 1f);
 
             // m13 W1：飞行态整帧跳过 PlayerMotor —— Core 不知道飞行，Gravity/JumpSpeed
             // 都不适用。否则一秒内就被 -28m/s² 拽回地面。撞墙 / 撞地仍走 VoxelCollision，

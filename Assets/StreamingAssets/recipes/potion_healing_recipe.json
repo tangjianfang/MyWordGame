@@ -1,0 +1,3 @@
+{ "id": "potion_healing_recipe", "tier": "inventory", "width": 2, "height": 2,
+  "pattern": ["glass_bottle", "wheat", "_", "_"], "shaped": false,
+  "output": { "item": "potion_healing", "count": 1 } }

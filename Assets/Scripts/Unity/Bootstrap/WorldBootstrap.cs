@@ -143,6 +143,26 @@ namespace MyWorld.Unity.Bootstrap
                 _playerContext.Inventory.SetSlot(0, new ItemStack(starterDef.NumericId, 64));
             }
 
+            // 7.4 m12 第 1 波：成就 / 图鉴 / 药水三系统（照 FurnaceSystem 挂法，
+            //     建实例挂 PlayerContext，可空降级）。成就定义表缺失只降级不炸；
+            //     CodexHost 订阅命中/挖掘事件，PotionHost 处理夜视的画面提亮。
+            try
+            {
+                string achPath = Path.Combine(Application.streamingAssetsPath, "achievements.json");
+                _playerContext.Achievements =
+                    new MyWorld.Core.Achievements.AchievementSystem(
+                        MyWorld.Core.Achievements.AchievementDatabase.FromJson(
+                            File.ReadAllText(achPath)));
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[WorldBootstrap] 加载 achievements.json 失败：{ex.Message}。成就系统降级。");
+            }
+            _playerContext.Codex = new MyWorld.Core.Codex.CodexSystem();
+            MyWorld.Unity.UI.AchievementUi.Bind(_playerContext.Achievements);
+            gameObject.AddComponent<MyWorld.Unity.Gameplay.CodexHost>().Bind(_playerContext, _registry);
+            gameObject.AddComponent<MyWorld.Unity.Gameplay.PotionHost>();
+
             // 7.5 玩家音效（m9 B1 fix1 挪前）：此前没有任何场景的模块挂 PlayerAudioSystem，
             // footstep/place/break 三条音效在 build 里全是哑的（Resources/Audio 下的
             // ogg 一直在却没人播）。**必须挂在步骤 8/9 之前**——PlayerController.Awake

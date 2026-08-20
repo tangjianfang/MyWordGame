@@ -1,0 +1,3 @@
+{ "id": "potion_strength_recipe", "tier": "inventory", "width": 2, "height": 2,
+  "pattern": ["glass_bottle", "rotten_flesh", "_", "_"], "shaped": false,
+  "output": { "item": "potion_strength", "count": 1 } }

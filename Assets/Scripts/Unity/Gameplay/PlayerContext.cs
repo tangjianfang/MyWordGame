@@ -66,6 +66,18 @@ namespace MyWorld.Unity.Gameplay
         /// PlayerSnapshot.ArmorSlots 往返。UI 侧 <see cref="MyWorld.Unity.UI.ArmorSlotsUi"/>。</summary>
         public readonly ArmorInventory ArmorSlots = new ArmorInventory();
 
+        // ─── m12 第 1 波三系统（照 FurnaceSystem 挂法：WorldBootstrap 建实例挂上来，可空降级） ───
+
+        /// <summary>成就进度（m12 W1）。可空：achievements.json 缺失时降级（无成就无飘字）。
+        /// 进度经 SaveLoadService 与 LevelData.Stats 往返（键 ach:&lt;id&gt;）。</summary>
+        public MyWorld.Core.Achievements.AchievementSystem Achievements;
+
+        /// <summary>图鉴解锁集（m12 W2）。可空降级同上；键 codex:mob/block/item:*。</summary>
+        public MyWorld.Core.Codex.CodexSystem Codex;
+
+        /// <summary>药水 buff 状态（m12 W3）。短时状态（30s）不进存档——与飞行态同取舍。</summary>
+        public readonly MyWorld.Core.Buffs.PotionSystem Potions = new MyWorld.Core.Buffs.PotionSystem();
+
         /// <summary>防御点数：受伤时伤害 - 本值（下限 1 伤不无敌，
         /// <see cref="GearBonusMath.MitigateDamage"/>）。</summary>
         public int Defense { get; private set; }
@@ -76,10 +88,11 @@ namespace MyWorld.Unity.Gameplay
         /// <summary>生命上限加成（点数）：有效血上限 = <see cref="Health"/>.Max + 本值。</summary>
         public int MaxHealthBonus { get; private set; }
 
-        /// <summary>有效血上限（m10 C1）：基础 <see cref="Health"/>.Max + 装备加成。
-        /// <see cref="MyWorld.Unity.Player.PlayerController.Respawn"/> 回满到这里而不是基础值。</summary>
+        /// <summary>有效血上限（m10 C1）：基础 <see cref="Health"/>.Max + 装备加成
+        /// + 水肺药水的临时上限（m12 W3 占位效果，30s）。回满按本值。</summary>
         public float EffectiveMaxHealth =>
-            GearBonusMath.EffectiveMaxHealth(Health.Max, MaxHealthBonus);
+            GearBonusMath.EffectiveMaxHealth(Health.Max, MaxHealthBonus)
+            + Potions.MaxHealthBonus(UnityEngine.Time.time);
 
         /// <summary>
         /// 双源刷新三属性（m11 W2-1）：穿戴盔甲逐件累计 + 手持选中格一件。

@@ -117,6 +117,13 @@ namespace MyWorld.Unity.UI
             EnsureInstance().Add("-" + shown, FloatKind.Damage);
         }
 
+        /// <summary>自定义文本飘字（m12 W1：成就达成提示）。空串不出字。</summary>
+        public static void ShowText(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            EnsureInstance().Add(text, FloatKind.Experience);
+        }
+
         /// <summary>入队一条飘字（核心入口；OnGUI/Update/测试共用）。超过上限时最旧的先过期。</summary>
         public Entry Add(string text, FloatKind kind)
         {
@@ -144,9 +151,12 @@ namespace MyWorld.Unity.UI
         public int ExpireBefore(float now)
         {
             int removed = 0;
+            // 容差 1e-4：EditMode 的 Time.time 是真实大数值，(t0+d)-t0 的浮点损耗会
+            // 把整 1s 算成 0.9999…，不加容差会在长批次里漏过期（m12 第 1 波实测）
+            const float epsilon = 1e-4f;
             for (int i = _entries.Count - 1; i >= 0; i--)
             {
-                if (now - _entries[i].StartTime >= DurationSeconds)
+                if (now - _entries[i].StartTime >= DurationSeconds - epsilon)
                 {
                     _entries.RemoveAt(i);
                     removed++;

@@ -1,0 +1,3 @@
+{ "id": "potion_swiftness_recipe", "tier": "inventory", "width": 2, "height": 2,
+  "pattern": ["glass_bottle", "bone_meal", "_", "_"], "shaped": false,
+  "output": { "item": "potion_swiftness", "count": 1 } }

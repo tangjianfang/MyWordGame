@@ -274,6 +274,17 @@ namespace MyWorld.Unity.Persistence
             {
                 data.UsedBossTotems = MyWorld.Core.Entities.BossSummonState.Default.Export();
             }
+            // m12 第 1 波：成就进度 + 图鉴解锁集共用 Stats 字典（空系统 / 全零跳过留 null）
+            if (_context.Achievements != null || _context.Codex != null)
+            {
+                var stats = new System.Collections.Generic.Dictionary<string, int>();
+                _context.Achievements?.ExportStats(stats);
+                _context.Codex?.ExportStats(stats);
+                if (stats.Count > 0)
+                {
+                    data.Stats = stats;
+                }
+            }
             return data;
         }
 
@@ -342,6 +353,10 @@ namespace MyWorld.Unity.Persistence
             ApplyFurnace(data.Furnace);
             ApplyDrops(data.Drops);
             ApplyQuest(data);
+
+            // m12 第 1 波：成就 / 图鉴进度恢复（Stats 由 Codec 归一非空；缺键 = 全新开始）
+            _context.Achievements?.ImportStats(data.Stats);
+            _context.Codex?.ImportStats(data.Stats);
             // m11 第 1 波（集成点②）：农田 → 箱子 → 床。各层自带 null 容忍
             //（旧档无字段 / 系统实例未建都跳过），坏一层不挡其余层
             ApplyFarm(data.FarmStates);
