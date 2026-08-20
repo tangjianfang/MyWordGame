@@ -132,6 +132,19 @@ namespace MyWorld.Core.Entities
                 // MobManager.KillExperience 常量表。只经图腾召唤，不进自然刷怪。
                 27 => new Mob { MobTypeId = 27, Kind = MobKind.MachineGuardian, Health = new Health(60), Position = position, AttackDamage = 6f, AttackRange = 4f, ChaseRadius = 20f, WanderCooldown = 2f, MoveSpeed = 3.5f },
 
+                // m12 W4：水生 5 + 飞行 4 建档（血量/速度按体型：鱼群脆、龟厚、鸟快）。
+                // 全被动：无 AttackDamage / ChaseRadius。掉落 v1 为空（鱼类食材物品
+                // 未实装，待后续里程碑补 raw_fish 再挂 drop_tables——取舍注释）。
+                28 => new Mob { MobTypeId = 28, Kind = MobKind.Cod, Health = new Health(3), Position = position, WanderCooldown = 2f, MoveSpeed = 1.5f },
+                29 => new Mob { MobTypeId = 29, Kind = MobKind.Salmon, Health = new Health(3), Position = position, WanderCooldown = 2f, MoveSpeed = 1.6f },
+                30 => new Mob { MobTypeId = 30, Kind = MobKind.TropicalFish, Health = new Health(2), Position = position, WanderCooldown = 2f, MoveSpeed = 1.4f },
+                31 => new Mob { MobTypeId = 31, Kind = MobKind.Pufferfish, Health = new Health(3), Position = position, WanderCooldown = 2f, MoveSpeed = 1.2f },
+                32 => new Mob { MobTypeId = 32, Kind = MobKind.Turtle, Health = new Health(15), Position = position, WanderCooldown = 2f, MoveSpeed = 1.0f },
+                33 => new Mob { MobTypeId = 33, Kind = MobKind.Sparrow, Health = new Health(2), Position = position, WanderCooldown = 2f, MoveSpeed = 2.2f },
+                34 => new Mob { MobTypeId = 34, Kind = MobKind.Parrot, Health = new Health(3), Position = position, WanderCooldown = 2f, MoveSpeed = 2.0f },
+                35 => new Mob { MobTypeId = 35, Kind = MobKind.Owl, Health = new Health(4), Position = position, WanderCooldown = 2f, MoveSpeed = 1.8f },
+                36 => new Mob { MobTypeId = 36, Kind = MobKind.Butterfly, Health = new Health(1), Position = position, WanderCooldown = 2f, MoveSpeed = 1.2f },
+
                 _ => throw new System.ArgumentException($"未知 mobTypeId: {mobTypeId}"),
             };
         }

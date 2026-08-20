@@ -1,0 +1,8 @@
+{
+  "kind": "TropicalFish",
+  "parts": [
+    { "name": "body", "size": [0.3, 0.3, 0.45], "position": [0, 0.22, 0], "color": "#F0A030", "isLeg": false, "legPhase": 0 },
+    { "name": "stripe", "size": [0.32, 0.32, 0.08], "position": [0, 0.22, 0.1], "color": "#3050C8", "isLeg": false, "legPhase": 0 },
+    { "name": "tail", "size": [0.06, 0.18, 0.16], "position": [0, 0.22, -0.3], "color": "#F0C050", "isLeg": false, "legPhase": 0 }
+  ]
+}

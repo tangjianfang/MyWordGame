@@ -1,0 +1,12 @@
+{
+  "kind": "Owl",
+  "parts": [
+    { "name": "body", "size": [0.3, 0.4, 0.26], "position": [0, 0.34, 0], "color": "#8A7458", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.28, 0.24, 0.24], "position": [0, 0.64, 0.02], "color": "#9A8468", "isLeg": false, "legPhase": 0 },
+    { "name": "eyeL", "size": [0.06, 0.08, 0.03], "position": [0.07, 0.66, 0.14], "color": "#F0D048", "isLeg": false, "legPhase": 0 },
+    { "name": "eyeR", "size": [0.06, 0.08, 0.03], "position": [-0.07, 0.66, 0.14], "color": "#F0D048", "isLeg": false, "legPhase": 0 },
+    { "name": "beak", "size": [0.05, 0.05, 0.08], "position": [0, 0.6, 0.16], "color": "#D89838", "isLeg": false, "legPhase": 0 },
+    { "name": "wingL", "size": [0.05, 0.26, 0.2], "position": [0.18, 0.36, 0], "color": "#7A6448", "isLeg": false, "legPhase": 0 },
+    { "name": "wingR", "size": [0.05, 0.26, 0.2], "position": [-0.18, 0.36, 0], "color": "#7A6448", "isLeg": false, "legPhase": 0 }
+  ]
+}

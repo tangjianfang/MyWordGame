@@ -326,6 +326,11 @@ namespace MyWorld.Unity.UI
         /// 提示用户：按 SHIFT+点击主背包物品（或 hotbar 任意格）就能放进合成网格。EditMode 测试钉死文案不漂移。</summary>
         internal const string CraftingShiftHint = "合成技巧：按 SHIFT + 点击背包物品直接放入合成区（不必先移到 hotbar）";
 
+        /// <summary>m12 W6：第 0/1 波新系统教学行（挖矿手感 + 成就图鉴 + 药水乐器 + 世界管理）。
+        /// 一行塞四个关键词，孩子扫一眼就知道去哪找（页签就在本菜单顶上）。</summary>
+        internal const string Wave1HintLine =
+            "新玩法：挖矿要按住左键蓄力；按住 SHIFT 跳起来能垫脚搭塔；本菜单有「成就/图鉴」页签；药水喝了有 30 秒魔法；音乐盒右键放小星星";
+
         private void OnGUI()
         {
             if (!IsOpen) return;
@@ -387,6 +392,10 @@ namespace MyWorld.Unity.UI
             // m13 P0：合成技巧提示行（SHIFT+click 主背包教学）——紧贴挖矿提示之后，
             // 与 m10 C3 模式对齐（同位置同风格同点击测试守护契约）
             GUI.Label(new Rect(bg.x + 24, y, 660, 22), CraftingShiftHint, white);
+            y += 26;
+            // m12 W6：新系统教学行（成就/图鉴/药水乐器/世界管理四连，第 0/1 波落地的
+            // 功能孩子不看菜单发现不了——照 m10 C3 同款单行文案，常量钉死可断言）
+            GUI.Label(new Rect(bg.x + 24, y, 660, 22), Wave1HintLine, white);
             y += 26;
 
             GUI.Label(new Rect(bg.x + 24, y, 400, 22), "怎么开始：四步上手", white);

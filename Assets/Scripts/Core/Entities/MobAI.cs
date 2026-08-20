@@ -258,6 +258,23 @@ namespace MyWorld.Core.Entities
                     mob.Velocity = default;
                     break;
 
+                // m12 W4：水生 5 种——水体格内三维漫游（TickAquatic 自带水判定与折返）
+                case MobKind.Cod:
+                case MobKind.Salmon:
+                case MobKind.TropicalFish:
+                case MobKind.Pufferfish:
+                case MobKind.Turtle:
+                    TickAquatic(mob, world, dt);
+                    break;
+
+                // m12 W4：飞行 4 种——固定高度盘旋，受击逃跑窗内掉高度
+                case MobKind.Sparrow:
+                case MobKind.Parrot:
+                case MobKind.Owl:
+                case MobKind.Butterfly:
+                    TickFlyer(mob, dt);
+                    break;
+
                 // m11 W3-3：机元守卫 Boss——**不看昼夜**（isNight 不进本分支）：
                 // 它是玩家右键图腾主动召唤的对手局，白天召唤也得打完，
                 // 与「夜里才威胁」的自然刷怪组（Zombie/Skeleton/Spider/Creeper）语义不同。
@@ -338,6 +355,17 @@ namespace MyWorld.Core.Entities
                 case MobKind.Goat:
                 case MobKind.Raccoon:
                 case MobKind.Hamster:
+                // m12 W4：水生/飞行 9 种同属被动（受击逃；飞行的"受击下落"在 TickFlyer 里
+                // 读 FleeingFromAttacker 状态实现，这里只开逃跑窗）
+                case MobKind.Cod:
+                case MobKind.Salmon:
+                case MobKind.TropicalFish:
+                case MobKind.Pufferfish:
+                case MobKind.Turtle:
+                case MobKind.Sparrow:
+                case MobKind.Parrot:
+                case MobKind.Owl:
+                case MobKind.Butterfly:
                     mob.State = MobState.FleeingFromAttacker;
                     mob.FleeUntil = FleeDuration;
                     break;
@@ -437,6 +465,171 @@ namespace MyWorld.Core.Entities
             mob.Position = new Float3(
                 mob.Position.X + mob.Velocity.X * dt,
                 mob.Position.Y,
+                mob.Position.Z + mob.Velocity.Z * dt);
+        }
+
+        /// <summary>
+        /// m12 W4：水生 AI——水体格内三维漫游。与 <see cref="TickPassive"/> 同一套
+        /// 状态机（Idle→Wander→FleeingFromAttacker），三处水生差异：
+        /// <list type="bullet">
+        /// <item>wander 目标带 ±1.5 格 Y 分量（上下游动），速度向量三维归一</item>
+        /// <item>位移应用前采样<b>目标头格</b>：不是水就不动并重掷目标（鱼不出水、
+        /// 不穿湖底；world 为 null 的纯逻辑测试跳过判定，退化为三维 wander）</item>
+        /// <item>逃跑沿水平远离（Y 分量清零——被打了往深处钻等正式玩法再定）</item>
+        /// </list>
+        /// </summary>
+        private static void TickAquatic(Mob mob, World world, float dt)
+        {
+            if (mob.State == MobState.Chasing) mob.State = MobState.Idle;
+
+            if (mob.State == MobState.FleeingFromAttacker)
+            {
+                mob.FleeUntil -= dt;
+                if (mob.FleeUntil <= 0f)
+                {
+                    mob.State = MobState.Idle;
+                    mob.WanderCooldown = 2f;
+                    mob.Velocity = default;
+                }
+            }
+
+            float speed = mob.MoveSpeed > 0f ? mob.MoveSpeed : WanderSpeed;
+
+            switch (mob.State)
+            {
+                case MobState.Idle:
+                    mob.Velocity = default;
+                    mob.WanderCooldown -= dt;
+                    if (mob.WanderCooldown <= 0)
+                    {
+                        mob.State = MobState.Wander;
+                        mob.WanderTarget = mob.Position + new Float3(
+                            RandomSigned() * 4f, RandomSigned() * 1.5f, RandomSigned() * 4f);
+                        mob.WanderCooldown = 2f + RandomUnit() * 3f;
+                    }
+                    break;
+                case MobState.Wander:
+                {
+                    var to = mob.WanderTarget - mob.Position;
+                    float d = (float)System.Math.Sqrt(
+                        to.X * to.X + to.Y * to.Y + to.Z * to.Z);
+                    if (d < 0.5f)
+                    {
+                        mob.State = MobState.Idle;
+                        mob.WanderCooldown = 1f + RandomUnit() * 2f;
+                        mob.Velocity = default;
+                    }
+                    else
+                    {
+                        mob.Velocity = new Float3(
+                            to.X / d * speed, to.Y / d * speed, to.Z / d * speed);
+                    }
+                    break;
+                }
+                case MobState.FleeingFromAttacker:
+                {
+                    var away = mob.Position - mob.LastAttackerPos;
+                    float d = (float)System.Math.Sqrt(away.X * away.X + away.Z * away.Z);
+                    if (d > 0.001f)
+                    {
+                        mob.Velocity = new Float3(away.X / d * FleeSpeed, 0, away.Z / d * FleeSpeed);
+                    }
+                    break;
+                }
+            }
+
+            float nx = mob.Position.X + mob.Velocity.X * dt;
+            float ny = mob.Position.Y + mob.Velocity.Y * dt;
+            float nz = mob.Position.Z + mob.Velocity.Z * dt;
+
+            // 水判定：目标头格不是水（或越界）→ 本帧不动、回 Idle 重掷目标。
+            // 头部取脚上 0.3 格——鱼身贴着水体游而不是扎进湖底泥里
+            if (world != null)
+            {
+                int bx = (int)System.Math.Floor(nx);
+                int by = (int)System.Math.Floor(ny + 0.3f);
+                int bz = (int)System.Math.Floor(nz);
+                bool insideWorld = by >= VoxelCoords.MinY && by < VoxelCoords.MaxY;
+                if (!insideWorld || world.GetBlock(bx, by, bz) != BlockIds.Water)
+                {
+                    mob.State = MobState.Idle;
+                    mob.WanderCooldown = 0.5f;
+                    mob.Velocity = default;
+                    return;
+                }
+            }
+
+            mob.Position = new Float3(nx, ny, nz);
+        }
+
+        /// <summary>
+        /// m12 W4：飞行 AI——固定高度盘旋。水平 wander 与陆地同款；
+        /// <b>Y 只在受击逃跑窗内变化</b>（-1.5m/s 下落，"惊得掉高度"），
+        /// 逃跑结束停在新高度继续盘旋——Core 生物无重力，悬停是零成本行为。
+        /// </summary>
+        private static void TickFlyer(Mob mob, float dt)
+        {
+            if (mob.State == MobState.Chasing) mob.State = MobState.Idle;
+
+            if (mob.State == MobState.FleeingFromAttacker)
+            {
+                mob.FleeUntil -= dt;
+                if (mob.FleeUntil <= 0f)
+                {
+                    mob.State = MobState.Idle;
+                    mob.WanderCooldown = 2f;
+                    mob.Velocity = default;
+                }
+            }
+
+            float speed = mob.MoveSpeed > 0f ? mob.MoveSpeed : WanderSpeed;
+
+            switch (mob.State)
+            {
+                case MobState.Idle:
+                    mob.Velocity = default;
+                    mob.WanderCooldown -= dt;
+                    if (mob.WanderCooldown <= 0)
+                    {
+                        mob.State = MobState.Wander;
+                        mob.WanderTarget = mob.Position + new Float3(
+                            RandomSigned() * 6f, 0, RandomSigned() * 6f);
+                        mob.WanderCooldown = 3f + RandomUnit() * 4f;
+                    }
+                    break;
+                case MobState.Wander:
+                {
+                    var to = mob.WanderTarget - mob.Position;
+                    float d = (float)System.Math.Sqrt(to.X * to.X + to.Z * to.Z);
+                    if (d < 0.5f)
+                    {
+                        mob.State = MobState.Idle;
+                        mob.WanderCooldown = 1f + RandomUnit() * 3f;
+                        mob.Velocity = default;
+                    }
+                    else
+                    {
+                        mob.Velocity = new Float3(to.X / d * speed, 0, to.Z / d * speed);
+                    }
+                    break;
+                }
+                case MobState.FleeingFromAttacker:
+                {
+                    var away = mob.Position - mob.LastAttackerPos;
+                    float d = (float)System.Math.Sqrt(away.X * away.X + away.Z * away.Z);
+                    if (d > 0.001f)
+                    {
+                        mob.Velocity = new Float3(away.X / d * FleeSpeed, 0, away.Z / d * FleeSpeed);
+                    }
+                    break;
+                }
+            }
+
+            // 受击逃跑窗内掉高度；其余时间 Y 钉死（盘旋高度 = 出生高度）
+            float y = mob.Position.Y - (mob.State == MobState.FleeingFromAttacker ? 1.5f * dt : 0f);
+            mob.Position = new Float3(
+                mob.Position.X + mob.Velocity.X * dt,
+                y,
                 mob.Position.Z + mob.Velocity.Z * dt);
         }
 

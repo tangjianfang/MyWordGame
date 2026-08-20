@@ -1,0 +1,11 @@
+{
+  "kind": "Parrot",
+  "parts": [
+    { "name": "body", "size": [0.2, 0.26, 0.22], "position": [0, 0.28, 0], "color": "#D04030", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.18, 0.18, 0.18], "position": [0, 0.48, 0.06], "color": "#E05838", "isLeg": false, "legPhase": 0 },
+    { "name": "beak", "size": [0.08, 0.06, 0.1], "position": [0, 0.46, 0.18], "color": "#E8A030", "isLeg": false, "legPhase": 0 },
+    { "name": "wingL", "size": [0.06, 0.18, 0.24], "position": [0.13, 0.3, 0], "color": "#3080C8", "isLeg": false, "legPhase": 0 },
+    { "name": "wingR", "size": [0.06, 0.18, 0.24], "position": [-0.13, 0.3, 0], "color": "#3080C8", "isLeg": false, "legPhase": 0 },
+    { "name": "tail", "size": [0.1, 0.05, 0.3], "position": [0, 0.2, -0.24], "color": "#2A9878", "isLeg": false, "legPhase": 0 }
+  ]
+}

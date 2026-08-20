@@ -45,12 +45,24 @@ namespace MyWorld.Unity.Combat
             MobKind.Pig, MobKind.Cow, MobKind.Chicken, MobKind.Villager,
             MobKind.Sheep, MobKind.Rabbit, MobKind.Fox, MobKind.Deer, MobKind.Panda,
             MobKind.Penguin, MobKind.Goat, MobKind.Raccoon, MobKind.Hamster,
+            // m12 W4：飞行 3 种白天刷（猫头鹰夜间，见 NightCandidates）
+            MobKind.Sparrow, MobKind.Parrot, MobKind.Butterfly,
         };
         // 夜晚候选 mob（m11 P0 追加骷髅/蜘蛛/苦力怕，Zombie 保持最高优先级；
         // P0 三新敌对 AI 暂等价僵尸，W1-1 替换专属行为）
         private static readonly MobKind[] NightCandidates =
         {
             MobKind.Zombie, MobKind.Skeleton, MobKind.Spider, MobKind.Creeper,
+            // m12 W4：猫头鹰夜行性
+            MobKind.Owl,
+        };
+
+        // m12 W4：水生候选——只在「落点地表块是水」的水柱里刷（TickSpawn 查
+        // GetBlock == Water 分流；PickKind 的 biome/light 判定照走，水生条目
+        // 配了全群系——水的约束由这一层落点判定承担，取舍注释见 spawn_rules）
+        private static readonly MobKind[] AquaticCandidates =
+        {
+            MobKind.Cod, MobKind.Salmon, MobKind.TropicalFish, MobKind.Pufferfish, MobKind.Turtle,
         };
 
         private readonly List<Mob> _mobs = new List<Mob>();
@@ -450,12 +462,20 @@ namespace MyWorld.Unity.Combat
             }
             Biome biome = _generator != null ? _generator.BiomeAt(wx, wz) : Biome.Plains;
 
+            // m12 W4：水柱分流——落点地表块是水（湖/海/水洼顶格）→ 只从水生候选里
+            // 挑（PickKind 的 biome/light 判定照走，水的约束由这层落点判定承担）；
+            // 水生出生在水顶格内部（+0.5），陆生照旧地表 +1
+            bool isWaterColumn = _world != null
+                && _world.GetBlock(wx, surfaceY, wz) == MyWorld.Core.Voxel.BlockIds.Water;
+
             int type;
             MobKind kind;
             if (_rules != null)
             {
                 // 数据驱动路径：按 biome + light + seed 在候选里挑一个能刷的 kind
-                MobKind[] candidates = isNight ? NightCandidates : DayCandidates;
+                MobKind[] candidates = isWaterColumn
+                    ? AquaticCandidates
+                    : (isNight ? NightCandidates : DayCandidates);
                 var picked = _rules.PickKind(biome, light, candidates, seed);
                 if (!picked.HasValue) return;
                 kind = picked.Value;
@@ -496,7 +516,8 @@ namespace MyWorld.Unity.Combat
             // despawn / 被玩家击杀），关掉开关后下一轮夜间刷新立即恢复。
             if (PeaceMode.Enabled && IsHostileSpawn(kind, type)) return;
 
-            SpawnMob(type, kind, new Float3(wx + 0.5f, surfaceY + 1f, wz + 0.5f));
+            SpawnMob(type, kind, new Float3(
+                wx + 0.5f, surfaceY + (isWaterColumn ? 0.5f : 1f), wz + 0.5f));
         }
 
         /// <summary>
@@ -586,6 +607,16 @@ namespace MyWorld.Unity.Combat
                 // m11 W3-3：Boss 走部位表拼装（2.5 格紫金机甲，mobs/models/machine_guardian.json）。
                 // 不进上面的昼夜候选数组——只经图腾召唤（BlockInteraction 召唤路由）
                 case MobKind.MachineGuardian:
+                // m12 W4：水生 5 + 飞行 4（models JSON 同批入库）
+                case MobKind.Cod:
+                case MobKind.Salmon:
+                case MobKind.TropicalFish:
+                case MobKind.Pufferfish:
+                case MobKind.Turtle:
+                case MobKind.Sparrow:
+                case MobKind.Parrot:
+                case MobKind.Owl:
+                case MobKind.Butterfly:
                     return true;
                 default:
                     return false;
@@ -622,6 +653,16 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Creeper: return (int)MobKind.Creeper;
                 // m11 W3-3：Boss typeId = 枚举数值 27（只经图腾召唤，不经 TickSpawn）
                 case MobKind.MachineGuardian: return (int)MobKind.MachineGuardian;
+                // m12 W4：新 kind typeId = 枚举数值（28-36，同 15-26 约定）
+                case MobKind.Cod: return (int)MobKind.Cod;
+                case MobKind.Salmon: return (int)MobKind.Salmon;
+                case MobKind.TropicalFish: return (int)MobKind.TropicalFish;
+                case MobKind.Pufferfish: return (int)MobKind.Pufferfish;
+                case MobKind.Turtle: return (int)MobKind.Turtle;
+                case MobKind.Sparrow: return (int)MobKind.Sparrow;
+                case MobKind.Parrot: return (int)MobKind.Parrot;
+                case MobKind.Owl: return (int)MobKind.Owl;
+                case MobKind.Butterfly: return (int)MobKind.Butterfly;
                 default: return 1;
             }
         }
@@ -702,6 +743,16 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Goat: return 2;
                 case MobKind.Raccoon: return 1;
                 case MobKind.Hamster: return 1;
+                // m12 W4：水生飞行 9 种（小型动物 1-2、龟 3——量级贴鸡/兔）
+                case MobKind.Cod: return 1;
+                case MobKind.Salmon: return 1;
+                case MobKind.TropicalFish: return 1;
+                case MobKind.Pufferfish: return 2;
+                case MobKind.Turtle: return 3;
+                case MobKind.Sparrow: return 1;
+                case MobKind.Parrot: return 2;
+                case MobKind.Owl: return 2;
+                case MobKind.Butterfly: return 1;
                 default: return 0;
             }
         }

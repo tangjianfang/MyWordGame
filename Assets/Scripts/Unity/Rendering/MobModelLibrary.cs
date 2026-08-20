@@ -194,6 +194,16 @@ namespace MyWorld.Unity.Rendering
                 // m11 W3-3：Boss 造型（2.5 格紫金机甲，配色与 art/requests/entities/
                 // machine-guardian.md 的调色板同源；守卫测试在 Visual/MobModelBossTests）
                 case MobKind.MachineGuardian: return "machine_guardian.json";
+                // m12 W4：水生 5 + 飞行 4（文件名 = kind 小写连字符，同既有约定）
+                case MobKind.Cod: return "cod.json";
+                case MobKind.Salmon: return "salmon.json";
+                case MobKind.TropicalFish: return "tropical_fish.json";
+                case MobKind.Pufferfish: return "pufferfish.json";
+                case MobKind.Turtle: return "turtle.json";
+                case MobKind.Sparrow: return "sparrow.json";
+                case MobKind.Parrot: return "parrot.json";
+                case MobKind.Owl: return "owl.json";
+                case MobKind.Butterfly: return "butterfly.json";
                 default:
                     // 旧三类（Passive/Hostile/Neutral）没有独立造型 JSON，保底表在 MobModels 内
                     throw new ArgumentException(

@@ -1,0 +1,8 @@
+{
+  "kind": "Cod",
+  "parts": [
+    { "name": "body", "size": [0.5, 0.3, 0.8], "position": [0, 0.25, 0], "color": "#5A7A6A", "isLeg": false, "legPhase": 0 },
+    { "name": "tail", "size": [0.08, 0.24, 0.24], "position": [0, 0.25, -0.5], "color": "#4A6A5A", "isLeg": false, "legPhase": 0 },
+    { "name": "finTop", "size": [0.06, 0.14, 0.2], "position": [0, 0.44, 0.05], "color": "#4A6A5A", "isLeg": false, "legPhase": 0 }
+  ]
+}

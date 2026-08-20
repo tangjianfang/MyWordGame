@@ -1,0 +1,12 @@
+{
+  "kind": "Sparrow",
+  "parts": [
+    { "name": "body", "size": [0.18, 0.16, 0.3], "position": [0, 0.2, 0], "color": "#A88A5A", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.14, 0.14, 0.14], "position": [0, 0.32, 0.16], "color": "#8A6A42", "isLeg": false, "legPhase": 0 },
+    { "name": "wingL", "size": [0.05, 0.08, 0.22], "position": [0.12, 0.24, 0], "color": "#C8A868", "isLeg": false, "legPhase": 0 },
+    { "name": "wingR", "size": [0.05, 0.08, 0.22], "position": [-0.12, 0.24, 0], "color": "#C8A868", "isLeg": false, "legPhase": 0 },
+    { "name": "tail", "size": [0.1, 0.04, 0.14], "position": [0, 0.2, -0.2], "color": "#8A6A42", "isLeg": false, "legPhase": 0 },
+    { "name": "legL", "size": [0.03, 0.1, 0.03], "position": [0.05, 0.06, 0], "color": "#6A4A2A", "isLeg": true, "legPhase": 0 },
+    { "name": "legR", "size": [0.03, 0.1, 0.03], "position": [-0.05, 0.06, 0], "color": "#6A4A2A", "isLeg": true, "legPhase": 3.141592653589793 }
+  ]
+}

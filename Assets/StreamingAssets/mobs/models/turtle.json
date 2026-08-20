@@ -1,0 +1,12 @@
+{
+  "kind": "Turtle",
+  "parts": [
+    { "name": "shell", "size": [0.7, 0.25, 0.9], "position": [0, 0.3, 0], "color": "#3E6B3A", "isLeg": false, "legPhase": 0 },
+    { "name": "shellRim", "size": [0.76, 0.08, 0.96], "position": [0, 0.18, 0], "color": "#5A8A50", "isLeg": false, "legPhase": 0 },
+    { "name": "head", "size": [0.22, 0.18, 0.24], "position": [0, 0.22, 0.55], "color": "#6A9A60", "isLeg": false, "legPhase": 0 },
+    { "name": "legFL", "size": [0.14, 0.14, 0.2], "position": [0.34, 0.1, 0.3], "color": "#5A8A50", "isLeg": true, "legPhase": 0 },
+    { "name": "legFR", "size": [0.14, 0.14, 0.2], "position": [-0.34, 0.1, 0.3], "color": "#5A8A50", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBL", "size": [0.14, 0.14, 0.2], "position": [0.34, 0.1, -0.3], "color": "#5A8A50", "isLeg": true, "legPhase": 3.141592653589793 },
+    { "name": "legBR", "size": [0.14, 0.14, 0.2], "position": [-0.34, 0.1, -0.3], "color": "#5A8A50", "isLeg": true, "legPhase": 0 }
+  ]
+}

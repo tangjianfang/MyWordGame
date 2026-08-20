@@ -137,9 +137,20 @@ namespace MyWorld.Core.Entities
                 case "Skeleton": return MobKind.Skeleton;
                 case "Spider": return MobKind.Spider;
                 case "Creeper": return MobKind.Creeper;
+                // m12 W4：水生 5 + 飞行 4（水柱分流见 MobManager.TickSpawn 的
+                // AquaticCandidates；这些条目 biome 配全群系——水的约束在落点判定层）
+                case "Cod": return MobKind.Cod;
+                case "Salmon": return MobKind.Salmon;
+                case "TropicalFish": return MobKind.TropicalFish;
+                case "Pufferfish": return MobKind.Pufferfish;
+                case "Turtle": return MobKind.Turtle;
+                case "Sparrow": return MobKind.Sparrow;
+                case "Parrot": return MobKind.Parrot;
+                case "Owl": return MobKind.Owl;
+                case "Butterfly": return MobKind.Butterfly;
                 default:
                     throw new System.ArgumentException(
-                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Villager/Sheep/Rabbit/Fox/Deer/Panda/Penguin/Goat/Raccoon/Hamster/Skeleton/Spider/Creeper）");
+                        $"未知 MobKind: {name}（合法的有 Pig/Cow/Chicken/Zombie/Villager/Sheep/Rabbit/Fox/Deer/Panda/Penguin/Goat/Raccoon/Hamster/Skeleton/Spider/Creeper/Cod/Salmon/TropicalFish/Pufferfish/Turtle/Sparrow/Parrot/Owl/Butterfly）");
             }
         }
     }

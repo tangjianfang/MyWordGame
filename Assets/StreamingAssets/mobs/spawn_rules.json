@@ -1,20 +1,223 @@
 {
-  "Pig":      { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 10 },
-  "Cow":      { "biomes": ["Plains"], "minLight": 9, "weight": 8 },
-  "Chicken":  { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 8 },
-  "Zombie":   { "biomes": ["Plains", "Forest", "Mountains"], "minLight": 0, "weight": 5 },
-  "Villager": { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 6 },
-  "Skeleton": { "biomes": ["Plains", "Forest", "Mountains"], "minLight": 0, "weight": 4 },
-  "Spider":   { "biomes": ["Plains", "Forest", "Mountains"], "minLight": 0, "weight": 3 },
-  "Creeper":  { "biomes": ["Plains", "Forest"], "minLight": 0, "weight": 3 },
-
-  "Sheep":    { "biomes": ["Plains", "Forest"], "minLight": 9, "weight": 8 },
-  "Rabbit":   { "biomes": ["Plains", "Forest", "Snow"], "minLight": 9, "weight": 6 },
-  "Fox":      { "biomes": ["Forest"], "minLight": 9, "weight": 4 },
-  "Deer":     { "biomes": ["Forest", "Mountains"], "minLight": 9, "weight": 5 },
-  "Panda":    { "biomes": ["Forest"], "minLight": 9, "weight": 2 },
-  "Penguin":  { "biomes": ["Snow"], "minLight": 9, "weight": 5 },
-  "Goat":     { "biomes": ["Mountains", "Snow"], "minLight": 9, "weight": 5 },
-  "Raccoon":  { "biomes": ["Forest"], "minLight": 9, "weight": 4 },
-  "Hamster":  { "biomes": ["Plains", "Desert"], "minLight": 9, "weight": 4 }
+  "Pig": {
+    "biomes": [
+      "Plains",
+      "Forest"
+    ],
+    "minLight": 9,
+    "weight": 10
+  },
+  "Cow": {
+    "biomes": [
+      "Plains"
+    ],
+    "minLight": 9,
+    "weight": 8
+  },
+  "Chicken": {
+    "biomes": [
+      "Plains",
+      "Forest"
+    ],
+    "minLight": 9,
+    "weight": 8
+  },
+  "Zombie": {
+    "biomes": [
+      "Plains",
+      "Forest",
+      "Mountains"
+    ],
+    "minLight": 0,
+    "weight": 5
+  },
+  "Villager": {
+    "biomes": [
+      "Plains",
+      "Forest"
+    ],
+    "minLight": 9,
+    "weight": 6
+  },
+  "Skeleton": {
+    "biomes": [
+      "Plains",
+      "Forest",
+      "Mountains"
+    ],
+    "minLight": 0,
+    "weight": 4
+  },
+  "Spider": {
+    "biomes": [
+      "Plains",
+      "Forest",
+      "Mountains"
+    ],
+    "minLight": 0,
+    "weight": 3
+  },
+  "Creeper": {
+    "biomes": [
+      "Plains",
+      "Forest"
+    ],
+    "minLight": 0,
+    "weight": 3
+  },
+  "Sheep": {
+    "biomes": [
+      "Plains",
+      "Forest"
+    ],
+    "minLight": 9,
+    "weight": 8
+  },
+  "Rabbit": {
+    "biomes": [
+      "Plains",
+      "Forest",
+      "Snow"
+    ],
+    "minLight": 9,
+    "weight": 6
+  },
+  "Fox": {
+    "biomes": [
+      "Forest"
+    ],
+    "minLight": 9,
+    "weight": 4
+  },
+  "Deer": {
+    "biomes": [
+      "Forest",
+      "Mountains"
+    ],
+    "minLight": 9,
+    "weight": 5
+  },
+  "Panda": {
+    "biomes": [
+      "Forest"
+    ],
+    "minLight": 9,
+    "weight": 2
+  },
+  "Penguin": {
+    "biomes": [
+      "Snow"
+    ],
+    "minLight": 9,
+    "weight": 5
+  },
+  "Goat": {
+    "biomes": [
+      "Mountains",
+      "Snow"
+    ],
+    "minLight": 9,
+    "weight": 5
+  },
+  "Raccoon": {
+    "biomes": [
+      "Forest"
+    ],
+    "minLight": 9,
+    "weight": 4
+  },
+  "Hamster": {
+    "biomes": [
+      "Plains",
+      "Desert"
+    ],
+    "minLight": 9,
+    "weight": 4
+  },
+  "Cod": {
+    "biomes": [
+      "Plains",
+      "Desert",
+      "Forest",
+      "Mountains",
+      "Snow"
+    ],
+    "minLight": 8,
+    "weight": 4
+  },
+  "Salmon": {
+    "biomes": [
+      "Plains",
+      "Desert",
+      "Forest",
+      "Mountains",
+      "Snow"
+    ],
+    "minLight": 8,
+    "weight": 3
+  },
+  "TropicalFish": {
+    "biomes": [
+      "Plains",
+      "Desert",
+      "Forest",
+      "Mountains",
+      "Snow"
+    ],
+    "minLight": 8,
+    "weight": 3
+  },
+  "Pufferfish": {
+    "biomes": [
+      "Plains",
+      "Desert",
+      "Forest",
+      "Mountains",
+      "Snow"
+    ],
+    "minLight": 8,
+    "weight": 2
+  },
+  "Turtle": {
+    "biomes": [
+      "Plains",
+      "Desert",
+      "Forest",
+      "Mountains",
+      "Snow"
+    ],
+    "minLight": 8,
+    "weight": 2
+  },
+  "Sparrow": {
+    "biomes": [
+      "Plains",
+      "Forest"
+    ],
+    "minLight": 9,
+    "weight": 5
+  },
+  "Parrot": {
+    "biomes": [
+      "Forest"
+    ],
+    "minLight": 9,
+    "weight": 3
+  },
+  "Owl": {
+    "biomes": [
+      "Forest",
+      "Snow"
+    ],
+    "minLight": 0,
+    "weight": 3
+  },
+  "Butterfly": {
+    "biomes": [
+      "Plains",
+      "Forest"
+    ],
+    "minLight": 10,
+    "weight": 5
+  }
 }

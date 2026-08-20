@@ -1,0 +1,8 @@
+{
+  "kind": "Salmon",
+  "parts": [
+    { "name": "body", "size": [0.4, 0.32, 0.9], "position": [0, 0.26, 0], "color": "#B89098", "isLeg": false, "legPhase": 0 },
+    { "name": "tail", "size": [0.08, 0.26, 0.22], "position": [0, 0.26, -0.55], "color": "#A07880", "isLeg": false, "legPhase": 0 },
+    { "name": "finTop", "size": [0.06, 0.12, 0.18], "position": [0, 0.44, 0.05], "color": "#8A6870", "isLeg": false, "legPhase": 0 }
+  ]
+}

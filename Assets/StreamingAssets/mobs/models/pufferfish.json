@@ -1,0 +1,10 @@
+{
+  "kind": "Pufferfish",
+  "parts": [
+    { "name": "body", "size": [0.45, 0.45, 0.45], "position": [0, 0.32, 0], "color": "#C8B060", "isLeg": false, "legPhase": 0 },
+    { "name": "spikeT", "size": [0.08, 0.1, 0.08], "position": [0, 0.6, 0], "color": "#8A7838", "isLeg": false, "legPhase": 0 },
+    { "name": "spikeL", "size": [0.08, 0.08, 0.08], "position": [0.27, 0.4, 0], "color": "#8A7838", "isLeg": false, "legPhase": 0 },
+    { "name": "spikeR", "size": [0.08, 0.08, 0.08], "position": [-0.27, 0.4, 0], "color": "#8A7838", "isLeg": false, "legPhase": 0 },
+    { "name": "tail", "size": [0.06, 0.14, 0.14], "position": [0, 0.32, -0.3], "color": "#A89048", "isLeg": false, "legPhase": 0 }
+  ]
+}

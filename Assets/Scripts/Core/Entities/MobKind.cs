@@ -43,5 +43,20 @@ namespace MyWorld.Core.Entities
         // spawn_rules.json 刻意不加条目——PickKind 对未配置 kind 恒 false，
         // 自然刷怪对它永不为真（守卫测试守着这两条）。
         MachineGuardian = 27,
+
+        // m12 W4：水生 5 + 飞行 4（枚举 28-36 固定，存档按值序列化同前约）。
+        // 水生走 MobAI.TickAquatic（水体格内三维漫游，非水格折返），
+        // 只在水柱刷（MobManager.TickSpawn 查落点方块是 Water 才进水生候选）；
+        // 飞行走 TickFlyer（固定高度盘旋，受击逃跑窗内下落 1.5m/s——Core 生物
+        // 本无重力，"悬停"是天然行为）。全部被动：受击逃、无攻击。
+        Cod = 28,
+        Salmon = 29,
+        TropicalFish = 30,
+        Pufferfish = 31,
+        Turtle = 32,
+        Sparrow = 33,
+        Parrot = 34,
+        Owl = 35,
+        Butterfly = 36,
     }
 }

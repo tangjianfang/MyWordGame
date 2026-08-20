@@ -91,6 +91,16 @@ namespace MyWorld.Unity.Combat
                 case MobKind.Hamster:
                 // m11 W3-3：Boss 走部位表拼装（2.5 格紫金机甲 JSON 已入库）
                 case MobKind.MachineGuardian:
+                // m12 W4：水生 5 + 飞行 4（models JSON 同批入库）
+                case MobKind.Cod:
+                case MobKind.Salmon:
+                case MobKind.TropicalFish:
+                case MobKind.Pufferfish:
+                case MobKind.Turtle:
+                case MobKind.Sparrow:
+                case MobKind.Parrot:
+                case MobKind.Owl:
+                case MobKind.Butterfly:
                     BuildFromPartTable(kind);
                     break;
                 default:
