@@ -293,6 +293,22 @@ milestone-11 第 3 波氛围任务（粒子池）的两张特效贴图先程序�
 | M11-F1 | 爆炸三帧 [fx-explosion](requests/effects/fx-explosion.md)（拆帧命名 `fx-explosion-0/1/2`） | 3 | 32×32 | 否 | **有**（仅 0/255） | 已入库（程序占位，待正式美术替换） |
 | M11-F2 | 附魔光柱 [magic-enchant-column](requests/effects/magic-enchant-column.md) | 1 | 32×32 | 否 | **有**（仅 0/255） | 已入库（程序占位，待正式美术替换） |
 
+### 补丁批 · 图鉴徽章与卡牌（2026-08-20 · AI 生成 + 卡框程序化）
+
+补丁计划 Task 3（`docs/superpowers/plans/2026-08-20-patch-tasks.md`）补 m11 A4 批
+遗留缺口：16 成就徽章 + 8 内容卡走 AI 管线（MiniMax image-01 → postprocess）；
+**3 张卡框 AI 版中心不透明（像素级检查 0% alpha，视觉模型复判同结论），
+按需求文件分层规格程序化生成**（`art/scripts/gen_codex_frame_placeholders.py`：
+64×64、边框 6px 分层、中心 52×52 全透明）——卡框是规则几何，程序版即正式版。
+入库 `Assets/Art/Codex/`（注册表 `postprocess_art.py` 规范路径，注意大写 C）。
+
+| 编号 | 资源 | 文件数 | 尺寸 | 平铺 | Alpha | 状态 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PT-1 | 成就徽章 16 枚 [badge-*](requests/codex/)（初夜/铁器/钻石时代/屠魔/狙骷髅/退苦力怕/牧羊/丰收/烘焙/附魔/弓箭/英雄/探索/建造/钓鱼/全达成） | 16 | 32×32 | 否 | 无 | 已入库（AI 正式美术，视觉抽检合格） |
+| PT-2 | 图鉴内容卡 8 张 [card-ore-*](requests/codex/)（金/铁/合金/机元/钻 5 矿石）+ [card-plant-*](requests/codex/)（樱/向日葵/蕨 3 植物） | 8 | 64×64 | 否 | 无 | 已入库（AI 正式美术，视觉抽检合格） |
+| PT-3 | 卡框 3 档 [card-frame-common/rare/epic](requests/codex/)（暖灰/水蓝/紫罗兰） | 3 | 64×64 | 否 | **有**（中心挖空 66%） | 已入库（程序生成，规格即需求文件分层表） |
+
+
 ### 第 3 批 · 待玩法定案后再写提示词
 
 这些资源的样子取决于还没设计的玩法，**现在写提示词是浪费**——
@@ -331,5 +347,6 @@ milestone-11 第 3 波氛围任务（粒子池）的两张特效贴图先程序�
 | 天空 | `Assets/Art/Sky/` |
 | 玩家 | `Assets/Art/Player/` |
 | 特效帧（m11 W3-4 占位在 `Assets/StreamingAssets/fx/`，正式美术入库 `Assets/Art/Effects/`） | `Assets/Art/Effects/` |
+| 图鉴徽章与卡牌 | `Assets/Art/Codex/` |
 | 音频 | `Assets/Resources/Audio/` |
 | 视频 | `Assets/StreamingAssets/video/` |
