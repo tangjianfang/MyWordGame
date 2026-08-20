@@ -308,6 +308,17 @@ milestone-11 第 3 波氛围任务（粒子池）的两张特效贴图先程序�
 | PT-2 | 图鉴内容卡 8 张 [card-ore-*](requests/codex/)（金/铁/合金/机元/钻 5 矿石）+ [card-plant-*](requests/codex/)（樱/向日葵/蕨 3 植物） | 8 | 64×64 | 否 | 无 | 已入库（AI 正式美术，视觉抽检合格） |
 | PT-3 | 卡框 3 档 [card-frame-common/rare/epic](requests/codex/)（暖灰/水蓝/紫罗兰） | 3 | 64×64 | 否 | **有**（中心挖空 66%） | 已入库（程序生成，规格即需求文件分层表） |
 
+### m12 W3 批 · 音乐盒方块（程序占位）
+
+m12 W3 音乐盒方块的 32×32 贴图：木盒底色 + 对称环边框（对边同色保证四边无缝）+ 中央音孔，
+确定性程序生成（无脚本留档，正式美术出后同名替换）。物品图标复用既有
+`items/textures/music-box.png`。
+
+另：成就/图鉴的 24 张运行时贴图以 `Assets/Art/Codex/` 为源，
+**镜像拷贝到 `Assets/StreamingAssets/ui/codex/`**（m6 B3 教训：standalone 读不到
+Assets/Art，UI 运行时只认 streamingAssetsPath）——改 `Assets/Art/Codex/` 正式稿后
+**记得同步镜像**，两处不一致时 UI 显示的是镜像旧图。
+
 
 ### 第 3 批 · 待玩法定案后再写提示词
 
