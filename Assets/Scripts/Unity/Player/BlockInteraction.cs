@@ -58,6 +58,11 @@ namespace MyWorld.Unity.Player
 
         private PlayerController _player;
         private World _world;
+        // m12 P0-a：挖掘计时三件套——群系查询 / 蓄力状态机 / 裂纹叠层
+        private WorldGenerator _generator;
+        private readonly DigProgress _dig = new DigProgress();
+        private PlacementGhostUi _ghost;
+        private DigCrackOverlay _crack;
         private BlockRegistry _registry;
         private ChunkViewRegistry _views;
         private SelectionBox _selection;
@@ -121,7 +126,21 @@ namespace MyWorld.Unity.Player
 
             _selection = SelectionBox.Create(parent, selectionMaterial);
             _selection.Hide();
+
+            // m12 P0-b：放置落点幽灵框（命中格沿法线外侧格的半透明预览，两态材质）
+            // m12 P0-a：破坏裂纹叠层（蓄力进度 break-0..4 五档，贴图缺失静默降级）
+            _ghost = PlacementGhostUi.Create(parent);
+            _ghost.Hide();
+            _crack = DigCrackOverlay.Create(parent);
+            _crack.Hide();
         }
+
+        /// <summary>
+        /// m12 P0-a：注入世界生成器——挖掘计时的群系倍率（山地石 ×2 / 沙漠沙 ×0.5）
+        /// 需要 <see cref="WorldGenerator.BiomeAt"/>。WorldBootstrap 步骤 9 Bind 后调用；
+        /// 未注入（EditMode fixture）回落 Plains（倍率 ×1），计时照常只是没有群系差异。
+        /// </summary>
+        public void SetGenerator(WorldGenerator generator) => _generator = generator;
 
         /// <summary>
         /// X2 fix-up：注入方块→物品掉落表。无表时挖方块不产生掉落（保持旧行为）。
@@ -172,6 +191,11 @@ namespace MyWorld.Unity.Player
             {
                 // 有模态 UI 开着：不射线拾取、不响应挖/放，顺便藏掉选中框
                 _selection?.Hide();
+                // m12 P0-a/P0-b：蓄力中途中断清零（门开着不松键看不到 GetMouseButtonUp，
+                // 与弓蓄力同款"作废最干净"）；幽灵框 / 裂纹一并隐藏
+                _dig.Reset();
+                _ghost?.Hide();
+                _crack?.Hide();
                 // m11 ②：弓蓄力一并取消——门开着时本方法提前 return，看不到
                 // GetMouseButtonUp，蓄力会冻结成「永远拉满」，直接作废最干净
                 _bowCharging = false;
@@ -203,21 +227,37 @@ namespace MyWorld.Unity.Player
             {
                 _selection.ShowAt(hit.X, hit.Y, hit.Z);
 
-                // m9 A1 分流：mob 命中优先于挖掘——准星 4m 内瞄着 mob 时本帧左键归攻击
-                // （CombatController 同帧会挥击），不挖 mob 身后的方块。判定与攻击共用
-                // 同一条射线（CombatController.IsMobInCrosshair ↔ TryAttack），两路永不漂移；
-                // 不依赖两个 Update 的执行顺序，所以这里独立查询而非读攻击方的返回值。
-                // fix1（I2）后该判定含视线复核：墙后有 mob 时不抑制——正好挖那堵墙。
-                if (Input.GetMouseButtonDown(0)
+                // m12 P0-b：放置落点预览——命中格沿法线外侧格画半透明幽灵框，
+                // 与真实放置同一条合法性判定（含腾空垫脚放宽），放哪一格看得见
+                UpdatePlacementGhost(hit);
+
+                // m12 P0-a：按住左键蓄力挖掘——进度满 1 才 BreakAt（m12 根因 1 修复：
+                // 原一次 GetMouseButtonDown 直接瞬挖，BreakTime 门槛矩阵从未被游戏循环消费）。
+                // mob 分流保留（m9 A1）：准星 4m 内瞄着 mob 时左键归攻击，蓄力不进、立即清零。
+                if (Input.GetMouseButton(0)
                     && !CombatController.IsMobInCrosshair(_player.Eye, _world, _registry))
                 {
-                    // 挖：把命中格设为空气，标脏，重建，并按 BlockDrops spawn ItemDropEntity
-                    BreakAt(hit.X, hit.Y, hit.Z);
+                    Float3 hitPoint = origin + direction * hit.Distance;
+                    if (TryTickDig(hit, hitPoint, Time.deltaTime))
+                    {
+                        BreakAt(hit.X, hit.Y, hit.Z);
+                        _dig.Reset();
+                    }
                 }
+                else
+                {
+                    _dig.Reset();
+                }
+
+                // m12 P0-a：按蓄力进度刷新目标方块上的裂纹档位
+                UpdateDigCrack();
             }
             else
             {
                 _selection.Hide();
+                _ghost?.Hide();
+                _dig.Reset();
+                UpdateDigCrack();
             }
 
             // m7 A3：右键路由挪出 hit.Hit 分支——选中食物时看天 / 看远处（射线落空）
@@ -313,10 +353,102 @@ namespace MyWorld.Unity.Player
             // 放：尝试解算放置位置（含 IntersectsPlayer 防卡身），合法就按 m11 W3-1 放置路由落块
             Aabb playerBox = Aabb.FromBottomCenter(_player.State.Position,
                 _player.Settings.Width, _player.Settings.Height);
-            if (BlockPlacement.TryResolve(hit, playerBox, out int x, out int y, out int z))
+            if (BlockPlacement.TryResolve(hit, playerBox, out int x, out int y, out int z,
+                    allowTowerUp: true))
             {
                 PlaceHeldItemOrPlaceholder(playerBox, x, y, z);
+
+                // m12 P0-b：垫脚放置成功 → 一次性把玩家抬到新块顶。垫脚的 0.5 容差允许
+                // 脚还低于块顶时就放（跳跃最高点附近），不抬会把人卡进方块里；
+                // 已经在新块顶之上则 LiftTo 自身 no-op，交给既有落地物理自然站上。
+                if (playerBox.Min.Y < y + 1f
+                    && BlockPlacement.IsTowerUpPlacement(x, y, z, playerBox))
+                {
+                    _player.LiftTo(y + 1f);
+                }
             }
+        }
+
+        // ─── m12 P0-a/P0-b：挖掘蓄力 + 放置预览 ───────────────────────────────────
+
+        /// <summary>
+        /// m12 P0-a：蓄力一帧（<c>Update</c> 与 EditMode 测试共用——EditMode 驱动不了
+        /// <c>Input.GetMouseButton</c>，直调本方法喂显式 dt，与 <see cref="UseAt"/>/
+        /// <see cref="BreakAt"/> 同款做法）。对准目标、按门槛矩阵算耗时、攒进度；
+        /// 返回 true 表示蓄力满格，调用方应立即 BreakAt 目标格。
+        /// </summary>
+        public bool TryTickDig(MyWorld.Core.Physics.VoxelRayHit hit, Float3 hitPoint, float dt)
+        {
+            if (!hit.Hit)
+            {
+                _dig.Reset();
+                return false;
+            }
+
+            _dig.Aim(hit.X, hit.Y, hit.Z, hitPoint);
+
+            ushort blockId = _world.GetBlock(hit.X, hit.Y, hit.Z);
+            Biome biome = _generator != null ? _generator.BiomeAt(hit.X, hit.Z) : Biome.Plains;
+            float hardness = ResolveBlockHardness(blockId);
+            var ctx = PlayerContext.Instance;
+            int toolTier = BlockGating.ResolveToolTier(ctx == null ? null : ctx.GetSelectedDefinition());
+            float seconds = BreakTime(blockId, biome, toolTier, hardness, SelectedDigTimeMultiplier());
+
+            _dig.Tick(dt, seconds);
+            return _dig.ShouldBreak;
+        }
+
+        /// <summary>注册表 hardness（调用方已知值喂给 <see cref="BreakTime"/> 的 default 分支）；
+        /// 未知方块返回 NaN——与守卫测试"没给 hardness"语义一致。</summary>
+        private float ResolveBlockHardness(ushort blockId)
+        {
+            var def = _registry.GetByNumericId(blockId);
+            return def == null ? float.NaN : def.Hardness;
+        }
+
+        /// <summary>
+        /// m12 P0-b：放置落点幽灵框——与真实放置（<see cref="UseAt"/>）同一条合法性判定：
+        /// 目标格与玩家盒重叠且垫脚也放宽不了 → 红；否则水蓝。
+        /// </summary>
+        private void UpdatePlacementGhost(MyWorld.Core.Physics.VoxelRayHit hit)
+        {
+            if (_ghost == null)
+            {
+                return;
+            }
+
+            int px = hit.PlacementX;
+            int py = hit.PlacementY;
+            int pz = hit.PlacementZ;
+            if (py < VoxelCoords.MinY || py >= VoxelCoords.MaxY)
+            {
+                _ghost.Hide();
+                return;
+            }
+
+            Aabb box = Aabb.FromBottomCenter(_player.State.Position,
+                _player.Settings.Width, _player.Settings.Height);
+            bool blocked = BlockPlacement.IntersectsPlayer(px, py, pz, box)
+                && !BlockPlacement.IsTowerUpPlacement(px, py, pz, box);
+            _ghost.ShowAt(px, py, pz, valid: !blocked);
+        }
+
+        /// <summary>m12 P0-a：按 <see cref="_dig"/> 的进度刷裂纹档位；无目标 / 零进度隐藏。</summary>
+        private void UpdateDigCrack()
+        {
+            if (_crack == null)
+            {
+                return;
+            }
+
+            int stage = _dig.CrackStage(DigCrackOverlay.StageCount);
+            if (stage < 0)
+            {
+                _crack.Hide();
+                return;
+            }
+
+            _crack.ShowAt(_dig.TargetX, _dig.TargetY, _dig.TargetZ, stage);
         }
 
         // ─── m11 W3-1：手持物品 → 对应方块（替换 m3 恒放 placeBlockId 的占位） ──────

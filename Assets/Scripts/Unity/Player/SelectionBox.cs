@@ -51,6 +51,10 @@ namespace MyWorld.Unity.Player
             }
         }
 
+        /// <summary>m12 P0-b：放置幽灵框（PlacementGhostUi）与破坏裂纹（DigCrackOverlay）
+        /// 复用同一份 Cube mesh 构建（照本类的"mesh + 不受光材质"结构，别各写一份漂移）。</summary>
+        internal static Mesh BuildEdgeMeshForReuse() => BuildEdgeMesh();
+
         /// <summary>把线框摆到指定方块格的位置；scale 1.002 让它比方块略大一点。</summary>
         public void ShowAt(int x, int y, int z)
         {

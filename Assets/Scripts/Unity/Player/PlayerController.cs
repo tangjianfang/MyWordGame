@@ -70,6 +70,25 @@ namespace MyWorld.Unity.Player
             ApplyToTransform();
         }
 
+        /// <summary>m12 P0-b：腾空垫脚放置后一次性把玩家抬到 <paramref name="worldY"/>。
+        /// 垫脚的 0.5 格容差允许"脚还低于新块顶"时就放（跳跃最高点附近），
+        /// 靠物理解算会把人卡进方块里——这里照 <see cref="RestoreCoreState"/> 同款
+        /// 「写 _state + ApplyToTransform」直接修正，仅允许向上（worldY 更低时 no-op），
+        /// 竖直速度清零防继续下坠穿模。</summary>
+        public void LiftTo(float worldY)
+        {
+            if (worldY <= _state.Position.Y)
+            {
+                return; // 只向上抬；已经更高就交给既有落地物理
+            }
+
+            _state = new PlayerState(
+                new Float3(_state.Position.X, worldY, _state.Position.Z),
+                new Float3(_state.Velocity.X, 0f, _state.Velocity.Z),
+                _state.IsGrounded);
+            ApplyToTransform();
+        }
+
         // ─── 公开 jump / 着地信号（A4：HandController 与无头驱动依赖） ──────────────
         // 绑定到世界后这两个值同步自 <see cref="PlayerState"/>——Core 在 <see cref="Tick"/>
         // 里做碰撞检测、重力累积；绑定前保留本地默认值，避免测试 / 预览场景拿不到信号。
