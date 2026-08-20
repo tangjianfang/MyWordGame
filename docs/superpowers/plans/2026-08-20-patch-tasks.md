@@ -82,3 +82,4 @@ m12 计划本体不重复抄写——**执行时照 `docs/superpowers/plans/2026
   - **教训（Git Bash 陷阱）**：bash 无法 `export` 带括号的 `ProgramFiles(x86)`（"not a valid identifier" 整条 export 失败、`&&` 链断、Unity 根本没启动、grep 读到旧 xml 误报全绿）——必须照 `build-and-run.sh` 用下划线变体 `ProgramFiles_x86` 逐条 export，且**跑前先删旧 `unity-test-results.xml`** 防止读 stale
 - **Task 5 未启动**（按计划择期）：m12 plan 经本轮勘误可直接执行，重启对表见上文四处漂移
 - **Task 5 后续启动（2026-08-21）**：**m12 第 0 波当日落地**——P0 挖掘计时 + 放置手感（commit `4ba7b84`：DigProgress 蓄力/裂纹五档/幽灵框/跳跃垫脚/五向测试）、P1 世界管理（commit `c2a0261`：WorldCatalog + 主菜单三态 + 场景重载换种子）；双链 dotnet **1012/1012** / EditMode **1786/1786** 全绿（974/1732 → +38/+54，只增不减）。第 1 波（成就/图鉴/药水乐器/水生飞行）待排期，照 m12 plan 原任务卡执行
+  - **出包（收口铁律）**：`build-and-run.sh --skip-tests --no-launch` 过，包内容时间 **2026-08-21 00:57**（`MyWordGame_Data/globalgamemanagers` mtime；启动器 exe 的 Aug-14 mtime 是 Unity 增量构建不重写 launcher 的行为，`MyWorld.Core.dll`/`MyWorld.Unity.dll` 已实证为新编译）。实机可玩性验收待孩子跑第 1-3 关（挖石头有等待与裂纹 / 跳搭塔 / 主菜单三态）
