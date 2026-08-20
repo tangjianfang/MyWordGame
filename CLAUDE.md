@@ -7,8 +7,8 @@
 ## 项目速览
 
 - **MyWordGame**：自研体素沙盒游戏，父子共同开发
-- **当前基线**：m12 第 1 波 W1-W3 落地（2026-08-21），双链全绿——dotnet **1034/1034**、EditMode **1808/1808**（第 0 波后为 1012/1786）
-- **m12 状态**：**第 0 波 + 第 1 波 W1-W3 已落地**（P0 挖掘计时/放置手感、P1 世界管理、W1 成就、W2 图鉴、W3 药水乐器——commit `4ba7b84`/`c2a0261`/`739bbbc`）；W4（P2 美术批 + 水生飞行生物）与第 2 波（打磨）待排期
+- **当前基线**：m12 全波次落地（2026-08-21），双链全绿——dotnet **1039/1039**、EditMode **1813/1813**（W1-W3 后为 1034/1808）
+- **m12 状态**：**全部波次已落地**（P0 挖掘/放置、P1 世界管理、W1 成就、W2 图鉴、W3 药水乐器、W4 生物 + W6 教学行 + W7 验收剧本——commit `4ba7b84`/`c2a0261`/`739bbbc`/`cc19117`）；**唯一遗留：W4 的 P2 美术批 71 项**被 Token Plan 配额挡住（status 2056，2026-08-21 实证），配额恢复后跑 `generate_art.py --all --n 4 --jobs 4` → postprocess → install 补齐
 - **三层架构**：`MyWorld.Core`（`Assets/Scripts/Core`，纯 C# 零 UnityEngine） / `MyWorld.Unity`（`Assets/Scripts/Unity`，URP 2022.3 适配层） / `MyWorld.Gameplay`（`Assets/Scripts/Gameplay`，玩法接线）
 - **引擎**：Unity 2022.3.62f3c1（中国版）+ URP 14.0.11
 - **仓库内所有文档、注释、断言消息一律中文**，新增内容请保持一致
@@ -232,9 +232,9 @@ Core 层的约束由编译器强制，不是约定：
 - 视频 RT 同步升档：主菜单 1920×1080 / 笔记本屏 640×360（commit `9a811c3`）
 - 音频 36 条 .ogg 实际入库（BGM 3 + 环境 3 + 玩家事件 14 + 生物叫 idle/hurt 16）；视频现共 5 个 mp4（m11 时 menu-bg + laptop-loop；m13 W5 加 aurora-burst / aurora-storm / minecraft-dawn，启动菜单 4 选项）
 
-### m12 · 游戏手感与完成度（**第 0 波 + 第 1 波 W1-W3 已落地**；W4 待排期）
+### m12 · 游戏手感与完成度（**全波次已落地**；仅 P2 美术批 71 项卡配额）
 
-> **执行状态（2026-08-21）**：第 0 波 P0/P1 + 第 1 波 W1-W3 全部落地（commit `4ba7b84`/`c2a0261`/`739bbbc`，双链 dotnet 1034/EditMode 1808 全绿）。W1 成就（16 枚数据驱动 + 帮助菜单成就页 + 解锁飘字 + Stats 往返）、W2 图鉴（26 条目 + 命中/挖掘/获得解锁 + 三栏页）、W3 药水乐器（6 瓶药水 30s buff + 鼓笛铃 + music_box 方块小星星）均已实装。W4（P2 美术批 + 水生飞行生物）与第 2 波（打磨）照原计划待排期。
+> **执行状态（2026-08-21）**：P0/P1 + W1-W4 + W6/W7 全部落地（commit `4ba7b84`/`c2a0261`/`739bbbc`/`cc19117`，双链 dotnet 1039/EditMode 1813 全绿）。W4 生物 = MobKind 28-36（水生 5：鳕/鲑/热带鱼/河豚/龟，`TickAquatic` 水柱折返 + **水柱分流刷怪**（落点是水才进水生候选）；飞行 4：麻雀/鹦鹉/猫头鹰/蝴蝶，`TickFlyer` 固定高度 + 受击下落）。**P2 美术批 71 项被 Token Plan 配额挡住（2056），待配额恢复补**。验收剧本：`docs/superpowers/specs/2026-08-21-milestone-12-验收剧本.md`（8 关）。
 
 **三大根因**（孩子实机反馈并入，均已核实；**前两条已随 P0 修复、第三条已随 P1 修复**）：
 1. **挖掘无计时**：`BlockInteraction.Update` 里 `Input.GetMouseButtonDown(0)` 一次点击直接 `BreakAt`，`BreakTime(blockId, biome, toolTier, …)` 门槛矩阵**只被测试断言、从未被游戏循环消费**——玩家实际体验是全瞬挖

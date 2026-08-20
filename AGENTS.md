@@ -4,8 +4,8 @@
 
 ## 当前基线
 
-- m12 第 0 波 + 第 1 波 W1-W3 落地（2026-08-21），双链全绿——dotnet **1034/1034**、EditMode **1808/1808**（实测）
-- **m12 W1-W3 已落地**（成就/图鉴/药水乐器，commit `739bbbc`）；**W4 未实施**（P2 美术批 + 水生飞行生物）——勿把 W4 设计当现状
+- m12 全波次落地（2026-08-21），双链全绿——dotnet **1039/1039**、EditMode **1813/1813**（实测）
+- **m12 已全部落地**（含 W4 水生 5 + 飞行 4 生物，MobKind 28-36——**新 kind 从 37 起**）；唯一遗留 P2 美术批 71 项卡 Token Plan 配额
 - 完整约束见 `CLAUDE.md`，本文档只是速查；三份文档（README/CLAUDE/AGENTS）在里程碑收口时同步更新
 
 ## 仓库速查
@@ -71,7 +71,7 @@ Unity 侧 EditMode（Windows）：
 | `recipes/*.json` | 合成/熔炉 | 按 `tier` 区分 2x2 / 3x3 / 熔炉 |
 | `biomes.json` | 生物群系 | 群系名与 `spawn_rules.json` 引用一致 |
 | `mobs/spawn_rules.json`、`mobs/drop_tables.json` | 生物生成/掉落 | 生成一律走 `MobSpawnRules.PickKind`，**不要写 `UnityEngine.Random`**；掉落走 `MobDropTable.RollAll` |
-| `mobs/models/*.json` | 生物造型（m11 I1 外置） | `MobKind` 1-27 已占（5 旧 + 9 被动 + 3 敌对 + 村民 + Boss=27），新 kind 从 **28** 起；坐标约定「脚底原点、面朝 +Z」；**加生物 = 1 份 JSON + spawn_rules 一行，不动 C#** |
+| `mobs/models/*.json` | 生物造型（m11 I1 外置） | `MobKind` 1-27 + **28-36（m12 W4 水生飞行）已占**，新 kind 从 **37** 起；坐标约定「脚底原点、面朝 +Z」；**加生物 = 1 份 JSON + spawn_rules 一行，不动 C#** |
 | `vegetation/trees.json`、`vegetation/flowers.json` | 植被（m11 I2 外置） | 树种哈希通道互相独立；oak 与旧常量逐格一致有守卫 |
 | `quests/chapter1.json`、`quests/chapter2.json` | 引导任务双章 | 12 类事件词汇含 `ObtainItem/CraftItem/SmeltItem/SurviveNight/SleepInBed/HarvestCrop/EnchantItem/KillKind` 等；事件由 `QuestEventBus` 转发；进度进 `level.dat`，旧档无字段=全新开始 |
 
