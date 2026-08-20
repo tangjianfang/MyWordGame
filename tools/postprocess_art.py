@@ -1209,7 +1209,7 @@ def _derive_moon_phases() -> np.ndarray:
     ys, xs = np.where(opaque)
     # 圆盘只占画面中央一部分，必须按 Alpha 实测半径，否则相位面积会算偏
     cy, cx = (ys.min() + ys.max()) / 2, (xs.min() + xs.max()) / 2
-    ry, rx = (ys.ptp() + 1) / 2, (xs.ptp() + 1) / 2
+    ry, rx = (ys.max() - ys.min() + 1) / 2, (xs.max() - xs.min() + 1) / 2
     yy, xx = np.mgrid[0:h, 0:w]
     u = (xx - cx) / rx
     v = (yy - cy) / ry
