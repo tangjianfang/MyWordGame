@@ -46,6 +46,7 @@ bin/
 !.vscode/extensions.json
 .DS_Store
 Thumbs.db
+.zcode/
 
 # === 美术中间产物 ===
 # 待验收的多模态生成结果，验收后才移入 Assets
