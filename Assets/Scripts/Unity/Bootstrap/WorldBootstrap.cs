@@ -26,6 +26,39 @@ namespace MyWorld.Unity.Bootstrap
         /// <summary>其他系统（<see cref="MobManager"/> 等）从这里拿 World，避免 FindObjectOfType。</summary>
         public static World CurrentWorld { get; private set; }
 
+        // ─── m12 P1：世界管理（主菜单「继续上次 / 新世界 / 世界列表」的换图机制） ──────
+
+        /// <summary>存档根目录（persistentDataPath/worlds）。TitleScreenUi 的世界列表与
+        /// 本类步骤 6/25 共用同一路径，别各拼一份漂移。</summary>
+        public static string SaveRoot => System.IO.Path.Combine(
+            UnityEngine.Application.persistentDataPath, "worlds");
+
+        /// <summary>最近进入的世界种子记在 PlayerPrefs（键见 <see cref="PrefKeyLastWorldSeed"/>），
+        /// 「继续上次」优先用它（没写过存档也能续上次玩的种子），缺失回落目录 mtime。</summary>
+        public const string PrefKeyLastWorldSeed = "WorldCatalog.LastSeed";
+
+        /// <summary>换世界握手：主菜单选中非当前种子时由 <see cref="RequestWorldSwitch"/>
+        /// 写入，下一次 Awake（场景重载后）顶替序列化 seed 并清空。static 跨 LoadScene 存活。</summary>
+        public static long? PendingSeed;
+
+        /// <summary>当前实际生效的种子（m12 P1：主菜单判断"选中的世界是否已在跑"）。</summary>
+        public long CurrentSeed => seed;
+
+        /// <summary>
+        /// m12 P1：换世界 = 整场景重载 + 种子握手。为什么不就地重建 World/生成器/流式器——
+        /// seed 渗透进 ChunkStreamer / FarmSystem / WeatherSystem / SaveLoadService 十余处绑定，
+        /// 就地逐个解绑重绑的遗漏面远大于一次场景重载；重载把 mob/掉落物/任务总线等全部
+        /// 从零装配，干净且零漂移。重载后 TitleScreenUi 读 <see cref="TitleScreenUi.SkipMenuNextLoad"/>
+        /// 直接 StartGame（不再弹一次菜单）。
+        /// </summary>
+        public static void RequestWorldSwitch(long newSeed)
+        {
+            PendingSeed = newSeed;
+            MyWorld.Unity.UI.TitleScreenUi.SkipMenuNextLoad = true;
+            UnityEngine.SceneManagement.SceneManager.LoadScene(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+        }
+
         [SerializeField] private long seed = 42;
 
         [Tooltip("玩家水平出生坐标（X/Z）。Y 由生成器地表高度 +2 决定，序列化的 Y 值被忽略。")]
@@ -51,6 +84,13 @@ namespace MyWorld.Unity.Bootstrap
 
         private void Awake()
         {
+            // m12 P1：换世界握手——场景重载后用主菜单选中的种子顶替序列化默认值（42）
+            if (PendingSeed.HasValue)
+            {
+                seed = PendingSeed.Value;
+                PendingSeed = null;
+            }
+
             // 0. 自适应物理屏全屏（m5 B3）：ProjectSettings 固定 1920×1080 + FullScreenWindow，
             // 非 16:9 物理屏（如 2560×1600）两侧会出现 pillarbox 黑边。启动时按物理屏
             // 原生分辨率 SetResolution，画面铺满整屏。编辑器下无效但无害。
@@ -80,7 +120,7 @@ namespace MyWorld.Unity.Bootstrap
             _views = new ChunkViewRegistry(worldRoot, _world, _registry, _materials);
 
             // 6. 流式加载器（m4 B1：带存档 regionsDir，卸载前把脏区块落盘到 region 文件）
-            string saveRoot = Path.Combine(Application.persistentDataPath, "worlds");
+            string saveRoot = SaveRoot; // m12 P1：与 TitleScreenUi 世界列表共用同一路径
             string regionsDir = Path.Combine(saveRoot, seed.ToString(), "regions");
             _streamer = new ChunkStreamer(_world, generator, _registry, _views, seed, regionsDir);
 
@@ -141,6 +181,9 @@ namespace MyWorld.Unity.Bootstrap
             // 9. 方块交互
             _interaction = GetComponent<BlockInteraction>() ?? gameObject.AddComponent<BlockInteraction>();
             _interaction.Bind(_world, _registry, _views, transform);
+            // m12 P0-a：挖掘计时的群系倍率来源（山地石 ×2 / 沙漠沙 ×0.5 走 BiomeAt；
+            // 不注入回落 Plains 倍率 ×1——EditMode fixture 就是这么跑的）
+            _interaction.SetGenerator(generator);
             // X2 fix-up：把方块→物品掉落表注入 BlockInteraction，让挖方块 spawn ItemDropEntity。
             // 数据来自 StreamingAssets/blocks/drops/block_drops.json。
             try
