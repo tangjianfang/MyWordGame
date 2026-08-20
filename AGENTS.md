@@ -4,8 +4,8 @@
 
 ## 当前基线
 
-- m13 W5 收口（2026-08-20），双链全绿——dotnet **974/974**、EditMode **1732/1732**（2026-08-20 实测）
-- **m12 计划已定稿但未实施**（DigProgress/WorldCatalog/成就/图鉴/药水乐器均未创建，m13 插队先行）——勿把 m12 设计文档当现状
+- m12 第 0 波落地 + m13 W5 收口（2026-08-21），双链全绿——dotnet **1012/1012**、EditMode **1786/1786**（实测）
+- **m12 第 0 波已落地**（P0 挖掘计时/放置手感 + P1 世界管理，commit `4ba7b84`/`c2a0261`）；**第 1 波未实施**（成就/图鉴/药水乐器/水生飞行）——勿把第 1 波设计当现状
 - 完整约束见 `CLAUDE.md`，本文档只是速查；三份文档（README/CLAUDE/AGENTS）在里程碑收口时同步更新
 
 ## 仓库速查
@@ -104,11 +104,11 @@ Unity 侧 EditMode（Windows）：
 
 ## m12/m13 关键陷阱（新增）
 
-### m12 · 手感与世界管理（计划定稿、**未实施**）
+### m12 · 手感与世界管理（**第 0 波已落地**，commit `4ba7b84`/`c2a0261`）
 
-- **挖掘计时**（`Core/Player/DigProgress.cs`，**未创建**）：设计为按住左键累计 `dt × (1 / BreakTime(...))`，松开/移开/换目标重置；进度 ≥1 才 `BreakAt`。现状：`BreakTime` 门槛矩阵（徒手挖石 4s 不掉落/铁镐挖金 3s 等）**至今仍只被测试断言、从未被游戏循环消费**——一次点击仍直接 `BreakAt` 瞬挖
-- **落点预览 + 跳跃垫脚**（未实施）：设计为准星命中时在目标格（`hit + Normal`）画半透明幽灵框（`PlacementGhostUi` 或扩 `SelectionBox`）；玩家**腾空**（AABB 底高于目标格顶 - 0.5 容差）且目标格在脚下一格时放宽 `IntersectsPlayer` 允许放置；放置成功把玩家 snap 到新块顶；站立时仍全禁（防自封）
-- **世界管理**（`Assets/Scripts/Unity/Persistence/WorldCatalog.cs`，**未创建**）：设计为扫 `worlds/` 目录列表；主菜单三按钮「继续上次/新世界（种子输入框+随机按钮）/世界列表（选中/删除二次确认）」；删除走回收站式改名 `.deleted` 防误删
+- **挖掘计时**（`Core/Player/DigProgress.cs`，已实装）：按住左键累计 `dt × (1 / BreakTime(...))`，松开/移开/换目标重置（0.1 格抖动容差）；进度 ≥1 才 `BreakAt`；`BreakTime` 门槛矩阵（徒手挖石 4s 不掉落/铁镐挖金 3s 等）**已接入游戏循环**（`BlockInteraction.TryTickDig`）——不再是瞬挖；裂纹走 `DigCrackOverlay` 五档（StreamingAssets/ui/break-N.png）
+- **落点预览 + 跳跃垫脚**（已实装）：`PlacementGhostUi` 在目标格（`hit + Normal`）画半透明幽灵框（水蓝=可放/红=被挡）；玩家**腾空**（AABB 底高于目标格顶 - 0.5 容差）且目标格在脚下一格时放宽 `IntersectsPlayer`（`BlockPlacement.IsTowerUpPlacement`）；放置成功 `PlayerController.LiftTo` 抬到新块顶防卡块；站立时仍全禁（防自封）；五向命中有参数化测试钉死
+- **世界管理**（`Core/Persistence/WorldCatalog.cs`，已实装）：扫 `worlds/` 目录列表（按 level.dat mtime 降序）；主菜单三态「继续上次（PlayerPrefs 记忆 + 目录兜底）/新世界（种子输入 + 随机）/世界列表（进入 + 两段确认删除）」；删除走回收站式改名 `.deleted-<时间戳>` 防误删；**换种子 = 场景重载 + `WorldBootstrap.PendingSeed` 握手**（`RequestWorldSwitch`），不做就地重绑
 
 ### m13 · 飞行/血条/难度/远程/武器面板
 
@@ -155,4 +155,4 @@ Unity 侧 EditMode（Windows）：
 | 孩子提的需求 | 先落 `docs/小孩子玩后需求/` 原文，对照真实 Minecraft 参数评估后修 spec |
 | 音频/视频 | `docs/superpowers/specs/2026-08-18-audio-video-design.md` + 每日 3 次视频配额队列 `art/incoming/video/quota.json` |
 | 飞行/血条/难度/火枪/武器面板 | `docs/superpowers/specs/2026-08-19-milestone-13-flight-combat-design.md` + `docs/superpowers/specs/2026-08-19-milestone-13-验收剧本.md` |
-| 挖掘/放置/世界管理 | `docs/superpowers/plans/2026-08-18-milestone-12.md`（三大根因 + P0/P1 任务卡；**未实施**，落地前先读） |
+| 挖掘/放置/世界管理 | `CLAUDE.md` m12 节（第 0 波已落地）+ `docs/superpowers/plans/2026-08-18-milestone-12.md`（第 1 波任务卡，未实施） |

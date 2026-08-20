@@ -7,8 +7,8 @@
 ## 项目速览
 
 - **MyWordGame**：自研体素沙盒游戏，父子共同开发
-- **当前基线**：m13 W5 收口（2026-08-20），双链全绿——dotnet **974/974**、EditMode **1732/1732**（2026-08-20 实测）
-- **注意：m12 计划已定稿但未实施**（DigProgress / WorldCatalog / 成就 / 图鉴 / 药水乐器均未创建，m13 插队先行）——别把 m12 设计文档当现状
+- **当前基线**：m12 第 0 波落地（2026-08-21），双链全绿——dotnet **1012/1012**、EditMode **1786/1786**（m13 W5 时为 974/1732）
+- **m12 状态**：**第 0 波已落地**（P0 挖掘计时/放置手感 + P1 世界管理，commit `4ba7b84`/`c2a0261`）；第 1 波（成就/图鉴/药水乐器/水生飞行）与第 2 波（打磨）照计划待排期
 - **三层架构**：`MyWorld.Core`（`Assets/Scripts/Core`，纯 C# 零 UnityEngine） / `MyWorld.Unity`（`Assets/Scripts/Unity`，URP 2022.3 适配层） / `MyWorld.Gameplay`（`Assets/Scripts/Gameplay`，玩法接线）
 - **引擎**：Unity 2022.3.62f3c1（中国版）+ URP 14.0.11
 - **仓库内所有文档、注释、断言消息一律中文**，新增内容请保持一致
@@ -232,16 +232,16 @@ Core 层的约束由编译器强制，不是约定：
 - 视频 RT 同步升档：主菜单 1920×1080 / 笔记本屏 640×360（commit `9a811c3`）
 - 音频 36 条 .ogg 实际入库（BGM 3 + 环境 3 + 玩家事件 14 + 生物叫 idle/hurt 16）；视频现共 5 个 mp4（m11 时 menu-bg + laptop-loop；m13 W5 加 aurora-burst / aurora-storm / minecraft-dawn，启动菜单 4 选项）
 
-### m12 · 游戏手感与完成度（计划已定稿、**实施待执行**）
+### m12 · 游戏手感与完成度（**第 0 波已落地**：P0 + P1；第 1 波待排期）
 
-> **状态警示**：m12 只有 docs 立项（plan `2026-08-18-milestone-12.md`），实现文件（`DigProgress` / `WorldCatalog` / `PlacementGhostUi` / `AchievementSystem` / `CodexUi` / `PotionSystem`）**均未创建**——m13 插队先行落地。下述是定稿设计，实施时照此执行。
+> **执行状态（2026-08-21）**：第 0 波当日落地——P0 挖掘计时 + 放置手感（commit `4ba7b84`）、P1 世界管理（commit `c2a0261`），双链 dotnet 1012/EditMode 1786 全绿。第 1 波（W1 成就 / W2 图鉴 / W3 药水乐器 / W4 P2 美术 + 水生飞行）与第 2 波（打磨）照原计划待排期。
 
-**三大根因**（孩子实机反馈并入，均已核实）：
+**三大根因**（孩子实机反馈并入，均已核实；**前两条已随 P0 修复、第三条已随 P1 修复**）：
 1. **挖掘无计时**：`BlockInteraction.Update` 里 `Input.GetMouseButtonDown(0)` 一次点击直接 `BreakAt`，`BreakTime(blockId, biome, toolTier, …)` 门槛矩阵**只被测试断言、从未被游戏循环消费**——玩家实际体验是全瞬挖
 2. **放置六向体感缺失 + 无法向上搭**：`BlockPlacement.TryResolve` 用 `hit + Normal` 机制上六向可选，但 `IntersectsPlayer` 防卡身锁死跳跃垫脚、面选择不可见无落点预览
 3. **主菜单无世界管理**：`TitleScreenUi` 旧版只有「开始游戏/退出」
 
-**落地方案（定稿，未实施）**：
+**落地方案（第 0 波已实施，commit `4ba7b84`/`c2a0261`）**：
 - **`DigProgress` 挖掘计时**（Core `Assets/Scripts/Core/Player/DigProgress.cs`）：按住左键累计 `dt × (1 / BreakTime(...))`，松开/移开/换目标重置；进度 ≥1 才 `BreakAt`；准星方块叠破坏裂纹（`Assets/Art/UI/break-0..4.png` 五档已有，按进度分档换图）；模态 UI 开着暂停蓄力（共用既有指针门）；作物/花草秒挖分支（hardness<0.05 → 0.15s）自然兼容；效率附魔乘数走 `SelectedDigTimeMultiplier()`；同一方块内小幅晃动不清进度（容差 0.1 格吸附）
 - **六向放置 + 跳跃垫脚**：
   - **落点预览**（`PlacementGhostUi` 或扩 `SelectionBox`）：准星命中时在目标格（`hit + Normal`）画半透明幽灵框，材质两态照水款半透，放哪一格**看得见**
