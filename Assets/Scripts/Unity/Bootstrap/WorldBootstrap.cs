@@ -53,6 +53,11 @@ namespace MyWorld.Unity.Bootstrap
         /// </summary>
         public static void RequestWorldSwitch(long newSeed)
         {
+            // 评审 04 R-2：换世界前同步保存当前世界——此前直接 LoadScene，丢最近 ≤30s 的
+            // 方块改动与 level.dat 状态。保存失败也照常换世界（只丢窗口不阻断，取舍见
+            // 评审报告）；SaveLoadService.OnDestroy 另有一道兜底。
+            UnityEngine.Object.FindObjectOfType<MyWorld.Unity.Persistence.SaveLoadService>()?
+                .SaveNow(async: false);
             PendingSeed = newSeed;
             MyWorld.Unity.UI.TitleScreenUi.SkipMenuNextLoad = true;
             UnityEngine.SceneManagement.SceneManager.LoadScene(

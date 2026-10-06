@@ -77,6 +77,45 @@ namespace MyWorld.Core.Tests.Persistence
         }
 
         [Test]
+        public void OnDestroy_场景卸载前落盘脏区块()
+        {
+            // 评审 04 R-2：换世界 = LoadScene 场景卸载，SaveLoadService.OnDestroy 必须同步
+            // 保存——修复前场景卸载不触发任何保存，脏区块改动随内存丢弃（丢最近 ≤30s）。
+            var go = new GameObject();
+            try
+            {
+                var ctx = go.AddComponent<PlayerContext>();
+                ctx.Inventory = new PlayerInventory();
+                ctx.Health = new Health(20f);
+                ctx.Time = new TimeOfDay { CurrentTick = 7000f };
+                var player = go.AddComponent<PlayerController>();
+                var service = go.AddComponent<SaveLoadService>();
+
+                var world = new World();
+                var generator = new MyWorld.Core.WorldGen.WorldGenerator(42);
+                world.AddChunk(new ChunkPos(0, 0), generator.Generate(new ChunkPos(0, 0)));
+                world.SetBlock(3, 64, 5, BlockIds.Bedrock); // 制造脏块，且不手动 SaveNow
+                service.Bind(world, ctx, player, seed: 42, saveRoot: _saveRoot);
+                string regionsDir = service.RegionsDir;
+
+                // 销毁整个 GameObject 模拟场景卸载（EditMode 下 DestroyImmediate 触发 OnDestroy）
+                Object.DestroyImmediate(go);
+
+                Assert.That(File.Exists(Path.Combine(regionsDir, "r.0.0.mwr")), Is.True,
+                    "OnDestroy 应把脏区块落盘（评审 04 R-2）");
+                var check = new World();
+                bool hit = RegionSaveCoordinator.TryLoadChunk(check, new ChunkPos(0, 0), regionsDir);
+                Assert.That(hit, Is.True, "region 应可读回");
+                Assert.That(check.GetBlock(3, 64, 5), Is.EqualTo(BlockIds.Bedrock),
+                    "卸载前保存的玩家改动应完整恢复");
+            }
+            finally
+            {
+                // go 已在测试中销毁；_saveRoot 由 TearDown 清理
+            }
+        }
+
+        [Test]
         public void SaveNow_写入level_dat与regions目录()
         {
             var go = new GameObject();

@@ -80,6 +80,17 @@ namespace MyWorld.Unity.Persistence
 
         private void OnApplicationQuit() => SaveNow(async: false);
 
+        /// <summary>同步路径等待在途后台写的上限（毫秒）。写盘线程因极端 IO 卡死时
+        /// 最多等这么久——超时打错误日志后继续同步写（文件互斥由协调器写锁保证），
+        /// 不再无限死等拖死退出/换世界（评审 04 R-2 修复附带）。</summary>
+        private const int SyncWaitTimeoutMs = 10_000;
+
+        /// <summary>评审 04 R-2：场景卸载（换世界 <see cref="MyWorld.Unity.UI.TitleScreenUi"/>
+        /// 经 RequestWorldSwitch → LoadScene）前同步落盘——此前只有 OnApplicationQuit 一个
+        /// 钩子，换世界直接丢最近 ≤30s 的全部改动。未 Bind 时 SaveNow 内部静默跳过；
+        /// 与 OnApplicationQuit 的先后重复保存幂等（同内容重写）。</summary>
+        private void OnDestroy() => SaveNow(async: false);
+
         /// <summary>异步保存（自动保存 / 手动保存）：主线程冻结快照，写盘交 <see cref="WriteExecutor"/>。
         /// 返回本轮是否成功调度（撞重叠保护 / 调度失败为 false；写盘本身的成败稍后经
         /// <see cref="LastSaveError"/> 与错误日志发布）。既有调用方（30s 自动保存等）忽略返回值，语义不变。</summary>
@@ -102,8 +113,19 @@ namespace MyWorld.Unity.Persistence
             if (!async)
             {
                 // 同步路径（退出前落盘）必须等在途后台写完成：两个写者并发 File.Replace/File.Move
-                // 同一批文件会互相破坏——「原子写」的前提是单写者
-                while (_writeInProgress) System.Threading.Thread.Sleep(1);
+                // 同一批文件会互相破坏——「原子写」的前提是单写者。
+                // 等待带上限（评审 04 R-2 附带）：极端 IO 卡死不无限死等
+                var waitStart = System.Diagnostics.Stopwatch.StartNew();
+                while (_writeInProgress)
+                {
+                    if (waitStart.ElapsedMilliseconds > SyncWaitTimeoutMs)
+                    {
+                        Debug.LogError(
+                            $"[SaveLoadService] 等待在途后台写盘超时 {SyncWaitTimeoutMs}ms，继续同步保存（文件互斥由协调器写锁保证）");
+                        break;
+                    }
+                    System.Threading.Thread.Sleep(1);
+                }
             }
 
             // ── 主线程快照阶段：全部冻结为纯数据 / 冻结引用，后台零 UnityEngine API ──
