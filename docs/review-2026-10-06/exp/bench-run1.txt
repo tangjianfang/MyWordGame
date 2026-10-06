@@ -1,0 +1,65 @@
+合成数据目录: C:\Users\tjf\AppData\Local\Temp\myword-bench-10a6db86
+方块注册表: 72 项
+
+── [G1] WorldGenerator.Generate 单列（正式链路 4 参构造，seed=42）──
+  单列 Generate                                                min=   12.162 ms  avg=   20.083 ms  max=   25.769 ms
+
+── [G2] GreedyMesher.Build 单 section（地表段，MarkBlockChanged 的重建单元）──
+  地表段建网格（含邻居采样）                                              min=    4.399 ms  avg=    7.069 ms  max=   10.361 ms
+  本段四边形数: 68(参考)
+
+── [G3] ChunkSerializer（CompressionLevel.Optimal）──
+  地表列 Serialize（~11 个非空 section）                             min=   18.080 ms  avg=   22.090 ms  max=   28.237 ms
+  产物大小: 8.9 KB
+  地表列 Deserialize                                            min=    8.053 ms  avg=    9.246 ms  max=   12.786 ms
+  满 24 section 列 Serialize（极限）                               min=   40.796 ms  avg=   43.728 ms  max=   49.722 ms
+  产物大小: 1.7 KB
+
+── [G4] RegionSaveCoordinator.SaveDirty 写放大（读-改-写整文件/轮）──
+  region 满    8 块·首轮全量写                                      min=  143.543 ms  avg=  143.543 ms  max=  143.543 ms
+  region 满    8 块·增量 1 块再写                                   min=   45.219 ms  avg=   54.855 ms  max=   71.357 ms
+      文件大小: 63.1 KB
+  region 满   64 块·首轮全量写                                      min= 1308.373 ms  avg= 1308.373 ms  max= 1308.373 ms
+  region 满   64 块·增量 1 块再写                                   min=   44.055 ms  avg=   52.707 ms  max=   64.340 ms
+      文件大小: 504.1 KB
+  region 满  256 块·首轮全量写                                      min= 5324.352 ms  avg= 5324.352 ms  max= 5324.352 ms
+  region 满  256 块·增量 1 块再写                                   min=   60.043 ms  avg=   68.359 ms  max=   78.344 ms
+      文件大小: 1985.7 KB
+  region 满 1024 块·首轮全量写                                      min=22158.419 ms  avg=22158.419 ms  max=22158.419 ms
+  region 满 1024 块·增量 1 块再写                                   min=  118.177 ms  avg=  126.718 ms  max=  138.146 ms
+      文件大小: 7768.0 KB
+
+── [G5] RegionSaveCoordinator.TryLoadChunk（每块=开文件+解析整个 region）──
+  region   16 块·连续加载 8 根（每根一次整文件解析）                          min=   12.260 ms  avg=   17.241 ms  max=   26.989 ms
+      命中 3/8
+  region  256 块·连续加载 8 根（每根一次整文件解析）                          min=   75.966 ms  avg=   87.236 ms  max=  101.551 ms
+      命中 24/8
+  region 1024 块·连续加载 8 根（每根一次整文件解析）                          min=  148.312 ms  avg=  158.788 ms  max=  178.512 ms
+      命中 24/8
+
+── [G6] LevelDataCodec（Formatting.Indented）合成档往返 ──
+  写 level.dat（箱  0·掉落  0·统计   0·田  0）                        min=    6.091 ms  avg=    9.093 ms  max=   21.856 ms
+      文件大小: 4.0 KB
+  读 level.dat 同档                                             min=    0.591 ms  avg=    0.842 ms  max=    1.137 ms
+  写 level.dat（箱 10·掉落100·统计  50·田 20）                        min=   25.334 ms  avg=   28.411 ms  max=   35.310 ms
+      文件大小: 57.4 KB
+  读 level.dat 同档                                             min=    5.324 ms  avg=    6.313 ms  max=    8.867 ms
+  写 level.dat（箱 50·掉落237·统计 200·田100）                        min=   29.256 ms  avg=   32.856 ms  max=   38.377 ms
+      文件大小: 236.5 KB
+  读 level.dat 同档                                             min=   21.090 ms  avg=   25.098 ms  max=   33.535 ms
+  写 level.dat（箱200·掉落500·统计1000·田500）                        min=   34.028 ms  avg=   62.005 ms  max=   87.158 ms
+      文件大小: 886.4 KB
+  读 level.dat 同档                                             min=   16.949 ms  avg=   44.460 ms  max=  110.472 ms
+
+── [G7] WorldLightVolumeBuilder（ChunkLightSystem 每 2s 重建，48×96×48 ×2 份）──
+  Build（合成体积：不透明+天光+方块光）                                     min=  118.999 ms  avg=  149.451 ms  max=  202.442 ms
+  BuildBlockLight（纯方块光体积）                                    min=   47.819 ms  avg=   55.188 ms  max=   66.069 ms
+  每轮两体积新分配 ≈ 1296.0 KB（2s 一次 → 38.0 MB/分钟 GC 压力）
+
+── [G8] Generate 并行化潜力（同一 WorldGenerator 实例共享，测线程安全与扩展性）──
+  1 线程生成 256 列:  5012 ms   与单线程产物逐字节一致: 是
+  2 线程生成 256 列:  2233 ms   与单线程产物逐字节一致: 是
+  4 线程生成 256 列:  1169 ms   与单线程产物逐字节一致: 是
+  8 线程生成 256 列:   572 ms   与单线程产物逐字节一致: 是
+
+全部实验完成。

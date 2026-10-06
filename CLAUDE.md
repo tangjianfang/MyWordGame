@@ -300,7 +300,22 @@ m13 设计文档 `docs/superpowers/specs/2026-08-19-milestone-13-flight-combat-d
 - **F 键还给熔炉**：飞行改**双击空格唯一入口**；帮助菜单补 F 熔炉 / R 武器面板 / 双击空格三行 + 飞行教学行，菜单高 660→732（07#1/#2、08 F1）
 - **空手右键不再放石头**：m3 `placeBlockId` 占位路径退役，放置只走 `ItemDefinition.BlockId` 路由（07#9）
 - **世界删除兜底**：`TryDelete` IO 占用返回 false + 主菜单失败提示（05 T-B2）；**items/recipes 坏 JSON 降级空表**不再炸启动（04 R-8）
+- **光照按需重建**：`ChunkLightSystem` 脏标记 + origin 追踪 + `World.EditCounter` 门控——挂机/主菜单零重建（02#1/03 B-1，每 2s 83-270ms 归零）
+- **卸载落盘后台化**：`ChunkStreamer.FlushDirtyBeforeUnload` 注入 `SaveLoadService.FlushDirtyForUnload`——主线程只冻结快照 <1ms，撞在途写同步兜底（02#2/03 B-4，32 脏列 679ms 单帧冻结归零）
+- **网格编辑重建入预算**：`ChunkViewRegistry.MarkBlockChanged` 只入待建集合，`DrainPendingEdits` 每帧 6ms 排空（02#3/03 B-3）
+- **Esc 路由统一**：`UiCursorGate` 级联关闭注册表（10 模态 UI）+ `LastCloseFrame` 同帧让位 + 标题画面让位（04 R-5/R-6、07#3/#7）
+- **保存前归位**：合成网格/箱子手持经 `CraftGridInteraction.RegisterReturnHandler` 在 `CollectLevelData` 统一归还（04 R-3）
+- **SHIFT+click 整组入料**：`PutMainSlotAll`（空格/同类叠满 maxStack）——合镐不再 5 连击（07#4）
+- **F0 内容断链批**：盔甲 12 配方、面包 1620、红石粉口袋配方、`diamond_ore` 1065（y<16 嵌矿 1/250 铁镐门槛，Preview 字形 `D` 实测 0.28%）、工作台 blockId、贴图三方兜底修 6 品红（08 F0；`ContentReachabilityTests` 双链守卫）
+- **掉落物上限 128 + 5 分钟过期**：`ItemDropCap`（03 B-9，237 个占档 52% 根治）
+- **剪羊毛**：剪刀 1621 + 准星剪毛 1-2 羊毛 120s 冷却（08 F2，ch2_01 承诺兑现）
+- **回家罗盘 HUD**：`HomeCompassUi` 顶中一行 8 向箭头+距离（08 F4）
+- **钓鱼**：竿 1622/生鱼 1623/烤鱼 1624 + 3-10s 咬钩 1.5s 窗口 + 鱼获 80/15/5 掷骰（幸运附魔参数已接、获得路径留后续）+ 熔炉烤鱼 + fisherman 成就改「钓 5 生鱼」（08 F3）
+- **性能杂项**：成就/图鉴 GUIStyle 静态缓存、主菜单「继续上次」种子缓存、MobView MPB 未变不写（04 R-9、02#4/#6）
+- **CI**：`.github/workflows/ci.yml`（windows-latest dotnet 链）
+- 跳过项（后续里程碑）：模态 UI 基类（06 R6，重构无玩家增量）、MobKind 属性表外置（06 R3）、小地图（08 F5）、第三章任务链（08 F6）、Job 化（03）、mp4 重编码（02 视频告警）、帮助菜单钓鱼/剪毛教学行（布局余量已尽，靠 FloatText 引导）
 - 测试纪律新条目：`RegionSaveCoordinatorTests.双写者并发`（20 轮循环）+ `WorldCatalogTests.文件被占用` 均为 Windows 独占句柄型用例，Linux CI 上 `FileShare.None` 语义不同可能需调整（见 `.github/workflows/ci.yml` 注释）
+- **本批验证口径**：dotnet 链 **1059/1059 全绿**（2026-10-06 实测）；**EditMode 与出包被 Unity 许可证阻塞**（`No valid Unity Editor license found`，两次实证 exit 1）——需在 Unity Hub 重新激活后跑 `./tools/scripts/build-and-run.sh --no-launch` 补 EditMode + 出包验证
 
 ## 测试纪律
 
