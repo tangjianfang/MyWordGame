@@ -121,6 +121,9 @@ namespace MyWorld.Unity.Combat
                 // 其余右键原样留给 BlockInteraction 的既有路由（吃/弓/锄/种/骨粉/床/放）。
                 // else if 与 BlockInteraction 的「左键优先（同帧双按时不吃也不放）」同约定。
                 TryFeedMobInCrosshair();
+                // 评审 08 F2：剪羊毛路由——手持剪刀 + 准星 4m 内是羊才消费
+                // （不适用返回 false 不拦截，剪刀无 blockId 时右键本就无处可去）
+                TryShearSheepInCrosshair();
             }
         }
 
@@ -251,6 +254,67 @@ namespace MyWorld.Unity.Combat
                     Kind = mob.Kind,
                     Count = 1,
                 });
+            return true;
+        }
+
+        // ─── 评审 08 F2：剪羊毛（ch2_01「或剪羊」内容契约兑现） ──────────────
+
+        /// <summary>剪毛冷却表（entityId → 剪毛时刻 + 冷却）。运行时态<b>不进存档</b>——
+        /// 重进世界羊毛"长回来"（MC 同款语义，取舍见 <see cref="ShearSystem"/> 注释）。</summary>
+        private readonly System.Collections.Generic.Dictionary<long, double> _shearedUntil =
+            new System.Collections.Generic.Dictionary<long, double>();
+
+        /// <summary>评审 08 F2：手持剪刀右键准星内的羊 → 掉 1-2 羊毛（确定性哈希掷骰）+
+        /// 120s 冷却 + 扣 1 点剪刀耐久。非剪刀 / 非羊 / 尸体一律 return false 不拦截
+        /// （与喂食路由同约定：不适用落回既有右键路由）。</summary>
+        public bool TryShearSheepInCrosshair()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || Player == null || Player.Eye == null) return false;
+            if (BlockInteraction.InputLocked || UiCursorGate.IsOpen) return false;
+            if (ctx.ItemDrops == null || ctx.Inventory == null) return false;
+
+            var def = ctx.GetSelectedDefinition();
+            if (def == null || def.Id != "shears") return false;
+
+            if (!FindMobHit(Player.Eye, World, Registry, out var hit)) return false;
+            var mob = hit.collider.GetComponent<MobView>().Mob;
+
+            if (!ShearSystem.TryShear(mob, Time.timeAsDouble, _shearedUntil))
+            {
+                // 非羊 / 尸体：不消费右键（剪刀对其它生物无动作，落回放置路由——剪刀无
+                // blockId，评审 07#9 后右键无处可去，净效果无害）；冷却内的活羊：消费右键
+                // 但不剪不扣（防顺手误放，羊毛还没长回来）
+                if (mob.IsAlive && mob.Kind == MobKind.Sheep)
+                {
+                    YieldRightClickToFeed(); // 复用喂食的让位机制（锁一帧）
+                    return true;
+                }
+                return false;
+            }
+
+            // 剪成：掷 1-2 羊毛 spawn 在羊背上（走既有吸附拾取管线；羊毛拾取时自然发 ObtainItem）
+            int hash = (mob.EntityId * 31 + 7) & 0x7FFFFFFF; // 盐 7：与繁殖/掉落哈希通道独立
+            int count = ShearSystem.RollWoolCount(hash);
+            var drop = new ItemDropEntity(
+                new ItemStack(ShearSystem.WoolItemId, count),
+                new Float3(mob.Position.X, mob.Position.Y + 1.2f, mob.Position.Z))
+            {
+                SpawnTime = Time.time,
+            };
+            ctx.ItemDrops.Add(drop);
+
+            // 扣 1 点剪刀耐久（照 TryAttack 工具耐久段：惰性初始化 max + DamageOnce）
+            int idx = ctx.Inventory.SelectedHotbarIndex;
+            var stack = ctx.Inventory.GetSlot(idx);
+            if (!stack.HasDurability)
+            {
+                stack = stack.WithMaxDurability(def.MaxDurability > 0 ? def.MaxDurability : 64);
+            }
+            ctx.Inventory.SetSlot(idx, stack.DamageOnce());
+
+            if (Hand != null) Hand.TriggerSwing();
+            YieldRightClickToFeed();
             return true;
         }
 

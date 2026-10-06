@@ -1,0 +1,15 @@
+{
+  "id": "shears_recipe",
+  "tier": "workbench",
+  "width": 1,
+  "height": 2,
+  "pattern": [
+    "iron_ingot",
+    "iron_ingot"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "shears",
+    "count": 1
+  }
+}

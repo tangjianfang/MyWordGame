@@ -1,0 +1,8 @@
+{
+  "id": "shears",
+  "displayName": "剪刀",
+  "numericId": 1621,
+  "maxStack": 1,
+  "texture": "shears",
+  "maxDurability": 64
+}
