@@ -75,6 +75,11 @@ namespace MyWorld.Unity.Streaming
         /// </summary>
         internal Func<long> StopwatchMillis = DefaultStopwatchMillis;
 
+        /// <summary>每帧排空编辑待建段的毫秒预算（评审 02#3/03 B-3）。单段重建实测
+        /// ~5.5ms，6ms 保证至少一段/帧；与 <see cref="FrameBudgetMillis"/> 分账——
+        /// 编辑重建与流式加载互不挤占。</summary>
+        internal const int EditDrainBudgetMillis = 6;
+
         /// <summary>卸载脏区块前的落盘请求（评审 02#2/03 B-4）。WorldBootstrap 注入
         /// <c>SaveLoadService.FlushDirtyForUnload</c>（主线程只冻结快照 &lt;1ms，写盘在
         /// 后台）；null（EditMode/未装配）回退主线程同步 <c>SaveDirty</c> 旧行为。</summary>
@@ -116,6 +121,10 @@ namespace MyWorld.Unity.Streaming
             // 用 >> 处理负坐标没问题——这是输入端的事。)
             int cx = VoxelCoords.WorldToChunk(Mathf.FloorToInt(playerPosition.X));
             int cz = VoxelCoords.WorldToChunk(Mathf.FloorToInt(playerPosition.Z));
+
+            // 评审 02#3/03 B-3：先排空上一帧编辑攒下的待建段（挖/放触发的段重建分帧化，
+            // 预算耗尽剩余留到下一帧——挖一格 5.5ms×8 段不再挤爆单帧）
+            _views?.DrainPendingEdits(EditDrainBudgetMillis);
 
             // 1. 卸载：超出 UnloadRadius 的列
             UnloadDistant(cx, cz);

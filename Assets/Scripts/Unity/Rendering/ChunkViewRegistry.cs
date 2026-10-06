@@ -28,6 +28,10 @@ namespace MyWorld.Unity.Rendering
 
         private readonly List<SectionRef> _dirtyScratch = new List<SectionRef>();
 
+        // 评审 02#3/03 B-3：编辑触发的段重建分帧——待建段集合（连续挖掘同段天然去重）
+        private readonly HashSet<SectionRef> _pendingSections = new HashSet<SectionRef>();
+        private static readonly List<SectionRef> _drainScratch = new List<SectionRef>();
+
         public ChunkViewRegistry(Transform parent, World world, BlockRegistry registry,
             BlockMaterialLibrary materials)
         {
@@ -38,6 +42,9 @@ namespace MyWorld.Unity.Rendering
         }
 
         public int ViewCount => _views.Count;
+
+        /// <summary>待重建段数（评审 02#3 测试断言「没当场重建」用）。</summary>
+        internal int PendingEditCount => _pendingSections.Count;
 
         /// <summary>
         /// 建好一根区块列上所有非空段的网格。返回真正出了面的段数。
@@ -66,14 +73,35 @@ namespace MyWorld.Unity.Rendering
             return built;
         }
 
-        /// <summary>改了一个方块之后调用，牵连到的段一并重建。</summary>
+        /// <summary>改了一个方块之后调用，牵连到的段一并入待建集合。
+        /// 评审 02#3/03 B-3：不再当场重建——挖一格牵连 1-8 段 × 5.5ms/段，常超 16.6ms
+        /// 帧预算；现在由 <see cref="DrainPendingEdits"/> 在每帧预算内分批重建（首段延迟
+        /// ≤1 帧，孩子无感），连续挖掘同段去重。</summary>
         public void MarkBlockChanged(int worldX, int worldY, int worldZ)
         {
             DirtySections.Collect(worldX, worldY, worldZ, _dirtyScratch);
             foreach (SectionRef section in _dirtyScratch)
             {
+                _pendingSections.Add(section);
+            }
+        }
+
+        /// <summary>在毫秒预算内排空待建段（评审 02#3/03 B-3）。返回剩余待建段数。
+        /// 由 ChunkStreamer.Tick 每帧驱动；预算耗尽等下一帧。</summary>
+        public int DrainPendingEdits(int budgetMillis)
+        {
+            if (_pendingSections.Count == 0) return 0;
+            _drainScratch.Clear();
+            foreach (SectionRef section in _pendingSections) _drainScratch.Add(section);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < _drainScratch.Count; i++)
+            {
+                if (watch.ElapsedMilliseconds >= budgetMillis) break; // 预算耗尽，剩余留待下帧
+                SectionRef section = _drainScratch[i];
+                _pendingSections.Remove(section);
                 Rebuild(section);
             }
+            return _pendingSections.Count;
         }
 
         /// <summary>重建一个段。返回它是否还有可见面——没有面的段会被销毁。</summary>
