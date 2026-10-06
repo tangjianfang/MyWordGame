@@ -77,10 +77,18 @@ namespace MyWorld.Unity.UI
         private void ReturnGridToPlayer(MyWorld.Unity.Gameplay.PlayerContext ctx)
             => CraftGridInteraction.ReturnGrid(ctx.Inventory, _craft);
 
-        private void OnEnable() => CraftGridInteraction.RegisterReturnHandler(ReturnGridToPlayer);
+        private void OnEnable()
+        {
+            CraftGridInteraction.RegisterReturnHandler(ReturnGridToPlayer);
+            UiCursorGate.RegisterClose(CloseSelf); // 评审 04 R-6：暂停级联关闭
+        }
+
+        /// <summary>评审 04 R-6：级联关闭入口（幂等——已关再调 no-op）。</summary>
+        private void CloseSelf() => SetOpen(false);
 
         private void OnDisable()
         {
+            UiCursorGate.UnregisterClose(CloseSelf);
             CraftGridInteraction.UnregisterReturnHandler(ReturnGridToPlayer);
             // m6 终审修 C1（B3-②）：禁用/销毁时若还开着必须把门位还回去，
             // 否则计数泄漏会让指针永远解锁、挖/放永久抑制

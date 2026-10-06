@@ -90,7 +90,9 @@ namespace MyWorld.Unity.UI
             if (IsOpen == open) return;
             // 先关帮助菜单再翻自己的状态：它 SetOpen(false) 会顺带清输入锁 / 关指针门，
             // 后置的话会把我们刚设的「锁 + 门登记」冲掉
-            if (open && _help != null && _help.IsOpen) _help.SetOpen(false);
+            // 评审 04 R-6/07#3：级联关闭全部已开模态（此前只关 _help——背包/箱子/武器面板
+            // 等开着按 Esc 会叠开暂停，两 UI 都画都收事件）。回调注册见 UiCursorGate.RegisterClose。
+            if (open) UiCursorGate.CloseAllRegistered();
             IsOpen = open;
             BlockInteraction.InputLocked = open;
             Time.timeScale = open ? 0f : 1f;
@@ -115,11 +117,19 @@ namespace MyWorld.Unity.UI
             {
                 if (!QuitPending) SetOpen(false);
             }
-            else if (!DeathScreenVisible())
+            else if (!DeathScreenVisible() && !TitleScreenVisible())
             {
+                // 评审 04 R-5/R-6：还有模态开着（或本帧刚被 Esc 关掉）时 Esc 先服务关模态，
+                // 暂停放行——同帧双通道（HelpMenuUi Update 轮询 + 本 OnGUI 事件）不再双响
+                if (UiCursorGate.OpenCount > 0) return;
+                if (UiCursorGate.LastCloseFrame == Time.frameCount) return;
                 SetOpen(true);
             }
         }
+
+        /// <summary>标题画面（主菜单遮罩）可见时 Esc 归它管——暂停不开（评审 07#7）。
+        /// OverlayVisible 由 TitleScreenUi 与 IsVisible 同步维护。</summary>
+        private static bool TitleScreenVisible() => TitleScreenUi.OverlayVisible;
 
         /// <summary>「设置」按钮回调（OnGUI 点击与测试直调）：展开 / 收起公共设置面板。</summary>
         public void ToggleSettings() => _showSettings = !_showSettings;

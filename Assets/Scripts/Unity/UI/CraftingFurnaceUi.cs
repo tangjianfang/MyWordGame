@@ -56,8 +56,14 @@ namespace MyWorld.Unity.UI
             else if (!UiCursorGate.IsOpen) SetOpen(true);
         }
 
+        /// <summary>评审 04 R-6：级联关闭入口（幂等——已关再调 no-op）。</summary>
+        private void CloseSelf() => SetOpen(false);
+
+        private void OnEnable() => UiCursorGate.RegisterClose(CloseSelf);
+
         private void OnDisable()
         {
+            UiCursorGate.UnregisterClose(CloseSelf);
             // m6 终审修 C1（B3-②）：禁用/销毁时若还开着必须把门位还回去，否则计数泄漏
             if (_open) SetOpen(false);
         }

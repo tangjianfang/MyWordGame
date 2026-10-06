@@ -61,6 +61,10 @@ namespace MyWorld.Unity.UI
 
         public bool IsVisible { get; private set; } = true;
 
+        /// <summary>主菜单遮罩可见性的静态镜像（评审 07#7：PauseMenuUi 的 Esc 让位判定——
+        /// 标题画面开着时 Esc 不该弹暂停）。与 <see cref="IsVisible"/> 同点维护。</summary>
+        public static bool OverlayVisible { get; private set; } = false;
+
         /// <summary>菜单模式（m12 P1 三态；EditMode 断言当前态）。</summary>
         private enum MenuMode
         {
@@ -99,6 +103,8 @@ namespace MyWorld.Unity.UI
             {
                 SkipMenuNextLoad = false;
                 IsVisible = false;
+            OverlayVisible = IsVisible;
+            OverlayVisible = IsVisible;
                 MyWorld.Unity.Player.BlockInteraction.InputLocked = false;
                 MyWorld.Unity.UI.UiCursorGate.Reset();
                 FindObjectOfType<MyWorld.Unity.Audio.BgmAudioSystem>()?.StartGame();
@@ -106,6 +112,7 @@ namespace MyWorld.Unity.UI
             }
 
             IsVisible = true;
+            OverlayVisible = IsVisible;
             MyWorld.Unity.Player.BlockInteraction.InputLocked = true;
             MyWorld.Unity.UI.UiCursorGate.Open();
             _fallback = MakeFallbackTexture();
@@ -200,6 +207,7 @@ namespace MyWorld.Unity.UI
         {
             if (!IsVisible) return;
             IsVisible = false;
+            OverlayVisible = IsVisible;
             MyWorld.Unity.Player.BlockInteraction.InputLocked = false;
             MyWorld.Unity.UI.UiCursorGate.Close();
             if (_player != null) { _player.Stop(); _player = null; }

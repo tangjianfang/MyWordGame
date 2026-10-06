@@ -99,8 +99,14 @@ namespace MyWorld.Unity.UI
             else UiCursorGate.Close();
         }
 
+        /// <summary>评审 04 R-6：级联关闭入口（幂等——已关再调 no-op）。</summary>
+        private void CloseSelf() => SetOpen(false);
+
+        private void OnEnable() => UiCursorGate.RegisterClose(CloseSelf);
+
         private void OnDisable()
         {
+            UiCursorGate.UnregisterClose(CloseSelf);
             // 禁用/销毁时若还开着必须把门位还回去（计数泄漏会让指针永久解锁）。
             // 跟随背包时 _open 恒 false（门由背包登记），这里天然 no-op。
             if (_open) SetOpen(false);

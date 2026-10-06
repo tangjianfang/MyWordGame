@@ -91,8 +91,14 @@ namespace MyWorld.Unity.UI
             }
         }
 
+        /// <summary>评审 04 R-6：级联关闭入口（幂等——已关再调 no-op）。</summary>
+        private void CloseSelf() => SetOpen(false);
+
+        private void OnEnable() => UiCursorGate.RegisterClose(CloseSelf);
+
         private void OnDisable()
         {
+            UiCursorGate.UnregisterClose(CloseSelf);
             // m6 终审修 C1（B3-②）：禁用/销毁时若还开着，把输入锁与指针门一并复位，
             // 不留下「挖不动 + 指针永久解锁」的残局
             if (IsOpen) SetOpen(false);

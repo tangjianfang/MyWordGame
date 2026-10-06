@@ -403,6 +403,63 @@ namespace MyWorld.Core.Tests.UI
                 Object.DestroyImmediate(pause.gameObject);
             }
         }
+
+        [Test]
+        public void SetOpen_true_级联关闭全部已开模态()
+        {
+            // 评审 04 R-6/07#3：此前 SetOpen(true) 只级联关 HelpMenuUi——背包/箱子/武器面板
+            // 等开着按 Esc 会叠开暂停（两 UI 都画都收事件，恢复后背包还原样开着）
+            var go = new GameObject();
+            try
+            {
+                var armor = go.AddComponent<ArmorSlotsUi>();
+                var enchant = go.AddComponent<EnchantingUi>();
+                var pause = go.AddComponent<PauseMenuUi>();
+                armor.SetOpen(true);
+                enchant.SetOpen(true);
+                Assert.That(UiCursorGate.OpenCount, Is.EqualTo(2), "前置：两个模态开着");
+
+                pause.SetOpen(true);
+
+                Assert.That(pause.IsOpen, Is.True, "暂停正常打开");
+                Assert.That(UiCursorGate.OpenCount, Is.EqualTo(1),
+                    "级联关闭全部已开模态——门位只剩暂停自己（评审 04 R-6）");
+                pause.SetOpen(false);
+            }
+            finally
+            {
+                UiCursorGate.Reset();
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void HandleKey_Esc_模态开着或同帧刚关_暂停让位()
+        {
+            // 评审 04 R-5：HelpMenuUi 的 Update 轮询与暂停 OnGUI 是两条通道——Esc 关帮助
+            // 的同帧不能再开暂停（旧行为双响：关帮助+开暂停，孩子要按三次才回游戏）
+            var go = new GameObject();
+            try
+            {
+                var armor = go.AddComponent<ArmorSlotsUi>();
+                var pause = go.AddComponent<PauseMenuUi>();
+                armor.SetOpen(true);
+
+                pause.HandleKey(KeyCode.Escape);
+                Assert.That(pause.IsOpen, Is.False,
+                    "模态还开着时 Esc 先服务关模态，暂停让位（评审 04 R-6）");
+
+                armor.SetOpen(false); // 同帧关闭（同步测试内 Time.frameCount 不变）
+                pause.HandleKey(KeyCode.Escape);
+                Assert.That(pause.IsOpen, Is.False,
+                    "本帧刚有模态关闭——暂停继续让位（评审 04 R-5 核心断言）");
+            }
+            finally
+            {
+                UiCursorGate.Reset();
+                Object.DestroyImmediate(go);
+            }
+        }
     }
 }
 #endif

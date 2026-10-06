@@ -132,10 +132,18 @@ namespace MyWorld.Unity.UI
         /// <summary>评审 04 R-3：保存/退出前手持栈归位（复用关窗兜底链：背包→箱子→掉落）。</summary>
         private void ReturnHeldForSave(MyWorld.Unity.Gameplay.PlayerContext ctx) => CloseHeldOnly();
 
-        private void OnEnable() => CraftGridInteraction.RegisterReturnHandler(ReturnHeldForSave);
+        private void OnEnable()
+        {
+            CraftGridInteraction.RegisterReturnHandler(ReturnHeldForSave);
+            UiCursorGate.RegisterClose(CloseSelf); // 评审 04 R-6：暂停级联关闭
+        }
+
+        /// <summary>评审 04 R-6：级联关闭入口（幂等——手持归位走 Close 兜底链）。</summary>
+        private void CloseSelf() => Close();
 
         private void OnDisable()
         {
+            UiCursorGate.UnregisterClose(CloseSelf);
             // m6 终审修 C1（B3-②）同款：禁用/销毁时若还开着必须把门位还回去，否则计数泄漏
             CraftGridInteraction.UnregisterReturnHandler(ReturnHeldForSave);
             if (_open) Close();
