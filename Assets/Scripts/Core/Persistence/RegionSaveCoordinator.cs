@@ -16,6 +16,11 @@ namespace MyWorld.Core.Persistence
         /// <summary>把 world 的全部脏区块分组写入 regionsDir。返回成功保存的 chunk 数。
         /// 主线程同步路径（ChunkStreamer 卸载前保存 / 退出保存）沿用本重载：写成功即清脏。</summary>
         public static int SaveDirty(World world, string regionsDir)
+            => SaveDirty(world, regionsDir, null);
+
+        /// <summary>带错误清单的重载（评审 05 T-B1）：单个 region 写失败的异常原文追加进
+        /// <paramref name="errors"/>（非 null 时），不再静默吞——调用方据此向玩家报告保存失败。</summary>
+        public static int SaveDirty(World world, string regionsDir, List<string> errors)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             return SaveDirtyCore(
@@ -26,7 +31,8 @@ namespace MyWorld.Core.Persistence
                 {
                     // 卸载区块的 stale 标记也一并清掉，避免永远卡在待保存
                     foreach (ChunkPos chunk in groupChunks) world.ClearDirty(chunk);
-                });
+                },
+                errors);
         }
 
         /// <summary>后台线程版（m5 C3）：只读主线程冻结的脏区块快照，<b>不触碰 world 的任何可变状态
@@ -35,6 +41,12 @@ namespace MyWorld.Core.Persistence
         /// savedOut 由调用方每轮新建（线程封闭，无共享）。</summary>
         public static int SaveDirty(IReadOnlyDictionary<ChunkPos, ChunkColumn> chunkSnapshot, string regionsDir,
             List<ChunkPos> savedOut)
+            => SaveDirty(chunkSnapshot, regionsDir, savedOut, null);
+
+        /// <summary>带错误清单的重载（评审 05 T-B1）：单个 region 写失败的异常原文追加进
+        /// <paramref name="errors"/>（非 null 时），不再静默吞。</summary>
+        public static int SaveDirty(IReadOnlyDictionary<ChunkPos, ChunkColumn> chunkSnapshot, string regionsDir,
+            List<ChunkPos> savedOut, List<string> errors)
         {
             if (chunkSnapshot == null) throw new ArgumentNullException(nameof(chunkSnapshot));
             if (savedOut == null) throw new ArgumentNullException(nameof(savedOut));
@@ -42,7 +54,8 @@ namespace MyWorld.Core.Persistence
                 chunkSnapshot.Keys,
                 pos => chunkSnapshot.TryGetValue(pos, out ChunkColumn column) ? column : null,
                 regionsDir,
-                (_, persistedChunks) => savedOut.AddRange(persistedChunks));
+                (_, persistedChunks) => savedOut.AddRange(persistedChunks),
+                errors);
         }
 
         /// <summary>region 落盘的进程级写锁（评审 04 R-1 / 03 B-4）。
@@ -59,7 +72,8 @@ namespace MyWorld.Core.Persistence
             IEnumerable<ChunkPos> dirtyChunks,
             Func<ChunkPos, ChunkColumn> resolveChunk,
             string regionsDir,
-            Action<List<ChunkPos>, List<ChunkPos>> onRegionPersisted)
+            Action<List<ChunkPos>, List<ChunkPos>> onRegionPersisted,
+            List<string> errors)
         {
             Directory.CreateDirectory(regionsDir);
             int saved = 0;
@@ -87,7 +101,9 @@ namespace MyWorld.Core.Persistence
                     }
                     catch (Exception e) when (e is IOException || e is InvalidDataException)
                     {
-                        // 写失败（含旧 region 文件损坏读不回来）：这批 chunk 保持 dirty，下轮保存重试
+                        // 写失败（含旧 region 文件损坏读不回来）：这批 chunk 保持 dirty，下轮保存重试。
+                        // 错误原文上报（评审 05 T-B1）——此前静默吞会让「保存并退出」误报成功。
+                        errors?.Add($"r.{group.Key.X}.{group.Key.Z}.mwr：{e.Message}（该批脏区块保留下轮重试）");
                     }
                 }
             }

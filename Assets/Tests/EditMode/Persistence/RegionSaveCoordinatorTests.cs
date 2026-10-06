@@ -241,6 +241,31 @@ namespace MyWorld.Core.Tests.Persistence
         }
 
         [Test]
+        public void SaveDirty_坏region文件_错误清单上报且不抛()
+        {
+            // 评审 05 T-B1：坏 region 的 IO/解析失败原来被空 catch 静默吞掉——保存方
+            // 无从得知，退出菜单误报「已保存」照常退出。新重载必须把错误写进清单。
+            string dir = TempDir();
+            Directory.CreateDirectory(dir);
+            try
+            {
+                // 8 字节错误魔数：够读到魔数段、走魔数校验分支（3 字节会在 ReadInt32 抛流末尾异常）
+                File.WriteAllBytes(Path.Combine(dir, "r.0.0.mwr"),
+                    new byte[] { 0x58, 0x58, 0x58, 0x58, 0, 0, 0, 0 });
+                var world = BuildWorldWithEdits((3, 64, 5)); // chunk (0,0) 在 region (0,0)
+
+                var errors = new List<string>();
+                int saved = RegionSaveCoordinator.SaveDirty(world, dir, errors);
+
+                Assert.That(saved, Is.EqualTo(0), "坏 region 上一个区块都写不进");
+                Assert.That(errors, Is.Not.Empty, "坏 region 必须把错误写进清单——静默吞=退出菜单误报已保存");
+                StringAssert.Contains("不是有效的区域文件", errors[0], "错误原文应带上解析失败原因");
+                Assert.That(world.DirtyChunks, Is.Not.Empty, "写失败的区块保持脏，等下轮重试");
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Test]
         public void SaveDirty_双写者并发_两侧区块都不丢()
         {
             // 评审 04 R-1 / 03 B-4：30s 后台保存（快照重载）与卸载主线程保存（同步重载）

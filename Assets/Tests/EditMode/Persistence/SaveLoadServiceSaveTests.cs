@@ -40,6 +40,43 @@ namespace MyWorld.Core.Tests.Persistence
         public void TearDown() => Directory.Delete(_saveRoot, true);
 
         [Test]
+        public void SaveNow_region文件损坏_返回false且LastSaveError可见()
+        {
+            // 评审 05 T-B1：region 层写失败原来不影响 SaveNow 返回值——同步路径恒 true，
+            // 「保存并退出」误报成功照常退出，玩家的方块改动全部丢失且零提示。
+            var go = new GameObject();
+            try
+            {
+                var ctx = go.AddComponent<PlayerContext>();
+                ctx.Inventory = new PlayerInventory();
+                ctx.Health = new Health(20f);
+                ctx.Time = new TimeOfDay { CurrentTick = 7000f };
+                var player = go.AddComponent<PlayerController>();
+                var service = go.AddComponent<SaveLoadService>();
+
+                // 带脏块的世界（chunk (0,0)）+ 预置坏 region 文件（魔数错误）
+                var world = new World();
+                var generator = new MyWorld.Core.WorldGen.WorldGenerator(42);
+                world.AddChunk(new ChunkPos(0, 0), generator.Generate(new ChunkPos(0, 0)));
+                world.SetBlock(3, 64, 5, BlockIds.Bedrock);
+
+                service.Bind(world, ctx, player, seed: 42, saveRoot: _saveRoot);
+                Directory.CreateDirectory(service.RegionsDir);
+                // 8 字节错误魔数：让解析走到魔数校验分支（3 字节会在 ReadInt32 抛流末尾异常）
+                File.WriteAllBytes(Path.Combine(service.RegionsDir, "r.0.0.mwr"),
+                    new byte[] { 0x58, 0x58, 0x58, 0x58, 0, 0, 0, 0 });
+
+                bool ok = service.SaveNow(async: false);
+
+                Assert.That(ok, Is.False,
+                    "region 层写失败时同步保存必须返回 false——否则退出菜单误报已保存（评审 T-B1）");
+                StringAssert.Contains("不是有效的区域文件", service.LastSaveError ?? "",
+                    "region 错误要能经 LastSaveError 亮给玩家");
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test]
         public void SaveNow_写入level_dat与regions目录()
         {
             var go = new GameObject();

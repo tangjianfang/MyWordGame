@@ -134,7 +134,16 @@ namespace MyWorld.Unity.Persistence
 
                     try
                     {
-                        RegionSaveCoordinator.SaveDirty(chunkSnapshot, regionsDir, written);
+                        // 评审 05 T-B1：单个 region 的 IO/坏档失败在协调器内部按批捕获，
+                        // 错误经清单带回这里并入 failed——region 层失败同样让 SaveNow 返回
+                        // false，「保存并退出」如实报错可重试，不再误报成功照退。
+                        var regionErrorTexts = new List<string>();
+                        RegionSaveCoordinator.SaveDirty(chunkSnapshot, regionsDir, written, regionErrorTexts);
+                        if (regionErrorTexts.Count > 0)
+                        {
+                            failed = true;
+                            foreach (string regionError in regionErrorTexts) errors.Add(regionError);
+                        }
                     }
                     catch (Exception ex)
                     {
