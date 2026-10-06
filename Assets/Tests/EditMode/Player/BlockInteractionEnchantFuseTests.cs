@@ -140,13 +140,14 @@ namespace MyWorld.Core.Tests.Player
         [Test]
         public void UseAt_NotHoldingBook_PlaceBehaviorUnchanged()
         {
-            // 反向守卫：手持别的物品右键照旧放 placeBlockId——书分支只对 enchanted_book 生效
+            // 反向守卫：空手右键不放任何方块（评审 07#9 起 m3 占位路径退役）——
+            // 书分支只对 enchanted_book 生效，其余右键落到放置路由的「无 blockId 不放」
             _world.SetBlock(8, 70, 8, BlockIds.Stone);
             _ctx.Inventory.SelectedHotbarIndex = 0; // 空手
 
             _block.UseAt(CastDownAtColumn());
 
-            Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Stone), "空手照常放 placeBlockId（Stone）");
+            Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Air), "空手右键不放方块");
         }
     }
 }

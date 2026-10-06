@@ -63,7 +63,7 @@ namespace MyWorld.Core.Tests.Player
             Assert.That(db.GetById("chair").BlockId, Is.EqualTo("chair_block"),
                 "blockId 字段要解析进 ItemDefinition.BlockId（放置路由的唯一输入）");
             Assert.That(db.GetById("stick").BlockId, Is.Null,
-                "不写 blockId = 无关联方块，保持 null（放置回落 placeBlockId 占位）");
+                "不写 blockId = 无关联方块，保持 null（评审 07#9 起右键不再回落放石头）");
         }
 
         [Test]
@@ -370,20 +370,21 @@ namespace MyWorld.Core.Tests.Player
             Assert.That(_ctx.Inventory.GetSlot(0).Count, Is.EqualTo(1), "不扣物品");
         }
 
-        // ─── 占位兼容 + 悬空 blockId ──────────────────────────────────
+        // ─── 无 blockId 让位 + 悬空 blockId ──────────────────────────────
 
         [Test]
-        public void UseAt_ItemWithoutBlockId_PlacesPlaceholder_DoesNotConsume()
+        public void UseAt_ItemWithoutBlockId_PlacesNothing_DoesNotConsume()
         {
-            // m3 占位语义保持：无 blockId 物品照旧放 placeBlockId（Stone）、不扣物品
+            // 评审 07#9：m3「恒放石头占位」路径退役——无 blockId 物品（如泥土本身不可放）
+            // 右键不放任何方块、不扣物品
             _world.SetBlock(8, 70, 8, BlockIds.Grass);
             Select(DirtItemId, 5);
 
             _block.UseAt(CastDownAtColumn());
 
-            Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Stone),
-                "无 blockId 物品照旧放 placeBlockId 占位");
-            Assert.That(_ctx.Inventory.GetSlot(0).Count, Is.EqualTo(5), "占位路径不扣物品（m3 语义）");
+            Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Air),
+                "无 blockId 物品不放方块（占位路径已退役）");
+            Assert.That(_ctx.Inventory.GetSlot(0).Count, Is.EqualTo(5), "不扣物品");
         }
 
         [Test]

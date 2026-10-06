@@ -167,16 +167,16 @@ namespace MyWorld.Core.Tests.Player
         }
 
         [Test]
-        public void UseAt_EmptyHandOnGrass_PlacesAsBefore()
+        public void UseAt_EmptyHandOnGrass_PlacesNothing()
         {
-            // 反向守卫：没手持锄时右键草方块保持旧放方块行为——新路由只对「锄 + 可锄目标」生效
+            // 评审 07#9：m3 占位路径退役——空手右键不再凭空放石头，草上什么都不放
             _world.SetBlock(8, 70, 8, BlockIds.Grass);
             _ctx.Inventory.SelectedHotbarIndex = 0; // 空手
 
             _block.UseAt(CastDownAtColumn());
 
             Assert.That(_world.GetBlock(8, 70, 8), Is.EqualTo(BlockIds.Grass), "没锄不动草");
-            Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Stone), "照常放 placeBlockId");
+            Assert.That(_world.GetBlock(8, 71, 8), Is.EqualTo(BlockIds.Air), "空手右键不放任何方块");
         }
 
         // ─── 种子：耕地 → 播种 stage0 ────────────────────────────────────

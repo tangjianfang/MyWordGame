@@ -33,14 +33,14 @@ namespace MyWorld.Unity.Player
     /// 种子播上耕地 → 骨粉催熟（树苗让位 SaplingGrowth）→ 床睡觉 → 箱子开箱（m11 W2-3
     /// <see cref="UI.ChestUi.OpenAt"/>）→ 木门/铁门让位 RedstoneSystem 切换 →
     /// 放手持物品对应的方块（m11 W3-1 <see cref="ItemDefinition.BlockId"/>；
-    /// 无 blockId 物品/空手回落 placeBlockId 占位，m3 语义保持）。
+    /// 无 blockId 物品/空手<b>不放置</b>——评审 07#9：m3 的「恒放石头占位」路径退役，
+    /// 空手右键凭空变石头只会让孩子困惑）。
     /// 左键在成熟作物（*_stage2）上改走 <see cref="FarmSystem.Harvest"/>（<see cref="BreakAt"/>）。
     /// </para>
     /// </summary>
     [RequireComponent(typeof(PlayerController))]
     public sealed class BlockInteraction : MonoBehaviour
     {
-        [SerializeField] private ushort placeBlockId = BlockIds.Stone;
         [SerializeField] private Material selectionMaterial;
 
         /// <summary>m6 B3：静态输入锁。HelpMenuUi 打开期间置 true，<c>Update</c> 开头早退——
@@ -276,7 +276,7 @@ namespace MyWorld.Unity.Player
         /// <see cref="HungerSystem.Eat"/>（唯一进食入口）恢复 Hunger/Saturation 并扣 1 个物品，
         /// <b>本次右键到此为止，不再放方块</b>（食物优先）；否则射线命中时按 m11 W3-1
         /// 放置路由落块（手持物品带 <see cref="ItemDefinition.BlockId"/> 放对应方块并扣 1 个，
-        /// 否则照旧放 <see cref="placeBlockId"/> 占位）。
+        /// 否则不放——评审 07#9 起 m3 占位路径退役）。
         /// <para>
         /// m11 ②：食物之后、放方块之前新插一排交互路由（优先级自上而下）：
         /// 附魔书融合（m11 W2-2，不需要命中方块）→
@@ -538,15 +538,15 @@ namespace MyWorld.Unity.Player
             _crack.ShowAt(_dig.TargetX, _dig.TargetY, _dig.TargetZ, stage);
         }
 
-        // ─── m11 W3-1：手持物品 → 对应方块（替换 m3 恒放 placeBlockId 的占位） ──────
+        // ─── m11 W3-1：手持物品 → 对应方块（m3 恒放石头的占位路径已随评审 07#9 退役） ──
 
         /// <summary>
         /// 放置路由（m11 W3-1，集成点③发现的缺口：此前家具/箱子/床/门/附魔台全放不进世界）。
         /// 手持物品 <see cref="ItemDefinition.BlockId"/> 非空 → 放对应方块并扣 1 个物品：
         /// 床走 <see cref="BedSystem.PlaceBed"/> 双格摆法、门贴地两格竖放、其余
         /// （9 家具 / 箱子 / 附魔台）单格直放。BlockId 为空（含空手 / 无关物品）→
-        /// 照旧放 <see cref="placeBlockId"/> 且<b>不扣物品</b>——m3 占位语义原样保持
-        /// （BlockInteractionUseRoutingTests.UseAt_EmptyHandOnGrass_PlacesAsBefore 钉着）。
+        /// <b>不放置、不扣物品、不播音效</b>——评审 07#9：m3 的「恒放石头占位」路径
+        /// 退役（空手右键凭空变石头），BlockInteractionUseRoutingTests 钉着新契约。
         /// 放置成功才扣 1：挖掉这些方块按 block_drops 1:1 掉回物品，不扣就是无限复制机。
         /// </summary>
         private void PlaceHeldItemOrPlaceholder(Aabb playerBox, int x, int y, int z)
@@ -556,10 +556,7 @@ namespace MyWorld.Unity.Player
             string blockId = def?.BlockId;
             if (string.IsNullOrEmpty(blockId))
             {
-                // 占位兼容路径（m3 起）：无 blockId 物品照旧恒放 placeBlockId
-                _world.SetBlock(x, y, z, placeBlockId);
-                _views?.MarkBlockChanged(x, y, z);
-                _audio?.PlayPlace();
+                // 评审 07#9：无 blockId（含空手 / 无关物品）静默让位——不放置不扣不响
                 return;
             }
 
