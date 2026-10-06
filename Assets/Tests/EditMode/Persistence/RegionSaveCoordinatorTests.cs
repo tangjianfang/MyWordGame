@@ -239,5 +239,39 @@ namespace MyWorld.Core.Tests.Persistence
             }
             finally { Directory.Delete(dir, true); }
         }
+
+        [Test]
+        public void SaveDirty_双写者并发_两侧区块都不丢()
+        {
+            // 评审 04 R-1 / 03 B-4：30s 后台保存（快照重载）与卸载主线程保存（同步重载）
+            // 并发 read-modify-write 同一 region 文件——无锁时后落盘的一侧用它读到的旧
+            // region 覆盖先落盘一侧的区块。两个 World 各改同一 region 内的不同区块，
+            // 双线程同时 SaveDirty，20 轮内两侧区块必须都能从文件读回。
+            for (int round = 0; round < 20; round++)
+            {
+                string dir = TempDir();
+                try
+                {
+                    // (3,64,5) 在 chunk (0,0)、(20,64,5) 在 chunk (1,0)——同属 region (0,0)
+                    var worldA = BuildWorldWithEdits((3, 64, 5));
+                    var worldB = BuildWorldWithEdits((20, 64, 5));
+
+                    var a = System.Threading.Tasks.Task.Run(
+                        () => RegionSaveCoordinator.SaveDirty(worldA, dir));
+                    var b = System.Threading.Tasks.Task.Run(
+                        () => RegionSaveCoordinator.SaveDirty(worldB, dir));
+                    System.Threading.Tasks.Task.WaitAll(a, b);
+
+                    var check = new World();
+                    RegionSaveCoordinator.TryLoadChunk(check, new ChunkPos(0, 0), dir);
+                    RegionSaveCoordinator.TryLoadChunk(check, new ChunkPos(1, 0), dir);
+                    Assert.That(check.GetBlock(3, 64, 5), Is.EqualTo(BlockIds.Bedrock),
+                        $"第 {round} 轮：A 侧区块被并发写覆盖丢失（双写者竞态）");
+                    Assert.That(check.GetBlock(20, 64, 5), Is.EqualTo(BlockIds.Bedrock),
+                        $"第 {round} 轮：B 侧区块被并发写覆盖丢失（双写者竞态）");
+                }
+                finally { Directory.Delete(dir, true); }
+            }
+        }
     }
 }

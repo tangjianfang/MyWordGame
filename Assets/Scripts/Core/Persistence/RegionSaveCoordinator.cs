@@ -45,6 +45,14 @@ namespace MyWorld.Core.Persistence
                 (_, persistedChunks) => savedOut.AddRange(persistedChunks));
         }
 
+        /// <summary>region 落盘的进程级写锁（评审 04 R-1 / 03 B-4）。
+        /// 两条写路径并发时（SaveLoadService 后台快照写 ↔ ChunkStreamer 卸载主线程写），
+        /// LoadOrCreate→StoreChunk→AtomicWrite 的 read-modify-write 不加锁会被后落盘一侧
+        /// 用旧 region 覆盖先落盘一侧的区块。锁必须放在两条路径的共同下游（本类）——
+        /// ChunkStreamer 不认识 SaveLoadService，反之亦然。单 region 写盘 &lt;100ms，
+        /// 后台持锁时主线程短暂阻塞可接受。</summary>
+        private static readonly object WriteLock = new object();
+
         /// <summary>两个公开重载共用的写盘主体。onRegionPersisted(整组区块, 真正落盘的区块)
         /// 在每个 region 文件原子写成功之后回调：同步版清整组脏（含卸载 stale），快照版只登记落盘区块。</summary>
         private static int SaveDirtyCore(
@@ -55,29 +63,32 @@ namespace MyWorld.Core.Persistence
         {
             Directory.CreateDirectory(regionsDir);
             int saved = 0;
-            foreach (var group in GroupByRegion(dirtyChunks))
+            lock (WriteLock)
             {
-                try
+                foreach (var group in GroupByRegion(dirtyChunks))
                 {
-                    var region = LoadOrCreate(group.Key, regionsDir);
-                    var persistedChunks = new List<ChunkPos>();
-                    foreach (ChunkPos chunk in group.Value)
+                    try
                     {
-                        ChunkColumn column = resolveChunk(chunk);
-                        if (column != null)
+                        var region = LoadOrCreate(group.Key, regionsDir);
+                        var persistedChunks = new List<ChunkPos>();
+                        foreach (ChunkPos chunk in group.Value)
                         {
-                            region.StoreChunk(chunk, column);
-                            persistedChunks.Add(chunk); // 只统计真正进 region 的块；无数据的（已卸载）不计
+                            ChunkColumn column = resolveChunk(chunk);
+                            if (column != null)
+                            {
+                                region.StoreChunk(chunk, column);
+                                persistedChunks.Add(chunk); // 只统计真正进 region 的块；无数据的（已卸载）不计
+                            }
                         }
+                        AtomicWrite(Path.Combine(regionsDir, FileName(group.Key)), region);
+                        // saved 计数与回调都必须在文件成功落盘之后：写失败则保持 dirty 下轮重试，且不能虚报 saved
+                        onRegionPersisted(group.Value, persistedChunks);
+                        saved += persistedChunks.Count;
                     }
-                    AtomicWrite(Path.Combine(regionsDir, FileName(group.Key)), region);
-                    // saved 计数与回调都必须在文件成功落盘之后：写失败则保持 dirty 下轮重试，且不能虚报 saved
-                    onRegionPersisted(group.Value, persistedChunks);
-                    saved += persistedChunks.Count;
-                }
-                catch (Exception e) when (e is IOException || e is InvalidDataException)
-                {
-                    // 写失败（含旧 region 文件损坏读不回来）：这批 chunk 保持 dirty，下轮保存重试
+                    catch (Exception e) when (e is IOException || e is InvalidDataException)
+                    {
+                        // 写失败（含旧 region 文件损坏读不回来）：这批 chunk 保持 dirty，下轮保存重试
+                    }
                 }
             }
             return saved;
