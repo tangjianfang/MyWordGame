@@ -542,20 +542,20 @@ namespace MyWorld.Unity.Player
 
         /// <summary>EditMode 注入用的飞行状态实例（替换默认 new FlightState()）。
         /// 必须由测试在 Bind 前调用；运行时不开放给 Gameplay 侧——切换入口走
-        /// <see cref="FlightTickToggle"/> 走完整的双击 / F 键 / 触地退出通道。</summary>
+        /// <see cref="FlightTickToggle"/> 走完整的双击 / 触地退出通道。</summary>
         public void InjectFlightStateForTest(FlightState state) => _flight = state;
 
-        /// <summary>每帧调用一次：检测 Space-down / F-down 切换飞行态。Space 与 F 都走
-        /// 同一条 <see cref="FlightState.TryToggle"/>——「F 键等效」≠ 跳过双击窗口，
-        /// 第一下空 F 不切换，第二下才生效。模态 UI 开着时本方法 no-op（与背包
-        /// / 熔炉抢 Space）。</summary>
+        /// <summary>每帧调用一次：检测 Space-down 切换飞行态（双击窗口内第二下生效）。
+        /// 评审 07#1：F 键让位熔炉——任务链 ch1_07 教「按 F 开熔炉」且熔炉 F 是全局开关
+        /// （无距离条件），飞行与熔炉同键同帧双触发；m13 的「F 等效切换」条款作废，
+        /// <b>双击空格是飞行唯一入口</b>。模态 UI 开着时本方法 no-op（与背包/熔炉抢 Space）。</summary>
         public void FlightTickToggle()
         {
             if (_flight == null) return;
-            if (UiCursorGate.IsOpen) return; // 模态 UI 占用 Space/F，不切飞行
+            if (UiCursorGate.IsOpen) return; // 模态 UI 占用 Space，不切飞行
             if (_world == null) return; // 未 Bind（早期 / 纯逻辑测试）跳过
 
-            if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.F))
+            if (Input.GetKeyDown(KeyCode.Space))
             {
                 _flight.TryToggle(Time.timeAsDouble);
             }

@@ -263,6 +263,7 @@ namespace MyWorld.Unity.UI
             "W / A / S / D", "移动",
             "空格", "跳跃",
             "Shift", "下蹲 / 潜行",
+            "双击空格", "飞行开关（空中：空格升 / Shift 降）",
             "鼠标移动", "转动视角",
             "鼠标左键", "挖方块（对着方块按）",
             "鼠标右键", "放方块 / 使用物品",
@@ -275,6 +276,8 @@ namespace MyWorld.Unity.UI
             "E", "打开 / 关闭背包（合成）",
             "P", "打开 / 关闭工作台",
             "B", "打开 / 关闭口袋合成",
+            "F", "打开 / 关闭熔炉",
+            "R", "武器面板（快速换武器）",
             "V", "与村民交易",
             "X", "打开 / 关闭附魔台",
             "F11", "全屏开关",
@@ -286,6 +289,19 @@ namespace MyWorld.Unity.UI
         /// <summary>按键表总行数 = 两栏中较长者的条目对数（左右栏允许不等长）。</summary>
         internal static int KeyTableRowCount =>
             Math.Max(KeyTableLeft.Length, KeyTableRight.Length) / 2;
+
+        /// <summary>按键表第 rowIndex 行（0 起）左栏的（键名, 说明）。写严格：越界抛
+        /// <see cref="ArgumentOutOfRangeException"/>（与 <see cref="GetRightColumnRow"/> 同款）。</summary>
+        internal static (string Key, string Desc) GetLeftColumnRow(int rowIndex)
+        {
+            int i = rowIndex * 2;
+            if (rowIndex < 0 || i >= KeyTableLeft.Length)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(rowIndex), "按键表左栏行下标越界：" + rowIndex + "（共 " + KeyTableLeft.Length / 2 + " 行）");
+            }
+            return (KeyTableLeft[i], KeyTableLeft[i + 1]);
+        }
 
         /// <summary>按键表第 rowIndex 行（0 起）右栏的（键名, 说明）。写严格：越界抛
         /// <see cref="ArgumentOutOfRangeException"/>（绘制循环按 <see cref="KeyTableRowCount"/> 走，
@@ -331,13 +347,21 @@ namespace MyWorld.Unity.UI
         internal const string Wave1HintLine =
             "新玩法：挖矿要按住左键蓄力；按住 SHIFT 跳起来能垫脚搭塔；本菜单有「成就/图鉴」页签；药水喝了有 30 秒魔法；音乐盒右键放小星星";
 
+        /// <summary>评审 08 F1（m13 补课）：飞行教学行——双击空格开关（F 已让位熔炉，
+        /// 评审 07#1）、触地自动退出、飞行中受伤豁免、存档不记飞行态。常量钉死可断言
+        /// （照 <see cref="Wave1HintLine"/> 同款契约）。</summary>
+        internal const string FlightHintLine =
+            "飞行：快速按两下空格起飞，空中空格上升 / Shift 下降，碰到地面自动退出；飞行中不会受伤，重新进世界默认走路";
+
         private void OnGUI()
         {
             if (!IsOpen) return;
 
             const float w = 720f;
-            // m6 C5：560 → 660——「怎么玩」页底部接了任务进度区（目标全文 + 8 格进度条）
-            const float h = 660f;
+            // m6 C5：560 → 660（「怎么玩」页底部接任务进度区）；评审 08 F1 再 660 → 732——
+            // 按键表补 F 熔炉 / R 武器面板 / 双击空格飞行三行 + 飞行教学行（+74px）。
+            // 720p 窗口下 bg.y = -6：只裁背景框上下边框，标题（bg.y+10）与任务格仍在屏内
+            const float h = 732f;
             var bg = new Rect((Screen.width - w) / 2f, (Screen.height - h) / 2f, w, h);
             // 半透明深色背景，同背包（GUI.Box 默认皮肤）
             GUI.Box(bg, GUIContent.none);
@@ -396,6 +420,10 @@ namespace MyWorld.Unity.UI
             // m12 W6：新系统教学行（成就/图鉴/药水乐器/世界管理四连，第 0/1 波落地的
             // 功能孩子不看菜单发现不了——照 m10 C3 同款单行文案，常量钉死可断言）
             GUI.Label(new Rect(bg.x + 24, y, 660, 22), Wave1HintLine, white);
+            y += 26;
+            // 评审 08 F1：飞行教学行——m13 落地的飞行因按键表未更新而零可发现性，
+            // 且 F 已让位熔炉（07#1），双击空格的唯一入口必须明示
+            GUI.Label(new Rect(bg.x + 24, y, 660, 22), FlightHintLine, white);
             y += 26;
 
             GUI.Label(new Rect(bg.x + 24, y, 400, 22), "怎么开始：四步上手", white);

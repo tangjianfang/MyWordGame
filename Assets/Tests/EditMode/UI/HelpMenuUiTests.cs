@@ -668,6 +668,36 @@ namespace MyWorld.Core.Tests.UI
             Assert.That(HelpMenuUi.CraftingShiftHint, Does.Contain("合成区"),
                 "教学文案必须明确说「合成区」——直接告诉孩子放进哪里");
         }
+
+        [Test]
+        public void 按键表_m13新键与熔炉F_三行齐全可画出()
+        {
+            // 评审 08 F1 / 07#1：m13 新入口（R 武器面板 / 双击空格飞行）与从未列入的
+            // 熔炉 F 必须进按键表且落在可画出的行范围内——功能存在但按键表查不到
+            // = 孩子零可发现性（存档画像：任务停在第一章第 2 步）。
+            var leftKeys = new System.Collections.Generic.HashSet<string>();
+            var rightKeys = new System.Collections.Generic.HashSet<string>();
+            for (int row = 0; row < HelpMenuUi.KeyTableRowCount; row++)
+            {
+                leftKeys.Add(HelpMenuUi.GetLeftColumnRow(row).Key);
+                rightKeys.Add(HelpMenuUi.GetRightColumnRow(row).Key);
+            }
+            Assert.That(rightKeys, Does.Contain("F"), "熔炉 F 从未列入按键表（评审 07#1 冲突根源之一）");
+            Assert.That(rightKeys, Does.Contain("R"), "武器面板 R（m13 W4）不在按键表");
+            Assert.That(leftKeys, Does.Contain("双击空格"),
+                "飞行改双击空格唯一入口（F 让位熔炉），必须进左栏基础操作");
+        }
+
+        [Test]
+        public void 飞行教学行_钉死双击空格与触地退出文案()
+        {
+            // 评审 08 F1：飞行教学行关键词钉死——「双击空格」入口、「触地退出」、
+            // 「不受伤」豁免三个 m13 W1 契约点，任一漂移立刻红
+            Assert.That(HelpMenuUi.FlightHintLine, Does.Contain("两下空格"),
+                "飞行开关唯一入口是双击空格（F 已让位熔炉）");
+            Assert.That(HelpMenuUi.FlightHintLine, Does.Contain("自动退出"), "触地自动退出要教");
+            Assert.That(HelpMenuUi.FlightHintLine, Does.Contain("不受伤"), "飞行受伤豁免要教");
+        }
     }
 }
 #endif
