@@ -14,6 +14,11 @@ namespace MyWorld.Core.Persistence
         public const int RegionSize = 32;
         public const int FormatVersion = 1;
 
+        /// <summary>单个区块负载的长度上界（评审 05 T-C1）。真实区块序列化后远小于 1MB；
+        /// 声明值超过它即坏档——必须<b>先校验再分配</b>，坏档不能触发 GB 级内存分配
+        /// （实测 64MB 声明先分配 64MB 才报截断，int.MaxValue 会直奔 2GB/OOM）。</summary>
+        public const int MaxChunkPayloadBytes = 8 * 1024 * 1024;
+
         private const uint Magic = 0x4752574D; // "MWRG"
         private const int RegionShift = 5;
         private const int RegionMask = RegionSize - 1;
@@ -103,6 +108,12 @@ namespace MyWorld.Core.Persistence
                 if (length < 0)
                 {
                     throw new InvalidDataException("区块长度为负，文件已损坏。");
+                }
+                if (length > MaxChunkPayloadBytes)
+                {
+                    // 评审 05 T-C1：先校验再分配——坏档的离谱声明不许换走真实内存
+                    throw new InvalidDataException(
+                        $"区块长度 {length} 超出上界 {MaxChunkPayloadBytes} 字节，文件已损坏。");
                 }
 
                 var payload = new byte[length];

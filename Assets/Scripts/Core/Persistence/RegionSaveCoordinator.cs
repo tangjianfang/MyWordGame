@@ -126,6 +126,9 @@ namespace MyWorld.Core.Persistence
                 {
                     region = RegionFile.Load(fs);
                 }
+                // 评审 05 T-C2：头部坐标与文件名不符按未存处理（读容忍）——
+                // 否则 TryGetChunk 的局部索引换算会错位甚至越界
+                if (!region.RegionPos.Equals(regionPos)) return false;
                 if (!region.TryGetChunk(pos, out var column)) return false;
                 world.AddChunk(pos, column); // AddChunk 替换同位置区块，实现存档 overlay
                 return true;
@@ -184,7 +187,17 @@ namespace MyWorld.Core.Persistence
             {
                 using (var fs = File.OpenRead(path))
                 {
-                    return RegionFile.Load(fs); // 合并旧记录：Load 出来的 RegionFile 已含旧 chunk
+                    var region = RegionFile.Load(fs); // 合并旧记录：Load 出来的 RegionFile 已含旧 chunk
+                    if (!region.RegionPos.Equals(regionPos))
+                    {
+                        // 评审 05 T-C2：头部坐标与文件名不符按坏档处理（InvalidDataException
+                        // 落在 SaveDirtyCore 的类型过滤 catch 内进错误清单），而不是让后续
+                        // StoreChunk 抛 ArgumentOutOfRangeException 冒到 Update 每帧冒泡
+                        throw new InvalidDataException(
+                            $"region 文件 {FileName(regionPos)} 头部坐标 " +
+                            $"({region.RegionPos.X},{region.RegionPos.Z}) 与文件名不符");
+                    }
+                    return region;
                 }
             }
             return new RegionFile(regionPos);

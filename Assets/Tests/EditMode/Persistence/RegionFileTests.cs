@@ -10,6 +10,26 @@ namespace MyWorld.Core.Tests.Persistence
     public class RegionFileTests
     {
         [Test]
+        public void Load_区块长度声明超上界_按坏档拒绝不巨量分配()
+        {
+            // 评审 05 T-C1：length 无上界时 new byte[length] 先分配后校验截断——
+            // 坏档声明 int.MaxValue 会触发 2GB 分配（实测 64ms/64MB 同类）。
+            // 现在必须先校验上界再分配，按坏档抛 InvalidDataException。
+            using var stream = new MemoryStream();
+            void W(int v) { byte[] b = BitConverter.GetBytes(v); stream.Write(b, 0, 4); }
+            W(unchecked((int)0x4752574D)); // 魔数
+            W(1);                          // 版本
+            W(0); W(0);                    // region (0,0)
+            W(1);                          // count = 1
+            W(0);                          // localIndex
+            W(int.MaxValue);               // 声明 2GB 负载
+            stream.Position = 0;
+
+            Assert.Throws<InvalidDataException>(() => RegionFile.Load(stream),
+                "超上界的长度声明必须按坏档拒绝，而不是尝试分配");
+        }
+
+        [Test]
         public void NewRegion_ContainsNoChunks()
         {
             var region = new RegionFile(new ChunkPos(0, 0));

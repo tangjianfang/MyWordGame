@@ -266,6 +266,49 @@ namespace MyWorld.Core.Tests.Persistence
         }
 
         [Test]
+        public void SaveDirty_头坐标与文件名不符_按坏档处理不冒泡()
+        {
+            // 评审 05 T-C2：r.0.0.mwr 头部写着 region (5,5) 时，StoreChunk 抛的
+            // ArgumentOutOfRangeException 会冒过 SaveDirtyCore 的类型过滤 catch、
+            // 在 WorldBootstrap.Update 每帧冒泡（实测复现）——现在 LoadOrCreate
+            // 先校验坐标，按坏档（InvalidDataException）吞进错误清单。
+            string dir = TempDir();
+            Directory.CreateDirectory(dir);
+            try
+            {
+                // 合法格式但头部坐标写 (5,5) 的文件，文件名是 r.0.0.mwr
+                var mismatched = new RegionFile(new ChunkPos(5, 5));
+                using (var fs = File.Create(Path.Combine(dir, "r.0.0.mwr"))) mismatched.Save(fs);
+
+                var world = BuildWorldWithEdits((3, 64, 5)); // chunk (0,0) → region (0,0)
+                var errors = new List<string>();
+                Assert.DoesNotThrow(() => RegionSaveCoordinator.SaveDirty(world, dir, errors),
+                    "坐标不符必须按坏档吞进清单，不许冒泡到 Update");
+                Assert.That(errors, Is.Not.Empty, "坏档原因要进错误清单");
+                StringAssert.Contains("与文件名不符", errors[0]);
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Test]
+        public void TryLoadChunk_头坐标与文件名不符_返回false读容忍()
+        {
+            string dir = TempDir();
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var mismatched = new RegionFile(new ChunkPos(5, 5));
+                using (var fs = File.Create(Path.Combine(dir, "r.0.0.mwr"))) mismatched.Save(fs);
+
+                var fresh = new World();
+                bool hit = RegionSaveCoordinator.TryLoadChunk(fresh, new ChunkPos(0, 0), dir);
+
+                Assert.That(hit, Is.False, "坐标不符按未存处理——调用方保留 seed 生成结果");
+            }
+            finally { Directory.Delete(dir, true); }
+        }
+
+        [Test]
         public void SaveDirty_双写者并发_两侧区块都不丢()
         {
             // 评审 04 R-1 / 03 B-4：30s 后台保存（快照重载）与卸载主线程保存（同步重载）
