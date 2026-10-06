@@ -280,6 +280,10 @@ namespace MyWorld.Unity.Persistence
         /// 构造完成即与游戏状态解耦，后台线程写盘期间的状态变化不会混入）。</summary>
         private LevelData CollectLevelData()
         {
+            // 评审 04 R-3：合成网格材料/箱子手持栈不进任何存档字段——收集快照前先统一
+            // 归位回背包（塞不下的留 UI 里下次打开还在）。Alt+F4/换世界/30s 自动保存同路。
+            MyWorld.Unity.UI.CraftGridInteraction.ReturnAllHeld(_context);
+
             var data = new LevelData
             {
                 Seed = _seed,

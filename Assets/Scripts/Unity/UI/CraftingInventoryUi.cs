@@ -73,8 +73,15 @@ namespace MyWorld.Unity.UI
             else UiCursorGate.Close();
         }
 
+                /// <summary>评审 04 R-3：保存/退出前把合成网格材料归还背包（网格不进存档）。</summary>
+        private void ReturnGridToPlayer(MyWorld.Unity.Gameplay.PlayerContext ctx)
+            => CraftGridInteraction.ReturnGrid(ctx.Inventory, _craft);
+
+        private void OnEnable() => CraftGridInteraction.RegisterReturnHandler(ReturnGridToPlayer);
+
         private void OnDisable()
         {
+            CraftGridInteraction.UnregisterReturnHandler(ReturnGridToPlayer);
             // m6 终审修 C1（B3-②）：禁用/销毁时若还开着必须把门位还回去，
             // 否则计数泄漏会让指针永远解锁、挖/放永久抑制
             if (_open) SetOpen(false);

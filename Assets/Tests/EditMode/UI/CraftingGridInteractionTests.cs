@@ -115,6 +115,63 @@ namespace MyWorld.Core.Tests.UI
             Assert.That(cell.IsEmpty, Is.True);
             Assert.That(_inv.GetSlot(20).Count, Is.EqualTo(1), "slot 20 不应被改");
         }
+
+        [Test]
+        public void ReturnGrid_网格物品归位进背包_空格清空()
+        {
+            // 评审 04 R-3：合成网格材料不进存档——保存前 ReturnGrid 归位，Alt+F4 不再蒸发
+            var grid = new ItemStack[2];
+            grid[0] = new ItemStack(1001, 3); // 原木 ×3
+            grid[1] = ItemStack.Empty;
+
+            CraftGridInteraction.ReturnGrid(_inv, grid);
+
+            Assert.That(_inv.GetSlot(0).Count, Is.EqualTo(3), "网格物品应归位进背包首格");
+            Assert.That(grid[0].IsEmpty, Is.True, "归位成功的格子清空");
+        }
+
+        [Test]
+        public void ReturnGrid_背包满_留网格不清空()
+        {
+            // 塞不下的留在网格（背包满是玩家状态，丢弃/强塞都不对）
+            for (int i = 0; i < 36; i++) _inv.SetSlot(i, new ItemStack(1002, 64)); // 填满
+            var grid = new ItemStack[1];
+            grid[0] = new ItemStack(1001, 5);
+
+            CraftGridInteraction.ReturnGrid(_inv, grid);
+
+            Assert.That(grid[0].Count, Is.EqualTo(5), "背包满时物品留在网格，下次打开还在");
+        }
+
+        [Test]
+        public void ReturnAllHeld_登记回调统一冲刷()
+        {
+            // 评审 04 R-3：注册表聚合——保存路径经 ReturnAllHeld 逐个调用已登记的归位回调
+            var go = new UnityEngine.GameObject();
+            try
+            {
+                var ctx = go.AddComponent<MyWorld.Unity.Gameplay.PlayerContext>();
+                ctx.Inventory = new PlayerInventory();
+                var grid = new ItemStack[1];
+                grid[0] = new ItemStack(1001, 2);
+                System.Action<MyWorld.Unity.Gameplay.PlayerContext> handler =
+                    c => CraftGridInteraction.ReturnGrid(c.Inventory, grid);
+                CraftGridInteraction.RegisterReturnHandler(handler);
+                try
+                {
+                    CraftGridInteraction.ReturnAllHeld(ctx);
+                    Assert.That(ctx.Inventory.GetSlot(0).Count, Is.EqualTo(2),
+                        "登记的归位回调必须被统一调用（评审 04 R-3 聚合断言）");
+                    Assert.That(grid[0].IsEmpty, Is.True);
+                }
+                finally
+                {
+                    CraftGridInteraction.UnregisterReturnHandler(handler);
+                    CraftGridInteraction.ReturnAllHeld(null); // null ctx 安全 no-op
+                }
+            }
+            finally { UnityEngine.Object.DestroyImmediate(go); }
+        }
     }
 }
 #endif

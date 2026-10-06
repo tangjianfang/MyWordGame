@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using MyWorld.Core.Items;
 using MyWorld.Core.Player;
 using UnityEngine;
@@ -18,6 +19,44 @@ namespace MyWorld.Unity.UI
     /// </summary>
     internal static class CraftGridInteraction
     {
+        // ─── 评审 04 R-3：退出/保存前归位（合成网格与箱子手持不进任何存档字段，
+        //     Alt+F4/换世界时物品蒸发——保存路径统一冲刷） ─────────────────────
+
+        private static readonly List<System.Action<MyWorld.Unity.Gameplay.PlayerContext>> _returnHandlers =
+            new List<System.Action<MyWorld.Unity.Gameplay.PlayerContext>>();
+
+        /// <summary>注册「把我的悬浮物品归位回玩家」回调（各合成 UI / ChestUi 在 OnEnable 挂、
+        /// OnDisable 摘）。保存路径（OnApplicationQuit / OnDestroy / 退出菜单）经
+        /// <see cref="ReturnAllHeld"/> 统一冲刷。</summary>
+        public static void RegisterReturnHandler(System.Action<MyWorld.Unity.Gameplay.PlayerContext> handler)
+        {
+            if (handler != null) _returnHandlers.Add(handler);
+        }
+
+        /// <summary>摘除归位回调（UI 关闭/销毁时——handler 表不许留死引用）。</summary>
+        public static void UnregisterReturnHandler(System.Action<MyWorld.Unity.Gameplay.PlayerContext> handler)
+            => _returnHandlers.Remove(handler);
+
+        /// <summary>逐个调用已登记的归位回调（倒序遍历，handler 内自摘安全）。空表零开销。</summary>
+        public static void ReturnAllHeld(MyWorld.Unity.Gameplay.PlayerContext ctx)
+        {
+            if (ctx == null) return;
+            for (int i = _returnHandlers.Count - 1; i >= 0; i--) _returnHandlers[i]?.Invoke(ctx);
+        }
+
+        /// <summary>把一个合成网格的全部物品归还背包（评审 04 R-3）。塞不下的留在网格里
+        /// （背包满是玩家自己的状态，丢弃或强塞都不对——下次打开 UI 还在）。</summary>
+        public static void ReturnGrid(PlayerInventory inv, ItemStack[] grid)
+        {
+            if (inv == null || grid == null) return;
+            for (int i = 0; i < grid.Length; i++)
+            {
+                if (grid[i].IsEmpty) continue;
+                inv.TryAdd(grid[i], out int leftover);
+                grid[i] = leftover > 0 ? grid[i].WithCount(leftover) : ItemStack.Empty;
+            }
+        }
+
         /// <summary>本次 OnGUI 事件的鼠标左键是否落在 <paramref name="r"/> 内。</summary>
         public static bool IsLeftClickIn(Rect r)
         {
