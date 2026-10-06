@@ -367,6 +367,27 @@ namespace MyWorld.Core.Tests.Visual
             Assert.That(method, Is.Not.Null, "MobView 应有私有 LateUpdate 方法");
             method.Invoke(view, null);
         }
+
+        [Test]
+        public void LateUpdate_常态帧_不再逐部位写MPB()
+        {
+            // 评审 02#6：旧实现每帧对每部位 GetPropertyBlock/SetPropertyBlock
+            //（24 mob×8 部位 ≈384 次/帧 native 调用且破坏 SRP 合批）——常态（无闪无引信）
+            // 部位色不变必须零写入；受击红闪首帧写一次后同样跳过
+            var host = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            try
+            {
+                var view = MobView.Attach(host, Mob.Create(6, new MyWorld.Core.Math.Float3(0f, 1f, 0f))); // Pig
+                view.LateUpdate(); // 首帧全写（哨兵初始化）
+                int afterFirst = view.MpbWritesForTests;
+
+                view.LateUpdate(); // 常态第二帧：零写入
+                view.LateUpdate();
+                Assert.That(view.MpbWritesForTests - afterFirst, Is.EqualTo(0),
+                    "常态帧（无受击无引信）不再逐部位写 MPB（评审 02#6 核心断言）");
+            }
+            finally { Object.DestroyImmediate(host); }
+        }
     }
 }
 #endif

@@ -35,6 +35,14 @@ namespace MyWorld.Unity.Combat
         // m13 W2：血条纯逻辑状态机（受击 3s 淡出 + Boss 常显）。OnGUI 路径在 DrawHealthBar。
         private MobHealthBarTimer _healthBar;
 
+        // 评审 02#6：部位色缓存——与上次写入一致时跳过 MPB 写（常态帧从 ~24 mob×8 部位
+        // ≈384 次 native 调用降到 0；受击红闪首帧写一次、引信脉动帧照写——视觉零变化）
+        private Color[] _lastApplied;
+        private Color _lastLegacyColor = new Color(-1f, -1f, -1f, -1f);
+
+        /// <summary>MPB 写入次数（评审 02#6 测试断言「常态帧零写入」用）。</summary>
+        internal int MpbWritesForTests;
+
         // m13 W2：受击广播入口——CombatController 远程命中弹道（m11 W1-1）走 ProjectileEntity
         // 也只最终调 MobAI.TakeHit；TakeHit 写 HitFlashTimer 但不直接通知 View，所以 View 在
         // LateUpdate 里靠 HitFlashTimer > 0 ↔ OnHit() 单调计数器对齐——见下。
@@ -170,12 +178,14 @@ namespace MyWorld.Unity.Combat
             if (r == null) return;
             // EditMode 下 AddComponent 不触发 Awake，_block 懒建（否则 ArgumentNullException）
             if (_block == null) _block = new MaterialPropertyBlock();
+            MpbWritesForTests++;
             r.GetPropertyBlock(_block);
             _block.SetColor(ColorId, c);
             r.SetPropertyBlock(_block);
         }
 
-        private void LateUpdate()
+        // internal 供 EditMode 直驱（EditMode 不自动跑 LateUpdate；运行时 Unity 照常反射调用）
+        internal void LateUpdate()
         {
             if (Mob == null) return;
             transform.position = new Vector3(Mob.Position.X, Mob.Position.Y, Mob.Position.Z);
@@ -216,7 +226,16 @@ namespace MyWorld.Unity.Combat
                         Quaternion.LookRotation(new Vector3(v.X, 0f, v.Z), Vector3.up);
                 }
 
-                // 受伤红闪 / 苦力怕引信白闪：涂满全部部位，各自以部位底色为基准
+                // 受伤红闪 / 苦力怕引信白闪：涂满全部部位，各自以部位底色为基准。
+                // 评审 02#6：与上次写入一致时跳过（引信脉动逐帧变照写、红闪只写首帧）
+                if (_lastApplied == null || _lastApplied.Length != _assembled.PartRenderers.Length)
+                {
+                    _lastApplied = new Color[_assembled.PartRenderers.Length];
+                    for (int j = 0; j < _lastApplied.Length; j++)
+                    {
+                        _lastApplied[j] = new Color(-1f, -1f, -1f, -1f); // 哨兵：强制首帧全写
+                    }
+                }
                 for (int i = 0; i < _assembled.PartRenderers.Length; i++)
                 {
                     Color c = _assembled.PartBaseColors[i];
@@ -229,25 +248,31 @@ namespace MyWorld.Unity.Combat
                         float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 16f);
                         c = Color.Lerp(_assembled.PartBaseColors[i], Color.white, pulse * 0.7f);
                     }
-                    SetInstanceColor(_assembled.PartRenderers[i], c);
+                    if (c != _lastApplied[i])
+                    {
+                        _lastApplied[i] = c;
+                        SetInstanceColor(_assembled.PartRenderers[i], c);
+                    }
                 }
                 return;
             }
 
-            // 旧单 cube 路径：host 本体染色
+            // 旧单 cube 路径：host 本体染色（评审 02#6：同款未变跳过）
+            Color legacy = BaseColor;
             if (Mob.HitFlashTimer > 0)
             {
-                ApplyColor(Color.red);
+                legacy = Color.red;
             }
             else if (FuseFlashing())
             {
                 // 苦力怕引信中：颜色随剩余时间变白闪烁
                 float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 16f);
-                ApplyColor(Color.Lerp(BaseColor, Color.white, pulse * 0.7f));
+                legacy = Color.Lerp(BaseColor, Color.white, pulse * 0.7f);
             }
-            else
+            if (legacy != _lastLegacyColor)
             {
-                ApplyColor(BaseColor);
+                _lastLegacyColor = legacy;
+                ApplyColor(legacy);
             }
         }
 
