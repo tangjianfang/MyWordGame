@@ -410,6 +410,9 @@ namespace MyWorld.Unity.Bootstrap
             // 恢复的位置 Y 直接用存档值，streamer 半径内的区块会在 warmup 内生成，玩家不会在空气里下落。
             var saveLoad = gameObject.AddComponent<MyWorld.Unity.Persistence.SaveLoadService>();
             saveLoad.Bind(_world, _playerContext, _player, seed, saveRoot);
+            // 评审 02#2/03 B-4：区块卸载落盘改走后台快照——主线程不再同步整批写盘
+            // （32 脏列实测 679ms 单帧冻结 → 快照 <1ms，写盘在后台）
+            _streamer.FlushDirtyBeforeUnload = saveLoad.FlushDirtyForUnload;
             saveLoad.TryRestore();
             // 总线先于 TryRestore 绑定（任务进度要恢复进 bus.Quests），Bind 里的跨夜观察基线
             // 因此取到的是恢复**前**的时刻——这里显式重置一次，否则「存档正午 → 读档深夜」的

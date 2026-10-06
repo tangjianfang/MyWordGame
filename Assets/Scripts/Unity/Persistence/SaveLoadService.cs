@@ -96,6 +96,17 @@ namespace MyWorld.Unity.Persistence
         /// <see cref="LastSaveError"/> 与错误日志发布）。既有调用方（30s 自动保存等）忽略返回值，语义不变。</summary>
         public bool SaveNow() => SaveNow(async: true);
 
+        /// <summary>卸载脏区块前的落盘请求（评审 02#2/03 B-4：把同步整批落盘挪出主线程）。
+        /// 首选异步 <see cref="SaveNow()"/>——主线程只做快照冻结（&lt;1ms），写盘在后台；
+        /// 撞上在途写（返回 false）→ 退回 <see cref="SaveNow(bool)"/> 同步兜底（写锁下
+        /// 安全，慢但不丢）。两条路径的快照都在本方法返回前完成——调用方随后 RemoveChunk
+        /// 不丢数据。注入给 <c>ChunkStreamer.FlushDirtyBeforeUnload</c>。</summary>
+        public void FlushDirtyForUnload()
+        {
+            if (_world == null || _context == null) return;
+            if (!SaveNow()) SaveNow(async: false);
+        }
+
         /// <summary>收集状态并落盘。level.dat 与 region 两层各自容错：一层失败不影响另一层，
         /// region 失败的脏区块保留下轮重试（见 RegionSaveCoordinator）。
         /// <para><paramref name="async"/> = true：重叠保护——上一轮后台写盘未完成时整轮跳过；

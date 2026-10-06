@@ -225,6 +225,31 @@ namespace MyWorld.Core.Tests.WorldStreaming
             }
             finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
         }
+
+        [Test]
+        public void UnloadDistant_注入冲刷回调_卸载脏块走后台路径()
+        {
+            // 评审 02#2/03 B-4：注入 FlushDirtyBeforeUnload 后，卸载脏区块的落盘必须走
+            // 回调（SaveLoadService 后台快照，主线程只冻结快照 <1ms），不再主线程同步
+            // 整批 SaveDirty（32 脏列实测 679ms 单帧冻结）；未注入时保持旧行为（上面的
+            // 走远卸载用例仍走同步路径，两者互为守卫）
+            string dir = TempDir();
+            try
+            {
+                var world = new World();
+                var streamer = NewStreamer(world, dir);
+                TickUntilLoaded(streamer, new Float3(MarkerX + 0.5f, 100f, MarkerZ + 0.5f), 200);
+                world.SetBlock(MarkerX, MarkerY, MarkerZ, BlockIds.Bedrock); // 制脏
+
+                bool flushed = false;
+                streamer.FlushDirtyBeforeUnload = () => flushed = true;
+
+                streamer.Tick(new Float3(20 * 16 + 0.5f, 100f, 0.5f)); // 走远 → 卸载触发
+
+                Assert.That(flushed, Is.True, "卸载脏块必须经注入的冲刷回调（后台快照路径）");
+            }
+            finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+        }
     }
 }
 #endif

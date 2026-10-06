@@ -75,6 +75,11 @@ namespace MyWorld.Unity.Streaming
         /// </summary>
         internal Func<long> StopwatchMillis = DefaultStopwatchMillis;
 
+        /// <summary>卸载脏区块前的落盘请求（评审 02#2/03 B-4）。WorldBootstrap 注入
+        /// <c>SaveLoadService.FlushDirtyForUnload</c>（主线程只冻结快照 &lt;1ms，写盘在
+        /// 后台）；null（EditMode/未装配）回退主线程同步 <c>SaveDirty</c> 旧行为。</summary>
+        internal Action FlushDirtyBeforeUnload;
+
         private static long DefaultStopwatchMillis()
         {
             return (long)(System.Diagnostics.Stopwatch.GetTimestamp() * 1000.0
@@ -312,10 +317,11 @@ namespace MyWorld.Unity.Streaming
             }
 
             // 卸载前保存（milestone-4 B1）：脏区块一旦 RemoveChunk，玩家的方块改动就随内存
-            // 丢掉，走远再回来会被 seed 重新生成覆盖。只要本次有脏区块要卸载就整批落盘一次
-            // （SaveDirty 只写脏区块）；没有脏区块卸载时不做任何磁盘 IO。
-            // 脏集合快照复用 _dirtyScratch（Clear + 拷入），语义与原先每帧 new HashSet 等价：
-            // 快照在 SaveDirty 之前完成，保存过程中对 World.DirtyChunks 的清脏不影响判定。
+            // 丢掉，走远再回来会被 seed 重新生成覆盖。只要本次有脏区块要卸载就冲刷一次；
+            // 没有脏区块卸载时不做任何磁盘 IO。
+            // 评审 02#2/03 B-4：落盘改走 SaveLoadService 后台快照（注入则用）——旧路径在
+            // 主线程同步整批序列化+写盘，32 脏列实测 679ms 单帧冻结；快照冻结 <1ms，
+            // 写盘在后台。未注入（EditMode/旧装配）回退旧行为，写锁下依然安全。
             if (_saveRegionsDir != null && toUnload.Count > 0)
             {
                 var dirty = _dirtyScratch;
@@ -325,7 +331,8 @@ namespace MyWorld.Unity.Streaming
                 {
                     if (dirty.Contains(chunk))
                     {
-                        RegionSaveCoordinator.SaveDirty(_world, _saveRegionsDir);
+                        if (FlushDirtyBeforeUnload != null) FlushDirtyBeforeUnload();
+                        else RegionSaveCoordinator.SaveDirty(_world, _saveRegionsDir);
                         break;
                     }
                 }
