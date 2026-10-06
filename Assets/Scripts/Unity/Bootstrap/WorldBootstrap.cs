@@ -435,6 +435,10 @@ namespace MyWorld.Unity.Bootstrap
             var questHud = gameObject.AddComponent<MyWorld.Unity.UI.QuestHudUi>();
             questHud.Bind(questBus);
 
+            // 评审 08 F4：回家罗盘 HUD（顶中一行床方向+距离）——挂载零依赖（自己读
+            // PlayerContext.BedSystem），不占步骤序号、不参与任何装配顺序。
+            gameObject.AddComponent<MyWorld.Unity.UI.HomeCompassUi>();
+
             // 29. 掉落物视图（m7 B1）：ItemDrops 增删同步建/毁 0.25 格小方块视图，
             //     挖到的掉落物看得见 + 吸附飞向玩家的动画可见。挂世界根节点下。
             var dropViews = gameObject.AddComponent<MyWorld.Unity.Items.ItemDropViewRegistry>();
