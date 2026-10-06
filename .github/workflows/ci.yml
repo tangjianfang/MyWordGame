@@ -1,0 +1,21 @@
+name: CI
+
+# 评审 06 R2：dotnet 链护栏（1039+ 测试）。只跑 dotnet 侧——EditMode 需要 Unity
+# 许可证与编辑器批处理，不入 CI（项目规矩：本机跑 build-and-run.sh 收口）。
+# runner 选 windows-latest：RegionSaveCoordinatorTests/WorldCatalogTests 的
+# 「独占句柄」用例依赖 Windows FileShare.None 语义（Linux 上不强制独占）。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  dotnet:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: dotnet test
+        run: dotnet test tools/dotnet/MyWorld.Tools.sln --nologo
