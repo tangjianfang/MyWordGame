@@ -1,20 +1,139 @@
 {
   "achievements": [
-    { "id": "first-night", "name": "初夜生存", "desc": "活过第一个夜晚", "icon": "badge-first-night", "event": "SurviveNight", "count": 1 },
-    { "id": "explorer", "name": "探索者", "desc": "存活 5 个夜晚", "icon": "badge-explorer", "event": "SurviveNight", "count": 5 },
-    { "id": "first-iron", "name": "铁器时代", "desc": "获得铁锭", "icon": "badge-first-iron", "event": "ObtainItem", "itemId": 1004, "count": 1 },
-    { "id": "diamond-age", "name": "钻石时代", "desc": "获得钻石", "icon": "badge-diamond-age", "event": "ObtainItem", "itemId": 1005, "count": 1 },
-    { "id": "mob-slayer", "name": "屠魔勇士", "desc": "击败 10 只怪物", "icon": "badge-mob-slayer", "event": "KillKind", "count": 10 },
-    { "id": "skeleton-sniper", "name": "狙骷髅手", "desc": "用弓射杀一只骷髅", "icon": "badge-skeleton-sniper", "event": "KillKind", "kind": "Skeleton", "weapon": "bow", "count": 1 },
-    { "id": "creeper-survivor", "name": "退散苦力怕", "desc": "击败一只苦力怕", "icon": "badge-creeper-survivor", "event": "KillKind", "kind": "Creeper", "count": 1 },
-    { "id": "shepherd", "name": "牧羊人", "desc": "喂养动物 3 次", "icon": "badge-shepherd", "event": "FeedAnimal", "count": 3 },
-    { "id": "harvest", "name": "丰收季节", "desc": "收获 20 次作物", "icon": "badge-harvest", "event": "HarvestCrop", "count": 20 },
-    { "id": "baker", "name": "烘焙师", "desc": "熔炼 10 次物品", "icon": "badge-baker", "event": "SmeltItem", "count": 10 },
-    { "id": "enchanter", "name": "附魔师", "desc": "附魔 3 件装备", "icon": "badge-enchanter", "event": "EnchantItem", "count": 3 },
-    { "id": "archer", "name": "神射手", "desc": "合成一把弓", "icon": "badge-archer", "event": "CraftItem", "itemId": 1301, "count": 1 },
-    { "id": "hero", "name": "全副武装", "desc": "穿齐一整套铁盔甲", "icon": "badge-hero", "event": "EquipArmorFull", "count": 1 },
-    { "id": "builder", "name": "建造大师", "desc": "累计合成 64 块木板", "icon": "badge-builder", "event": "CraftItem", "itemId": 1001, "count": 64 },
-    { "id": "fisherman", "name": "收藏家", "desc": "收集 5 根骨头（钓鱼系统实装后改条件）", "icon": "badge-fisherman", "event": "ObtainItem", "itemId": 1503, "count": 5 },
-    { "id": "completionist", "name": "全勤标兵", "desc": "达成其余全部成就", "icon": "badge-completionist", "special": "allOthers" }
+    {
+      "id": "first-night",
+      "name": "初夜生存",
+      "desc": "活过第一个夜晚",
+      "icon": "badge-first-night",
+      "event": "SurviveNight",
+      "count": 1
+    },
+    {
+      "id": "explorer",
+      "name": "探索者",
+      "desc": "存活 5 个夜晚",
+      "icon": "badge-explorer",
+      "event": "SurviveNight",
+      "count": 5
+    },
+    {
+      "id": "first-iron",
+      "name": "铁器时代",
+      "desc": "获得铁锭",
+      "icon": "badge-first-iron",
+      "event": "ObtainItem",
+      "itemId": 1004,
+      "count": 1
+    },
+    {
+      "id": "diamond-age",
+      "name": "钻石时代",
+      "desc": "获得钻石",
+      "icon": "badge-diamond-age",
+      "event": "ObtainItem",
+      "itemId": 1005,
+      "count": 1
+    },
+    {
+      "id": "mob-slayer",
+      "name": "屠魔勇士",
+      "desc": "击败 10 只怪物",
+      "icon": "badge-mob-slayer",
+      "event": "KillKind",
+      "count": 10
+    },
+    {
+      "id": "skeleton-sniper",
+      "name": "狙骷髅手",
+      "desc": "用弓射杀一只骷髅",
+      "icon": "badge-skeleton-sniper",
+      "event": "KillKind",
+      "kind": "Skeleton",
+      "weapon": "bow",
+      "count": 1
+    },
+    {
+      "id": "creeper-survivor",
+      "name": "退散苦力怕",
+      "desc": "击败一只苦力怕",
+      "icon": "badge-creeper-survivor",
+      "event": "KillKind",
+      "kind": "Creeper",
+      "count": 1
+    },
+    {
+      "id": "shepherd",
+      "name": "牧羊人",
+      "desc": "喂养动物 3 次",
+      "icon": "badge-shepherd",
+      "event": "FeedAnimal",
+      "count": 3
+    },
+    {
+      "id": "harvest",
+      "name": "丰收季节",
+      "desc": "收获 20 次作物",
+      "icon": "badge-harvest",
+      "event": "HarvestCrop",
+      "count": 20
+    },
+    {
+      "id": "baker",
+      "name": "烘焙师",
+      "desc": "熔炼 10 次物品",
+      "icon": "badge-baker",
+      "event": "SmeltItem",
+      "count": 10
+    },
+    {
+      "id": "enchanter",
+      "name": "附魔师",
+      "desc": "附魔 3 件装备",
+      "icon": "badge-enchanter",
+      "event": "EnchantItem",
+      "count": 3
+    },
+    {
+      "id": "archer",
+      "name": "神射手",
+      "desc": "合成一把弓",
+      "icon": "badge-archer",
+      "event": "CraftItem",
+      "itemId": 1301,
+      "count": 1
+    },
+    {
+      "id": "hero",
+      "name": "全副武装",
+      "desc": "穿齐一整套铁盔甲",
+      "icon": "badge-hero",
+      "event": "EquipArmorFull",
+      "count": 1
+    },
+    {
+      "id": "builder",
+      "name": "建造大师",
+      "desc": "累计合成 64 块木板",
+      "icon": "badge-builder",
+      "event": "CraftItem",
+      "itemId": 1001,
+      "count": 64
+    },
+    {
+      "id": "fisherman",
+      "name": "钓鱼佬",
+      "desc": "钓上 5 条生鱼（烤熟了吃更香）",
+      "icon": "badge-fisherman",
+      "event": "ObtainItem",
+      "itemId": 1623,
+      "count": 5
+    },
+    {
+      "id": "completionist",
+      "name": "全勤标兵",
+      "desc": "达成其余全部成就",
+      "icon": "badge-completionist",
+      "special": "allOthers"
+    }
   ]
 }

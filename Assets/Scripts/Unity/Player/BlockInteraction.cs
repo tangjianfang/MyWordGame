@@ -211,6 +211,15 @@ namespace MyWorld.Unity.Player
                 return;
             }
 
+            // 评审 08 F3：垂钓步进——到点转 Biting 时提示「咬钩」（一次性边沿）。
+            // Time.timeAsDouble 不受 timeScale 影响：暂停菜单开着鱼照咬照脱钩（MC 单机
+            // 暂停全停是引擎级行为，这里接受——暂停时收杆窗口流失是自然惩罚）。
+            if (_fishing.Phase != MyWorld.Core.Items.FishingPhase.Idle
+                && _fishing.Tick(Time.timeAsDouble))
+            {
+                MyWorld.Unity.UI.FloatTextUi.ShowText("咬钩了！快按右键！");
+            }
+
             // m11 ②：弓蓄力状态机（开始在 UseAt 的弓分支，松键在这里结算）
             TickBowCharge();
 
@@ -338,6 +347,14 @@ namespace MyWorld.Unity.Player
             if (IsMusketSelected())
             {
                 TryFireMusket();
+                return;
+            }
+
+            // 评审 08 F3：手持钓鱼竿 → 右键整个被垂钓分支消费（Idle 对水抛竿 / 垂钓中收杆）。
+            // 收杆不要求命中；抛竿要求命中水——「对着水钓鱼」是孩子不用教就懂的语义。
+            if (IsFishingRodSelected())
+            {
+                TryFishing(hit);
                 return;
             }
 
@@ -1038,6 +1055,20 @@ namespace MyWorld.Unity.Player
         /// <summary>火枪物品 id（与 items/musket.json 一致；物品判定走字符串 id）。</summary>
         private const string MusketItemId = "musket";
 
+        // ─── 评审 08 F3：垂钓会话（每玩家一份，运行时态不进存档） ──────────────────
+        /// <summary>钓鱼竿物品 id（与 items/fishing_rod.json 的 id 手动一致）。</summary>
+        private const string FishingRodItemId = "fishing_rod";
+
+        /// <summary>垂钓状态机（抛竿→等咬→1.5s 收杆窗口）。</summary>
+        private readonly MyWorld.Core.Items.FishingSession _fishing =
+            new MyWorld.Core.Items.FishingSession();
+
+        /// <summary>浮标位置（抛竿时的命中点——鱼获 spawn 在这，走吸附拾取管线）。</summary>
+        private Float3 _bobberPos;
+
+        /// <summary>递增盐——同一玩家连抛时哈希通道逐次变化（确定性，不持随机对象）。</summary>
+        private int _fishingHashSalt;
+
         /// <summary>子弹物品 id（与 items/bullet.json 一致；消耗时按 numericId 扣背包）。</summary>
         public const int MusketBulletItemId = 1608;
 
@@ -1080,6 +1111,75 @@ namespace MyWorld.Unity.Player
         /// 兜底（避免空引用崩在 <see cref="MobAI.OnProjectileFired"/> 之前）。
         /// </para>
         /// </summary>
+        /// <summary>选中钓鱼竿（照 <see cref="IsMusketSelected"/> 同款判 id 字符串）。</summary>
+        private bool IsFishingRodSelected()
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null) return false;
+            var def = ctx.GetSelectedDefinition();
+            return def != null && def.Id == FishingRodItemId;
+        }
+
+        /// <summary>垂钓分支（评审 08 F3）：Idle 对水抛竿（3-10s 后咬钩）；垂钓中右键收杆——
+        /// 咬钩窗口（1.5s）内上鱼（掷鱼获 spawn 在浮标处走拾取管线 → ObtainItem →
+        /// fisherman 成就），窗口外/提前收 = 空竿。竿耐久在上鱼时扣 1（照工具耐久惰性初始化）。</summary>
+        private void TryFishing(VoxelRayHit hit)
+        {
+            var ctx = PlayerContext.Instance;
+            if (ctx == null || ctx.ItemDrops == null) return;
+
+            if (_fishing.Phase != MyWorld.Core.Items.FishingPhase.Idle)
+            {
+                // 垂钓中：再右键 = 收杆
+                if (_fishing.TryReel(Time.timeAsDouble))
+                {
+                    _fishingHashSalt++;
+                    int hash = (_fishingHashSalt * 2654435761) & 0x7FFFFFFF; // Knuth 乘法散列
+                    // LuckOfTheSea 每级宝藏 +5%——附魔获得路径（书池扩展）留后续里程碑，先接 0 级
+                    int itemId = MyWorld.Core.Items.FishingRoll.RollItemId(hash, luckLevel: 0);
+                    var drop = new MyWorld.Core.Items.ItemDropEntity(
+                        new ItemStack(itemId, 1), _bobberPos)
+                    {
+                        SpawnTime = Time.time,
+                    };
+                    ctx.ItemDrops.Add(drop);
+                    ApplyRodDurability(ctx);
+                    MyWorld.Unity.UI.FloatTextUi.ShowText("钓到了！");
+                }
+                else
+                {
+                    MyWorld.Unity.UI.FloatTextUi.ShowText("收竿了……等「咬钩了」再收才上鱼");
+                }
+                return;
+            }
+
+            // Idle：抛竿必须对着水
+            if (!hit.Hit || _world.GetBlock(hit.X, hit.Y, hit.Z) != BlockIds.Water)
+            {
+                MyWorld.Unity.UI.FloatTextUi.ShowText("要对着水抛竿");
+                return;
+            }
+
+            _fishingHashSalt++;
+            int castHash = (_fishingHashSalt * 40503) & 0x7FFFFFFF;
+            _bobberPos = new Float3(hit.X + 0.5f, hit.Y + 0.3f, hit.Z + 0.5f);
+            _fishing.Cast(Time.timeAsDouble, castHash);
+            MyWorld.Unity.UI.FloatTextUi.ShowText("抛竿……盯紧提示");
+        }
+
+        /// <summary>钓鱼竿扣 1 点耐久（照剪刀/工具段：maxDurability 惰性初始化 + DamageOnce）。</summary>
+        private void ApplyRodDurability(MyWorld.Unity.Gameplay.PlayerContext ctx)
+        {
+            var def = ctx.GetSelectedDefinition();
+            int idx = ctx.Inventory.SelectedHotbarIndex;
+            var stack = ctx.Inventory.GetSlot(idx);
+            if (!stack.HasDurability)
+            {
+                stack = stack.WithMaxDurability(def != null && def.MaxDurability > 0 ? def.MaxDurability : 64);
+            }
+            ctx.Inventory.SetSlot(idx, stack.DamageOnce());
+        }
+
         public void TryFireMusket()
         {
             // 装填窗：上次开火后 1.5s 内的右键一律拒绝。不播咔哒（与 MC 同：装填中拉不动扳机，

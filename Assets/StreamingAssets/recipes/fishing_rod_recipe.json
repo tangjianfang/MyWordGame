@@ -1,0 +1,19 @@
+{
+  "id": "fishing_rod_recipe",
+  "tier": "workbench",
+  "width": 2,
+  "height": 3,
+  "pattern": [
+    "stick",
+    "_",
+    "stick",
+    "string_",
+    "stick",
+    "_"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "fishing_rod",
+    "count": 1
+  }
+}

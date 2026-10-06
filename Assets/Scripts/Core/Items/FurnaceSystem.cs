@@ -39,6 +39,14 @@ namespace MyWorld.Core.Items
         /// <summary>玻璃（items/glass.json，numericId 1354——m11 W1-4 物品段）。</summary>
         public const int GlassItemId = 1354;
 
+        // ─── 评审 08 F3：生鱼烤熟（钓鱼系统的烹饪闭环，10s 同粗矿档）───────────────
+
+        /// <summary>生鱼（items/raw_fish.json，numericId 1623——评审修复批 F3 段）。</summary>
+        public const int RawFishItemId = 1623;
+
+        /// <summary>烤鱼（items/cooked_fish.json，numericId 1624——heal 2→5 的升级理由）。</summary>
+        public const int CookedFishItemId = 1624;
+
         /// <summary>沙子烧玻璃时长（秒）。与粗矿同档（<see cref="RawOreSmeltSeconds"/> 的等待感）。</summary>
         public const float SandSmeltSeconds = 10f;
 
@@ -158,6 +166,10 @@ namespace MyWorld.Core.Items
                 case SandItemId:
                     outputItemId = GlassItemId;
                     seconds = SandSmeltSeconds;
+                    return true;
+                case RawFishItemId: // 评审 08 F3：生鱼 → 烤鱼（heal 2→5）
+                    outputItemId = CookedFishItemId;
+                    seconds = RawOreSmeltSeconds;
                     return true;
                 default:
                     outputItemId = 0;

@@ -1,0 +1,8 @@
+{
+  "id": "cooked_fish",
+  "displayName": "烤鱼",
+  "numericId": 1624,
+  "maxStack": 64,
+  "texture": "cooked_fish",
+  "healAmount": 5
+}

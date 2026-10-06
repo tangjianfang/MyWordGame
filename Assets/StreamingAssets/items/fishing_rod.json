@@ -1,0 +1,8 @@
+{
+  "id": "fishing_rod",
+  "displayName": "钓鱼竿",
+  "numericId": 1622,
+  "maxStack": 1,
+  "texture": "fishing_rod",
+  "maxDurability": 64
+}

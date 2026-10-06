@@ -1,0 +1,8 @@
+{
+  "id": "raw_fish",
+  "displayName": "生鱼",
+  "numericId": 1623,
+  "maxStack": 64,
+  "texture": "raw_fish",
+  "healAmount": 2
+}
