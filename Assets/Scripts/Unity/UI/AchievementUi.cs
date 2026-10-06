@@ -17,6 +17,42 @@ namespace MyWorld.Unity.UI
         private static readonly Dictionary<string, Texture2D> Cache = new Dictionary<string, Texture2D>();
         private static AchievementSystem _bound;
 
+        // ── 评审 04 R-9 / 02#4：样式缓存——旧实现每格 OnGUI 里 new GUIStyle（16 成就
+        //    开着时每帧 ~17 个分配，违反 m5「热路径不 new」纪律），按亮/灰两态各缓存一份
+        private static GUIStyle _nameStyleUnlocked;
+        private static GUIStyle _nameStyleLocked;
+        private static GUIStyle _footerStyle;
+
+        private static GUIStyle NameStyle(bool unlocked, GUIStyle white)
+        {
+            if (unlocked)
+            {
+                if (_nameStyleUnlocked == null)
+                {
+                    _nameStyleUnlocked = new GUIStyle(white)
+                    {
+                        fontSize = 12,
+                        alignment = TextAnchor.MiddleCenter,
+                        wordWrap = true,
+                        normal = { textColor = Color.white },
+                    };
+                }
+                return _nameStyleUnlocked;
+            }
+
+            if (_nameStyleLocked == null)
+            {
+                _nameStyleLocked = new GUIStyle(white)
+                {
+                    fontSize = 12,
+                    alignment = TextAnchor.MiddleCenter,
+                    wordWrap = true,
+                    normal = { textColor = new Color(0.6f, 0.6f, 0.6f) },
+                };
+            }
+            return _nameStyleLocked;
+        }
+
         /// <summary>把系统接到 UI（解锁飘字）。换世界重建系统时重复调安全（先解旧）。</summary>
         public static void Bind(AchievementSystem system)
         {
@@ -98,13 +134,7 @@ namespace MyWorld.Unity.UI
                     GUI.color = old;
                 }
 
-                var labelStyle = new GUIStyle(white)
-                {
-                    fontSize = 12,
-                    alignment = TextAnchor.MiddleCenter,
-                    wordWrap = true,
-                    normal = { textColor = unlocked ? Color.white : new Color(0.6f, 0.6f, 0.6f) },
-                };
+                var labelStyle = NameStyle(unlocked, white);
                 GUI.Label(
                     new Rect(cellRect.x - 8, cellRect.y + 52, cell + 16, 40),
                     unlocked ? a.Name : "？", labelStyle);
@@ -112,9 +142,10 @@ namespace MyWorld.Unity.UI
 
             // 底部一行进度说明
             int y = 116 + ((all.Count + 7) / 8) * 118;
+            if (_footerStyle == null) _footerStyle = new GUIStyle(white) { fontSize = 13 };
             GUI.Label(new Rect(bg.x + 24, bg.y + y, bg.width - 48, 26),
                 "在游戏里做对应的事就会点亮徽章（挖矿 / 合成 / 战斗 / 度夜…）",
-                new GUIStyle(white) { fontSize = 13 });
+                _footerStyle);
         }
     }
 }

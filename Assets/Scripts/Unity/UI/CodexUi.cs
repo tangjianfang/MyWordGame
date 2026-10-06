@@ -15,6 +15,10 @@ namespace MyWorld.Unity.UI
     {
         private static readonly Dictionary<string, Texture2D> Cache = new Dictionary<string, Texture2D>();
 
+        // 评审 04 R-9 / 02#4：标题/名称样式缓存（DrawTab 每帧调用，不缓存则每帧 new ×2）
+        private static GUIStyle _titleStyle;
+        private static GUIStyle _nameStyle;
+
         private static Texture2D LoadCard(string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
@@ -49,8 +53,11 @@ namespace MyWorld.Unity.UI
 
             float x0 = bg.x + 28;
             float y0 = bg.y + 116;
-            var title = new GUIStyle(white) { fontSize = 15 };
-            var nameStyle = new GUIStyle(white) { fontSize = 12, alignment = TextAnchor.MiddleCenter };
+            // 评审 04 R-9 / 02#4：样式缓存——旧实现每帧 new ×2（26 条目页开着时持续喂 GC）
+            if (_titleStyle == null) _titleStyle = new GUIStyle(white) { fontSize = 15 };
+            if (_nameStyle == null) _nameStyle = new GUIStyle(white) { fontSize = 12, alignment = TextAnchor.MiddleCenter };
+            var title = _titleStyle;
+            var nameStyle = _nameStyle;
 
             // ── 栏 1：生物（6×3 网格，深棕底块占位卡） ──
             GUI.Label(new Rect(x0, y0, 200, 24), "生物", title);

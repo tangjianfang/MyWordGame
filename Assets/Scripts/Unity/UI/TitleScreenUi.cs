@@ -210,6 +210,23 @@ namespace MyWorld.Unity.UI
 
         // ─── m12 P1：世界管理三态 ────────────────────────────────────────────────
 
+        // 评审 02#4：ResolveContinueSeed 走 PlayerPrefs + Directory.Exists +（失效时）全目录
+        // 扫描——OnGUI 每帧多轮调用（Layout+Repaint）就是每帧重复 IO。缓存之，
+        // 只在首次 / 回到主面板 / 删除世界后重算。
+        private long? _cachedContinueSeed;
+        private bool _continueSeedDirty = true;
+
+        private long? ContinueSeedCached()
+        {
+            if (_continueSeedDirty)
+            {
+                _cachedContinueSeed = ResolveContinueSeed(
+                    MyWorld.Unity.Bootstrap.WorldBootstrap.SaveRoot);
+                _continueSeedDirty = false;
+            }
+            return _cachedContinueSeed;
+        }
+
         /// <summary>「继续上次」的种子：PlayerPrefs 记的最近进入（目录还在才算数），
         /// 缺失/失效回落 WorldCatalog 的 level.dat mtime 最新者；都没有返回 null（按钮灰）。</summary>
         public static long? ResolveContinueSeed(string saveRoot)
@@ -304,8 +321,7 @@ namespace MyWorld.Unity.UI
             float y = Screen.height * 0.48f;
 
             // 继续上次：有可续的世界才亮（种子进按钮文案，孩子知道续的是哪个）
-            long? continueSeed = ResolveContinueSeed(
-                MyWorld.Unity.Bootstrap.WorldBootstrap.SaveRoot);
+            long? continueSeed = ContinueSeedCached();
             bool canContinue = continueSeed.HasValue;
             GUI.enabled = canContinue;
             if (GUI.Button(new Rect(cx - 130, y, 260, 44),
@@ -380,6 +396,7 @@ namespace MyWorld.Unity.UI
             if (GUI.Button(new Rect(cx - 130, y + 152, 260, 44), "返回", _buttonStyle))
             {
                 _mode = MenuMode.Main;
+                _continueSeedDirty = true; // 评审 02#4：回到主面板重算「继续上次」
             }
         }
 
@@ -435,6 +452,7 @@ namespace MyWorld.Unity.UI
                             _worlds = WorldCatalog.List(
                                 MyWorld.Unity.Bootstrap.WorldBootstrap.SaveRoot);
                             _deleteArmed = false;
+                            _continueSeedDirty = true; // 删除可能拿掉「继续上次」的目标
                         }
                         else
                         {
@@ -449,6 +467,7 @@ namespace MyWorld.Unity.UI
             if (GUI.Button(new Rect(cx - 130, y + 340, 260, 44), "返回", _buttonStyle))
             {
                 _mode = MenuMode.Main;
+                _continueSeedDirty = true; // 评审 02#4：回到主面板重算「继续上次」
             }
         }
 
