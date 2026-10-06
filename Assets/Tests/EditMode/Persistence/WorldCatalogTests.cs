@@ -144,5 +144,24 @@ namespace MyWorld.Core.Tests.Persistence
                 Assert.That(seed, Is.EqualTo(expectedSeed));
             }
         }
+
+        [Test]
+        public void TryDelete_文件被占用_返回false不抛()
+        {
+            // 评审 05 T-B2：目录被杀毒/备份工具占用时 Directory.Move 抛 IOException——
+            // 此前无兜底，异常会在 OnGUI 每帧冒泡（删除按钮永久失效）。Windows 上用
+            // 独占句柄锁住 level.dat 模拟占用，断言失败可控、释放后可重删成功。
+            MakeWorld(42);
+            string level = Path.Combine(_root, "42", "level.dat");
+            using (new FileStream(level, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                bool ok = WorldCatalog.TryDelete(_root, 42, out string renamedTo);
+                Assert.That(ok, Is.False, "占用时删除必须失败而非抛异常");
+                Assert.That(renamedTo, Is.Null, "失败时输出参数清空（UI 不误判已删）");
+                Assert.That(Directory.Exists(Path.Combine(_root, "42")), Is.True, "原目录保留");
+            }
+
+            Assert.That(WorldCatalog.TryDelete(_root, 42, out _), Is.True, "句柄释放后重删成功");
+        }
     }
 }

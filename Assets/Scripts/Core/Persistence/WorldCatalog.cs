@@ -120,8 +120,19 @@ namespace MyWorld.Core.Persistence
             string suffix = DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)
                 + "-" + Guid.NewGuid().ToString("N").Substring(0, 4);
             renamedTo = dir + DeletedMarker + "-" + suffix;
-            Directory.Move(dir, renamedTo);
-            return true;
+            try
+            {
+                Directory.Move(dir, renamedTo);
+                return true;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                // 评审 05 T-B2：目录被杀毒/备份/同步工具占用时 Move 抛 IOException——
+                // 此前无兜底，异常会在 OnGUI 每帧冒泡（删除按钮永久失效且无提示）。
+                // 失败回 false + 清空输出参数，让 UI 走「删除失败」提示分支
+                renamedTo = null;
+                return false;
+            }
         }
 
         /// <summary>

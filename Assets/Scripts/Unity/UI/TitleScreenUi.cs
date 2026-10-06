@@ -74,6 +74,9 @@ namespace MyWorld.Unity.UI
         private string _seedError;
         private long _deleteArmedSeed;
         private bool _deleteArmed;
+        /// <summary>评审 05 T-B2：删除失败的提示文案（目录被杀毒/备份占用等）——
+        /// 此前 TryDelete 的失败被静默吞掉，孩子点删除「没反应」没有任何解释。</summary>
+        private string _deleteError;
         private System.Collections.Generic.List<WorldCatalog.Entry> _worlds;
 
         private int _selectedIndex;
@@ -326,6 +329,7 @@ namespace MyWorld.Unity.UI
                 _worlds = WorldCatalog.List(
                     MyWorld.Unity.Bootstrap.WorldBootstrap.SaveRoot);
                 _deleteArmed = false;
+                _deleteError = null;
             }
 
             if (GUI.Button(new Rect(cx - 130, y + 156, 260, 44), "退出", _buttonStyle))
@@ -384,6 +388,12 @@ namespace MyWorld.Unity.UI
             float cx = Screen.width / 2f;
             float y = Screen.height * 0.46f;
 
+            // 评审 05 T-B2：删除失败提示画在列表正上方（同 _seedError 的展示模式）
+            if (!string.IsNullOrEmpty(_deleteError))
+            {
+                GUI.Label(new Rect(cx - 230, y - 32, 460, 26), _deleteError, _labelStyle);
+            }
+
             if (_worlds == null || _worlds.Count == 0)
             {
                 GUI.Label(new Rect(cx - 200, y, 400, 30),
@@ -415,9 +425,13 @@ namespace MyWorld.Unity.UI
                     {
                         if (armed)
                         {
-                            WorldCatalog.TryDelete(
+                            // 评审 05 T-B2：删除失败（目录被杀毒/备份占用）要有可见反馈，
+                            // 不再静默吞——孩子点删除「没反应」是可预防的挫败点
+                            _deleteError = WorldCatalog.TryDelete(
                                 MyWorld.Unity.Bootstrap.WorldBootstrap.SaveRoot,
-                                entry.Seed, out _);
+                                entry.Seed, out _)
+                                ? null
+                                : "删除失败：世界文件被其它程序占用（杀毒/备份），请稍后再试";
                             _worlds = WorldCatalog.List(
                                 MyWorld.Unity.Bootstrap.WorldBootstrap.SaveRoot);
                             _deleteArmed = false;
