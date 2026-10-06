@@ -368,6 +368,13 @@ namespace MyWorld.Unity.Player
                     continue;
                 }
 
+                // 评审 03 B-9：5 分钟过期的掉落物直接清除（237 个散落物占档 52% 的根治）
+                if (Core.Items.ItemDropCap.IsExpired(drop, Time.time))
+                {
+                    ctx.ItemDrops.RemoveAt(i);
+                    continue;
+                }
+
                 // 状态机（进圈 → 飞行 → 贴脸）返回 false = 本帧未到位，继续飞
                 if (!drop.TickPickup(self, Time.time, dt)) continue;
 
@@ -405,6 +412,10 @@ namespace MyWorld.Unity.Player
                     Count = ctx.Inventory.CountOf(stack.ItemId),
                 });
             }
+
+            // 评审 03 B-9：同屏掉落物上限 128（超限裁最旧，吸附中的豁免）——
+            // 用户存档里 237 个散落掉落物占 level.dat 52% 的堆积不再重演
+            Core.Items.ItemDropCap.Prune(ctx.ItemDrops);
 
             return total;
         }
