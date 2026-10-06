@@ -340,5 +340,16 @@
         "countMax": 1
       }
     ]
+  },
+  {
+    "blockId": "diamond_ore",
+    "blockNumericId": 1065,
+    "drops": [
+      {
+        "itemId": "diamond",
+        "countMin": 1,
+        "countMax": 1
+      }
+    ]
   }
 ]

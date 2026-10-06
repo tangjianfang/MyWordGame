@@ -78,7 +78,7 @@ namespace MyWorld.Preview
 
             Console.WriteLine("     +" + new string('-', width));
             Console.WriteLine("     图例: '\"'草 '.'土 '#'石 ':'沙 '~'水 '_'基岩 '*'雪 ' '空气");
-            Console.WriteLine("     矿石: '$'金 '%'粗铁 '&'合金 '@'机元（地层：粗铁<48 金<32 合金<24 机元<16）");
+            Console.WriteLine("     矿石: '$'金 '%'粗铁 '&'合金 '@'机元 'D'钻石（地层：粗铁<48 金<32 合金<24 机元/钻石<16）");
             Console.WriteLine("     植被: 原木 i橡 I桦 j松 J雪松 K丛林 S红杉 c樱 | 树叶 o橡 O桦 p松 P雪松 Q丛林 Z红杉 C樱 U灌木 | ','花草");
         }
 
@@ -88,7 +88,7 @@ namespace MyWorld.Preview
             const int chunkRadius = 2;   // 5×5 区块，y ∈ (MinY, 48) 的石层
 
             long stone = 0;
-            long gold = 0, iron = 0, alloy = 0, essence = 0;
+            long gold = 0, iron = 0, alloy = 0, essence = 0, diamond = 0;
             for (var chunkX = -chunkRadius; chunkX <= chunkRadius; chunkX++)
             {
                 for (var chunkZ = -chunkRadius; chunkZ <= chunkRadius; chunkZ++)
@@ -105,18 +105,20 @@ namespace MyWorld.Preview
                             case BlockIds.RawIronOre: iron++; break;
                             case BlockIds.SummerAlloyOre: alloy++; break;
                             case BlockIds.MachineEssenceOre: essence++; break;
+                            case BlockIds.DiamondOre: diamond++; break;
                         }
                     }
                 }
             }
 
-            long solid = stone + gold + iron + alloy + essence;
+            long solid = stone + gold + iron + alloy + essence + diamond;
             Console.WriteLine($"── 地下矿层统计 ({(chunkRadius * 2 + 1) * (chunkRadius * 2 + 1)} 区块, y∈({VoxelCoords.MinY}, {OreFeature.RawIronMaxY}) 石层) ──");
             Console.WriteLine($"     石头: {stone}");
             Console.WriteLine($"     粗铁: {iron,7}  占石层 {Pct(iron, solid)}");
             Console.WriteLine($"     金:   {gold,7}  占石层 {Pct(gold, solid)}");
             Console.WriteLine($"     合金: {alloy,7}  占石层 {Pct(alloy, solid)}");
             Console.WriteLine($"     机元: {essence,7}  占石层 {Pct(essence, solid)}");
+            Console.WriteLine($"     钻石: {diamond,7}  占石层 {Pct(diamond, solid)}");
         }
 
         private static string Pct(long part, long total) =>
@@ -542,6 +544,7 @@ namespace MyWorld.Preview
                 case BlockIds.RawIronOre: return '%';
                 case BlockIds.SummerAlloyOre: return '&';
                 case BlockIds.MachineEssenceOre: return '@';
+                case BlockIds.DiamondOre: return 'D';
                 default:
                     var vegetation = _vegetationGlyphs;
                     return vegetation != null && vegetation.TryGetValue(blockId, out char glyph) ? glyph : ' ';

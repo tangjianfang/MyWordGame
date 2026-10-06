@@ -1,0 +1,22 @@
+{
+  "id": "armor_summer_alloy_chest_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "summer_alloy",
+    "_",
+    "summer_alloy",
+    "summer_alloy",
+    "summer_alloy",
+    "summer_alloy",
+    "summer_alloy",
+    "summer_alloy",
+    "summer_alloy"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "summer_alloy_chest",
+    "count": 1
+  }
+}

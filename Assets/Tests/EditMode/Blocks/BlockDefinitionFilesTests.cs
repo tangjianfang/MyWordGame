@@ -119,6 +119,7 @@ namespace MyWorld.Core.Tests.Blocks
         [TestCase("gold_ore", 3, "金矿需铁镐")]
         [TestCase("summer_alloy_ore", 3, "夏季合金矿需铁镐")]
         [TestCase("machine_essence_ore", 4, "机元矿需钻石镐")]
+        [TestCase("diamond_ore", 3, "钻石矿需铁镐（评审 08 F0——MC 同款门槛）")]
         public void MinToolTier_MatchesTheGatingMatrix(string id, int expected, string reason)
         {
             Assert.That(_registry.GetById(id).MinToolTier, Is.EqualTo(expected),

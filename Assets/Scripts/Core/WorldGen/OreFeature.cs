@@ -10,6 +10,7 @@ namespace MyWorld.Core.WorldGen
     ///
     /// 地层与稀有度（h % N == 0 的 N 越大越稀有，N 即「平均每 N 格石头出一个矿」）：
     ///   机元   y &lt; 16，1/400（最稀有，最深）
+    ///   钻石   y &lt; 16，1/250（评审 08 F0——比机元常见、比合金稀有，MC 心智）
     ///   合金   y &lt; 24，1/120
     ///   金     y &lt; 32，1/90
     ///   粗铁   y &lt; 48，1/60（最常见，最浅）
@@ -19,6 +20,9 @@ namespace MyWorld.Core.WorldGen
     {
         /// <summary>机元矿地层上限（不含）。</summary>
         public const int MachineEssenceMaxY = 16;
+
+        /// <summary>钻石矿地层上限（不含，评审 08 F0）。</summary>
+        public const int DiamondMaxY = 16;
 
         /// <summary>夏季合金矿地层上限（不含）。</summary>
         public const int SummerAlloyMaxY = 24;
@@ -32,6 +36,9 @@ namespace MyWorld.Core.WorldGen
         /// <summary>机元矿稀有度分母：平均每 400 格石头一个。</summary>
         public const int MachineEssenceDenominator = 400;
 
+        /// <summary>钻石矿稀有度分母：平均每 250 格石头一个（评审 08 F0）。</summary>
+        public const int DiamondDenominator = 250;
+
         /// <summary>合金矿稀有度分母：平均每 120 格石头一个。</summary>
         public const int SummerAlloyDenominator = 120;
 
@@ -44,15 +51,17 @@ namespace MyWorld.Core.WorldGen
         /// <summary>
         /// 判定世界坐标 (x, y, z) 处的石头应嵌成哪种矿石（无矿返回 Stone）。
         ///
-        /// 四种矿各自占一个互不嵌套的余数类（%400==3、%120==2、%90==1、%60==0）而不是共用 ==0：
-        /// 若都用 ==0，倍数嵌套会让深层矿偷走粗铁的命中——60 的倍数里一半是 120 的倍数、
-        /// 三分之一是 90 的倍数，深层粗铁实际退化到 1/180，全世界粗铁总量会跟金打平（实测比值仅 1.04）。
-        /// 错开余数后重叠概率只有 1/lcm 量级（&lt;3%），各矿密度即名义值 1/N。
+        /// 五种矿各自占一个互不嵌套的余数类（%400==3、%250==4、%120==2、%90==1、%60==0）
+        /// 而不是共用 ==0：若都用 ==0，倍数嵌套会让深层矿偷走粗铁的命中——60 的倍数里一半
+        /// 是 120 的倍数、三分之一是 90 的倍数，深层粗铁实际退化到 1/180，全世界粗铁总量
+        /// 会跟金打平（实测比值仅 1.04）。错开余数后重叠概率只有 1/lcm 量级（&lt;3%），
+        /// 各矿密度即名义值 1/N。
         /// </summary>
         public static ushort OreAt(int seed, int x, int y, int z)
         {
             uint h = Hash(seed, x, y, z);
             if (y < MachineEssenceMaxY && h % MachineEssenceDenominator == 3) return BlockIds.MachineEssenceOre;
+            if (y < DiamondMaxY && h % DiamondDenominator == 4) return BlockIds.DiamondOre;
             if (y < SummerAlloyMaxY && h % SummerAlloyDenominator == 2) return BlockIds.SummerAlloyOre;
             if (y < GoldMaxY && h % GoldDenominator == 1) return BlockIds.GoldOre;
             if (y < RawIronMaxY && h % RawIronDenominator == 0) return BlockIds.RawIronOre;

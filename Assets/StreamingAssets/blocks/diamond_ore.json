@@ -1,0 +1,13 @@
+{
+  "id": "diamond_ore",
+  "displayName": "钻石矿石",
+  "numericId": 1065,
+  "textures": {
+    "all": "diamond-ore"
+  },
+  "solid": true,
+  "opaque": true,
+  "lightEmission": 0,
+  "hardness": 3.0,
+  "minToolTier": 3
+}

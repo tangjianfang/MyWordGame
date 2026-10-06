@@ -1,0 +1,14 @@
+{
+  "id": "redstone_dust_recipe",
+  "tier": "pocket",
+  "width": 1,
+  "height": 1,
+  "pattern": [
+    "redstone"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "redstone_dust",
+    "count": 1
+  }
+}

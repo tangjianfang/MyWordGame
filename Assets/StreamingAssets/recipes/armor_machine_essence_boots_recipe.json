@@ -1,0 +1,19 @@
+{
+  "id": "armor_machine_essence_boots_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 2,
+  "pattern": [
+    "machine_essence",
+    "_",
+    "machine_essence",
+    "machine_essence",
+    "_",
+    "machine_essence"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "machine_essence_boots",
+    "count": 1
+  }
+}

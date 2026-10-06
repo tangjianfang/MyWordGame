@@ -1,0 +1,22 @@
+{
+  "id": "armor_gold_legs_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot",
+    "_",
+    "gold_ingot",
+    "gold_ingot",
+    "_",
+    "gold_ingot"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "gold_legs",
+    "count": 1
+  }
+}

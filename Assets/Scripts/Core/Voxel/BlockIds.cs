@@ -28,6 +28,10 @@ namespace MyWorld.Core.Voxel
         /// <summary>机元矿石（m10，最稀有）。与 <c>blocks/machine_essence_ore.json</c> 的 numericId=1012 手动保持一致。</summary>
         public const ushort MachineEssenceOre = 1012;
 
+        /// <summary>钻石矿石（评审 08 F0：钻石链路断点修复——钻镐/钻剑配方一直消耗 diamond
+        /// 却无任何获取途径，y&lt;16 嵌矿）。与 <c>blocks/diamond_ore.json</c> 的 numericId=1065 手动保持一致。</summary>
+        public const ushort DiamondOre = 1065;
+
         /// <summary>床（m11 W1-4）。与 <c>blocks/bed.json</c> 的 numericId=1022 手动保持一致。</summary>
         public const ushort Bed = 1022;
 

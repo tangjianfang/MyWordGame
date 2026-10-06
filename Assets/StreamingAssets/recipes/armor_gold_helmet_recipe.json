@@ -1,0 +1,19 @@
+{
+  "id": "armor_gold_helmet_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 2,
+  "pattern": [
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot",
+    "_",
+    "gold_ingot"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "gold_helmet",
+    "count": 1
+  }
+}

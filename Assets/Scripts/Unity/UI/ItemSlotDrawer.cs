@@ -37,11 +37,14 @@ namespace MyWorld.Unity.UI
             if (def == null || string.IsNullOrEmpty(def.Texture)) return Missing();
             if (Cache.TryGetValue(def.Texture, out var t)) return t;
             // 与 HotbarUI.GetItemTexture 同一条候选路径：
-            // 优先 StreamingAssets/items/textures（运行时 Player 数据），退到 Assets/Art/Items（编辑器 fallback）
+            // 优先 StreamingAssets/items/textures（运行时 Player 数据），退到 Assets/Art/Items（编辑器
+            // fallback），再退 StreamingAssets/blocks/textures（评审 08 F0：bed/chest/glass/sand/
+            // torch/wooden_door 六件共用方块贴图，修品红占位）
             string[] candidates =
             {
                 Path.Combine(Application.streamingAssetsPath, "items", "textures", def.Texture + ".png"),
                 Path.Combine(Application.dataPath, "Art", "Items", def.Texture + ".png"),
+                Path.Combine(Application.streamingAssetsPath, "blocks", "textures", def.Texture + ".png"),
             };
             string resolved = null;
             foreach (var c in candidates) if (File.Exists(c)) { resolved = c; break; }

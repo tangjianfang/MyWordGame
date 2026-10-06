@@ -1,0 +1,16 @@
+{
+  "id": "bread_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 1,
+  "pattern": [
+    "wheat",
+    "wheat",
+    "wheat"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "bread",
+    "count": 1
+  }
+}

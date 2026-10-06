@@ -101,10 +101,12 @@ namespace MyWorld.Unity.UI
             if (def == null) return _missingTex;
             if (_texCache.TryGetValue(def.Texture, out var t)) return t;
             // 优先查 StreamingAssets/items/textures（运行时 Player 数据），
-            // 退到 Assets/Art/Items（编辑器/打包时 fallback）。
+            // 退到 Assets/Art/Items（编辑器/打包时 fallback），
+            // 再退 StreamingAssets/blocks/textures（评审 08 F0：共用方块贴图的物品修品红占位）。
             string[] candidates = {
                 System.IO.Path.Combine(Application.streamingAssetsPath, "items", "textures", def.Texture + ".png"),
                 System.IO.Path.Combine(Application.dataPath, "Art", "Items", def.Texture + ".png"),
+                System.IO.Path.Combine(Application.streamingAssetsPath, "blocks", "textures", def.Texture + ".png"),
             };
             string resolved = null;
             foreach (var c in candidates) if (System.IO.File.Exists(c)) { resolved = c; break; }

@@ -104,6 +104,8 @@ namespace MyWorld.Unity.Items
             {
                 Path.Combine(Application.streamingAssetsPath, "items", "textures", textureName + ".png"),
                 Path.Combine(Application.dataPath, "Art", "Items", textureName + ".png"),
+                // 评审 08 F0：共用方块贴图的物品（bed/chest/glass/sand/torch/wooden_door）第三候选
+                Path.Combine(Application.streamingAssetsPath, "blocks", "textures", textureName + ".png"),
             };
             string resolved = null;
             foreach (var candidate in candidates)

@@ -1,0 +1,22 @@
+{
+  "id": "armor_machine_essence_legs_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "machine_essence",
+    "machine_essence",
+    "machine_essence",
+    "machine_essence",
+    "_",
+    "machine_essence",
+    "machine_essence",
+    "_",
+    "machine_essence"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "machine_essence_legs",
+    "count": 1
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "armor_gold_chest_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "gold_ingot",
+    "_",
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot",
+    "gold_ingot"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "gold_chest",
+    "count": 1
+  }
+}

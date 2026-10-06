@@ -3,5 +3,6 @@
   "displayName": "工作台",
   "numericId": 1700,
   "maxStack": 64,
-  "texture": "crafting_table-top"
+  "texture": "crafting_table-top",
+  "blockId": "crafting_table"
 }

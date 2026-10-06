@@ -1,0 +1,22 @@
+{
+  "id": "armor_summer_alloy_legs_recipe",
+  "tier": "workbench",
+  "width": 3,
+  "height": 3,
+  "pattern": [
+    "summer_alloy",
+    "summer_alloy",
+    "summer_alloy",
+    "summer_alloy",
+    "_",
+    "summer_alloy",
+    "summer_alloy",
+    "_",
+    "summer_alloy"
+  ],
+  "shaped": true,
+  "output": {
+    "item": "summer_alloy_legs",
+    "count": 1
+  }
+}

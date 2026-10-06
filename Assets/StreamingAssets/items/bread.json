@@ -1,0 +1,8 @@
+{
+  "id": "bread",
+  "displayName": "面包",
+  "numericId": 1620,
+  "maxStack": 64,
+  "texture": "bread",
+  "healAmount": 5
+}
