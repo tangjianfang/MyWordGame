@@ -16,6 +16,12 @@ namespace MyWorld.Core.Voxel
 
         private long _editCounter;
 
+        /// <summary>全局编辑计数（每次 <see cref="SetBlock"/> 自增）。光照等周界系统用它
+        /// 廉价感知「世界变过没」而无需逐调用方接线（评审 02#1/03 B-1：爆炸/挖掘全覆盖；
+        /// 直接走 ChunkColumn.SetBlock 的旁路写入不计数——树苗长成等已知豁免，见
+        /// ChunkLightSystem 注释）。</summary>
+        public long EditCounter => _editCounter;
+
         public int LoadedChunkCount => _chunks.Count;
 
         /// <summary>读取不产生副作用：未加载区块一律视为空气，避免采样邻居时意外撑大内存。</summary>
