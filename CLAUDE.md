@@ -9,7 +9,7 @@
 - **MyWordGame**：自研体素沙盒游戏，父子共同开发
 - **当前基线**：m12 全波次落地（2026-08-21），双链全绿——dotnet **1039/1039**、EditMode **1813/1813**（W1-W3 后为 1034/1808）
 - **m12 状态**：**全部波次已落地**（P0 挖掘/放置、P1 世界管理、W1 成就、W2 图鉴、W3 药水乐器、W4 生物 + W6 教学行 + W7 验收剧本——commit `4ba7b84`/`c2a0261`/`739bbbc`/`cc19117`）；**唯一遗留：W4 的 P2 美术批 71 项**被 Token Plan 配额挡住（status 2056，2026-08-21 实证），配额恢复后跑 `generate_art.py --all --n 4 --jobs 4` → postprocess → install 补齐
-- **三层架构**：`MyWorld.Core`（`Assets/Scripts/Core`，纯 C# 零 UnityEngine） / `MyWorld.Unity`（`Assets/Scripts/Unity`，URP 2022.3 适配层） / `MyWorld.Gameplay`（`Assets/Scripts/Gameplay`，玩法接线）
+- **两层架构**（2026-10-06 评审修正：此前文档写"三层"，`MyWorld.Gameplay` 程序集实际不存在）：`MyWorld.Core`（`Assets/Scripts/Core`，纯 C# 零 UnityEngine） / `MyWorld.Unity`（`Assets/Scripts/Unity`，URP 2022.3 适配层，内含 `Unity/Gameplay/` 接线子目录——PlayerContext 单例等）
 - **引擎**：Unity 2022.3.62f3c1（中国版）+ URP 14.0.11
 - **仓库内所有文档、注释、断言消息一律中文**，新增内容请保持一致
 
@@ -85,7 +85,7 @@ Unity 侧跑同一批测试（EditMode）：
 | --- | --- | --- |
 | `MyWorld.Core` | `Assets/Scripts/Core` | 已实现 |
 | `MyWorld.Unity` | `Assets/Scripts/Unity` | 已实现渲染层 + 玩家层 + 玩法接线（Bootstrap 启动器、Player 控制、Combat 生物、UI 物品栏/合成/熔炉/交易，均通过 `Gameplay/PlayerContext` 单例汇聚） |
-| `MyWorld.Gameplay` | `Assets/Scripts/Gameplay` | 接线为主（玩法逻辑目前分居 Core 各子系统 + Unity 侧接线） |
+| 玩法接线 | `Assets/Scripts/Unity/Gameplay/` | **隶属 MyWorld.Unity 程序集**（无独立 asmdef；PlayerContext 单例等接线代码在此，评审 06 #1 修正） |
 
 Core 层的约束由编译器强制，不是约定：
 
@@ -127,13 +127,13 @@ Core 层的约束由编译器强制，不是约定：
 
 | 目录/文件 | 内容 | 加载者 | 要点 |
 | --- | --- | --- | --- |
-| `blocks/*.json` | 方块定义 | `BlockDefinitionFiles` | 内置 7 个方块的 `numericId` **写死为 0–6**，必须与 `Core/Voxel/BlockIds.cs` 的常量一一对应；新方块不写 `numericId` 时，系统按 `id` 字母序从 1000 起自动分配（排序保证跨机器结果一致）；m10/m11 加的矿石类已固化到 1000-1063 段，m12+ 后续新方块从 1064 起。贴图必须在 `art/requests/blocks/` 提过需求。`BlockDefinitionFilesTests` 校验 JSON 解析、ID 冲突、numericId 与 `BlockIds` 一致、贴图需求全部已立项 |
+| `blocks/*.json` | 方块定义 | `BlockDefinitionFiles` | 内置 7 个方块的 `numericId` **写死为 0–6**，必须与 `Core/Voxel/BlockIds.cs` 的常量一一对应；新方块不写 `numericId` 时，系统按 `id` 字母序从 1000 起自动分配（排序保证跨机器结果一致）；m10/m11 加的矿石类已固化到 1000-1063 段，**music_box 已占 1064**（2026-10-06 评审修正：旧文档"最大 1062、1064+ 预留"自相矛盾），后续新方块从 1065 起。贴图必须在 `art/requests/blocks/` 提过需求。`BlockDefinitionFilesTests` 校验 JSON 解析、ID 冲突、numericId 与 `BlockIds` 一致、贴图需求全部已立项 |
 | `items/*.json` | 物品定义（numericId 1000 起） | `ItemDatabase.FromJson` | 跨表引用的 itemId 必须在此注册，否则加载抛 `InvalidDataException`；m13 W3 起新增 `range` 字段（米，`ItemDefinition.Range` int；缺失默认 0=近战；负数抛异常）+ `IsStraightLine` 标记（直射无重力） |
-| `recipes/*.json` | 合成/熔炉配方 | `RecipeDatabase` | 2x2 口袋 / 3x3 工作台 / 熔炉按 `tier` 区分；`FindMatch` 排序稳定（shaped→materialCount→id） |
+| `recipes/*.json` | 合成配方 | `RecipeDatabase` | 2x2 口袋 / 3x3 工作台按 `tier` 区分；**熔炉 4 对映射硬编码于 `FurnaceSystem.TryGetSpecialSmelt`（recipes JSON 无熔炉 tier——2026-10-06 评审修正旧说法）**；`FindMatch` 排序稳定（shaped→materialCount→id） |
 | `biomes.json` | 生物群系（温度/湿度/地表/树密度） | `BiomeConfig` | 群系名与 `spawn_rules.json` 引用需一致 |
 | `mobs/spawn_rules.json` | 各生物在哪些 biome/光照生成 | `MobSpawnRulesLoader` → `MobManager` / `VillagerManager` | 生成一律走 `MobSpawnRules.PickKind`，**不要在 Unity 侧写 `UnityEngine.Random`** |
 | `mobs/drop_tables.json` | 生物死亡掉落（`countMin`/`countMax` 区间 + `chance` 概率） | `MobDropTable.Load` → `MobAI.DropTable` | 掉落走 `MobDropTable.RollAll`（每条 entry 独立掷骰，整数哈希，确定性） |
-| `mobs/models/*.json` | 生物部位造型表（m11 I1 外置；脚底原点/面朝 +Z 约定不变） | `MobModelLibrary` → `MobModels` 门面 | **加生物 = 1 份 JSON + spawn_rules 一行，不动 C#**；schema `{ kind, parts: [{ name, size, position, color, isLeg, legPhase }] }`；`MobKind` 数值 1-27 已固定（5 旧 + 9 被动 + 3 敌对 + 村民 + Boss=27），新 kind 从 28 起 |
+| `mobs/models/*.json` | 生物部位造型表（m11 I1 外置；脚底原点/面朝 +Z 约定不变） | `MobModelLibrary` → `MobModels` 门面 | **加生物 = 1 份 models JSON + spawn_rules 一行起步；造型/掉落可零 C#，但 AI 行为/白名单/属性常需动 C#**（2026-10-06 评审修正：m12 W4 的 cc19117 实改 8 个 C# 文件——`case MobKind` 标签全仓 246 个散布 8 文件，血量/速度硬编码在 MobManager）；schema `{ kind, parts: [{ name, size, position, color, isLeg, legPhase }] }`；`MobKind` 1-36 已占，新 kind 从 37 起 |
 | `vegetation/trees.json`、`vegetation/flowers.json` | 植被特征表（m11 I2 外置：8 树种/12 花草） | `VegetationTable` → `TreeFeature`/`FlowerFeature` | 树种哈希通道互相独立（世界坐标 + species 序号派生）；oak 与旧常量逐格一致有守卫 |
 | `blocks/drops/block_drops.json` | 挖方块掉落 | `BlockDropsLoader` → `BlockInteraction` | 整数哈希掷 count，确定性 |
 | `quests/chapter1.json`、`quests/chapter2.json` | 引导任务链双章 | `QuestChainLoader` → Core `QuestCampaign`/`QuestSystem` | 首章 8 步（挖→合→烧→活过夜）；二章 8 步（床→农→收麦→驯羊剪毛→铁甲→附魔→弓杀骷髅→退苦力怕，链式解锁）；事件由 Unity 侧 `QuestEventBus` 转发（游戏逻辑不感知任务系统）；12 类事件词汇含 `ObtainItem/CraftItem/SmeltItem/SurviveNight/SleepInBed/HarvestCrop/EnchantItem/KillKind` 等；CraftItem/SmeltItem 按**任务激活以来累计**、ObtainItem 看**背包现存量**；进度进 `level.dat`，旧档无字段 = 全新开始 |
@@ -248,7 +248,7 @@ Core 层的约束由编译器强制，不是约定：
   - **跳跃垫脚（tower-up）**：玩家**腾空**（AABB 底高于目标格顶 - 0.5 容差）且目标格在脚下一格时，放宽 `IntersectsPlayer` 允许放置；放置成功把玩家 snap 到新块顶；站立时仍全禁（防自封）
   - **五向命中测试钉死**（参数化 EditMode）：正上方俯视打顶面、正下方仰视打底面、东西南北四侧平视打侧面，各自 `Normal` 与落格正确
   - **俯仰角核查**：确认相机 pitch 无 ±80° 钳制（若有放开到 ±89°）
-- **`WorldCatalog` 世界管理**（`Assets/Scripts/Unity/Persistence/WorldCatalog.cs`）：扫 `worlds/` 目录列表（存档结构 `<seed>/level.dat` 已有）；主菜单三按钮「继续上次（无则灰）/新世界（种子输入框+随机按钮，非法输入提示）/世界列表（名字=seed+日期，选中进入/删除二次确认）」；最近玩的世界记 `PlayerPrefs`；删除走回收站式改名 `.deleted` 防误删；世界名沿用 seed 作目录名（不改存档结构）
+- **`WorldCatalog` 世界管理**（`Assets/Scripts/Core/Persistence/WorldCatalog.cs`——2026-10-06 评审修正位置，旧文档误写 Unity/Persistence）：扫 `worlds/` 目录列表（存档结构 `<seed>/level.dat` 已有）；主菜单三按钮「继续上次（无则灰）/新世界（种子输入框+随机按钮，非法输入提示）/世界列表（名字=seed+日期，选中进入/删除二次确认）」；最近玩的世界记 `PlayerPrefs`；删除走回收站式改名 `.deleted` 防误删（2026-10-06 起 IO 占用兜底返回 false + UI 失败提示）；世界名沿用 seed 作目录名（不改存档结构）
 
 **内容与收集**（第 1 波规划，未实施）：
 - **W1 成就**：16 成就定义表 JSON `achievements.json` + `LevelData.Stats` 字段复用 + `QuestEventBus` 事件词汇已通
@@ -256,14 +256,14 @@ Core 层的约束由编译器强制，不是约定：
 - **W3 药水与乐器**：7 瓶药水 + 4 件乐器贴图已有，v1 手持右键发声 + 音盒放置后右键播放 8 音符小星星
 - **W4 P2 美术 + 水生飞行生物**：P2 美术批 m13 W5 已部分入仓；水生飞行生物未做
 
-**numericId 现状**：方块最大 1062（1064+ 为 m12+ 预留段）；物品 1607/1608 已被 musket/bullet 占用，1700/1701 是早期物品（crafting_table/redstone_dust），新增物品建议 1609-1699 段顺延。
+**numericId 现状**（2026-10-06 评审修正）：方块已用到 **1064**（music_box 占 1064，新方块从 **1065** 起）；物品已用到 **1619**（1607/1608 musket/bullet、1609-1619 为 m12 药水乐器段），1700/1701 是早期物品（crafting_table/redstone_dust），新增物品从 **1620** 起顺延。
 
 ### m13 · 飞行与远程战斗（孩子第二批需求）
 
 m13 设计文档 `docs/superpowers/specs/2026-08-19-milestone-13-flight-combat-design.md` 含 11 条需求逐条评估（照用 / 采纳 / 修正 / 验证即可）。落地沉淀：
 
-- **P0 合成修复**（commit `70f35da`，插队诊断）：孩子原话「M1和MP背包和工作台里面的物品都没办法合成」。根因 = UI 把 hotbar 选中格当作合成网格的**唯一**入料通道，主背包 9..35 共 27 格完全没有 SHIFT+click / 拖拽 / 右键快捷送入任何路径入网。`RecipeDatabase.FindMatch` 排序全绿（21 个 Recipe dotnet 测试通过），**UX 缺口非 bug**。修复：`CraftingGridInteraction.cs` 加 `IsShiftLeftClickIn` / `PutMainSlotOne` / `TakeBackToMainSlotOne`；`CraftingInventoryUi` / `CraftingWorkbenchUi` 主背包 27 格加 SHIFT+click；`HelpMenuUi` 加 `CraftingShiftHint` 教学文案；`Assets/Tests/EditMode/UI/CraftingGridInteractionTests.cs` 6 个 EditMode 测试钉死契约；`HelpMenuUiTests` 加 1 个钉死文案
-- **W1 飞行系统**（commit `7b1f1f6`）：Core 真源 `Core/Player/FlightState.cs` 纯数学状态机（双链可测），Unity 侧 `PlayerController` 注入飞行分支。**双击空格（<0.3s 窗口）+ F 键**等效切换；飞行中**空格升 / Shift 降 / WASD 平移**（8m/s ≈ 走速 1.9 倍），无重力、掉血豁免；**触地/再切换**退出；HUD IMGUI 一行；**存档不记飞行态**（重进世界默认步行）。飞行态下 `PlayerController.TakeDamage` 守卫短路——CLAUDE.md "玩家受伤唯一入口" 契约，不直改 `Health.Damage`
+- **P0 合成修复**（commit `70f35da`，插队诊断）：孩子原话「M1和MP背包和工作台里面的物品都没办法合成」。根因 = UI 把 hotbar 选中格当作合成网格的**唯一**入料通道，主背包 9..35 共 27 格完全没有 SHIFT+click / 拖拽 / 右键快捷送入任何路径入网。`RecipeDatabase.FindMatch` 排序全绿（21 个 Recipe dotnet 测试通过），**UX 缺口非 bug**。修复：`CraftGridInteraction.cs`（2026-10-06 评审修正文件名，旧文档误写 CraftingGridInteraction）加 `IsShiftLeftClickIn` / `PutMainSlotOne` / `TakeBackToMainSlotOne`；`CraftingInventoryUi` / `CraftingWorkbenchUi` 主背包 27 格加 SHIFT+click；`HelpMenuUi` 加 `CraftingShiftHint` 教学文案；`Assets/Tests/EditMode/UI/CraftingGridInteractionTests.cs` 6 个 EditMode 测试钉死契约；`HelpMenuUiTests` 加 1 个钉死文案
+- **W1 飞行系统**（commit `7b1f1f6`）：Core 真源 `Core/Player/FlightState.cs` 纯数学状态机（双链可测），Unity 侧 `PlayerController` 注入飞行分支。**双击空格（<0.3s 窗口）切换**（2026-10-06 评审 07#1 修正：F 键让位熔炉——任务链教「按 F 开熔炉」且熔炉 F 是全局开关，同键同帧双触发；**双击空格是唯一入口**）；飞行中**空格升 / Shift 降 / WASD 平移**（8m/s ≈ 走速 1.9 倍），无重力、掉血豁免；**触地/再切换**退出；HUD IMGUI 一行；**存档不记飞行态**（重进世界默认步行）。飞行态下 `PlayerController.TakeDamage` 守卫短路——CLAUDE.md "玩家受伤唯一入口" 契约，不直改 `Health.Damage`
 - **W2 怪物血条 + 难度系统**（commit `e46e14b`）：
   - **血条**：`MobView` 头顶 2D 条 IMGUI 绘制，红底绿前景（宽随体型 0.6-1.2m），受击显示 **3s 淡出**；**Boss（机元守卫 MobKind=27）常显大号**。普通 mob `_healthBar` 是构造期快照 `MobHealthBarTimer`，与 `MobHitFeedback` 闪红不重复（两条渲染通道）
   - **难度**：仿 `PeaceMode` 静态开关模式新增 `Core/Entities/DifficultyMode.cs`（Core 真源，**不放 PlayerPrefs**——Core 禁引 UnityEngine）+ `Unity/Gameplay/DifficultyModeBridge.cs`（Unity 侧 PlayerPrefs 镜像，键名 `BabyMode`）；设置面板「宝宝（怪 1 血）/ 普通（现值）」toggle 行紧贴和平模式 toggle 之后（`SettingsPanelUi.PanelHeight` 370→440）；**宝宝模式 = `MobAI.TakeHit` 入口处 `damage = mob.Health.Max`**（不改 Boss 单独规则；切难度即时生效；不改存档）
@@ -271,7 +271,7 @@ m13 设计文档 `docs/superpowers/specs/2026-08-19-milestone-13-flight-combat-d
 - **W3 远程武器参数化 + 火枪**（commit `f2b0ede`）：items JSON 新增 `range` 字段（米，`ItemDefinition.Range` int；缺失默认 0=近战；负数抛 `InvalidDataException`）。弓 60（保留重力抛物线）/ 火枪 25（**直射无重力**，新增 `IsStraightLine` 标记）；`ProjectileEntity` 飞行 ≥ Range 强制 `Dead`。**musket 火枪**（numericId=1607，attackDamage=6，range=25）+ **bullet 子弹**（numericId=1608，maxStack=64）；配方 musket=铁锭2+木板2+火药1 / bullet=铁锭1→4（3×3 workbench）。`BlockInteraction.UseAt` 弓分支后插火枪分支：**直射无蓄力** + **装填 1.5s**（`MusketReloadUntil=Time.time+1.5`）+ 弹药扣减（无弹不开火+播咔哒）。音效走 `PlayerAudioSystem.PlayFire()` / `PlayClick()`：Resources 优先真资源，无 .ogg 时**程序生成**120ms 低通（火枪）/ 30ms 高通（咔哒）兜底。弓 JSON 已补 `range: 60`。**镐 tier 链**：木1/石2/铁3/金4/合金4/机元5——火枪 tier=2 需石镐以上
 - **W4 武器面板 + 模态 UI 点外关闭**（commit `acea016`，EditMode 1732/1732 全绿 + CLAUDE.md 收口）：
   - **武器面板** R 键 `Unity/UI/WeaponPanelUi.cs` 列表背包全部武器（近战/弓/枪+各自弹药数）+ 点击换到 hotbar 选中槽
-  - **模态 UI 5 处点外关闭**：`CraftingInventoryUi` / `CraftingWorkbenchUi` / `ChestUi` / `ArmorSlotsUi` / `WeaponPanelUi`（图鉴 `CodexUi` / 成就 `AchievementUi` 同样适用）——**点击 UI 外 = 关闭**，与 Esc/E/关闭按钮并存；方案 A（每 UI 自管 `mouseDown` 位置 + `!IsInsideRect(mousePos, uiRect)` → 关闭），不引 `ModalUiManager`；5 个 UI 都暴露 `BackgroundBounds` 属性供 EditMode 断言
+  - **模态 UI 5 处点外关闭**：`CraftingInventoryUi` / `CraftingWorkbenchUi` / `ChestUi` / `ArmorSlotsUi` / `WeaponPanelUi`——**点击 UI 外 = 关闭**，与 Esc/E/关闭按钮并存；方案 A（每 UI 自管 `mouseDown` 位置 + `!IsInsideRect(mousePos, uiRect)` → 关闭），不引 `ModalUiManager`；5 个 UI 都暴露 `BackgroundBounds` 属性供 EditMode 断言。（2026-10-06 评审修正：旧文档称"图鉴 `CodexUi` / 成就 `AchievementUi` 同样适用"——**该两处并无点外关闭代码**，Codex/Achievement 是帮助菜单内的页签页非独立模态）
   - **SHIFT+click 必须先于点外关闭判断**——保留 m13 P0 commit `70f35da` 的合成网格 SHIFT+click 主背包入料路径
 - **W5 美术入仓 + 多视频源**（commit `5e4c357` + `76f8cec`）：
   - 27 张缺省贴图入库 + 6 张实体美化
@@ -289,6 +289,18 @@ m13 设计文档 `docs/superpowers/specs/2026-08-19-milestone-13-flight-combat-d
 - 多子代理**共享 working tree 并发**有文件瞬断风险（m13 W2/W3 并行实证——W2 改了 W3 范围测试的 TearDown，W3 改了 W2 范围测试的逻辑）
 - commit 整理子代理要**明文指定文件归属每个 commit**，避免"按主域"自由发挥带来歧义
 - `#if UNITY_EDITOR` 测试盲区：dotnet 绿 ≠ Unity 编译过，波次收口必跑 EditMode 批处理
+
+### 2026-10-06 评审修复批（docs/REVIEW_2026-10-06.md P0，逐条落地）
+
+- **region 落盘写锁**：`RegionSaveCoordinator.SaveDirtyCore` 进程级 `WriteLock`——后台 30s 保存与卸载主线程落盘的双写者竞态不再丢区块（评审 04 R-1/03 B-4）
+- **保存失败不再静默**：`SaveDirty` 新增 errors 清单重载，region 层失败并入 `LastSaveError`——「保存并退出」如实报错可重试（05 T-B1）
+- **换世界自动保存**：`RequestWorldSwitch` 先同步保存；`SaveLoadService.OnDestroy` 兜底；同步等待加 10s 上限（04 R-2）
+- **RegionFile 加固**：区块负载上界 8MB（先校验再分配）+ region 头坐标与文件名不符按坏档处理（05 T-C1/T-C2）
+- **附魔台真化**：`EnchantingUi.DoEnchant` 接 `EnchantSystem.Enchant` 真写 `EnchantStore`（等级封顶 3 与 Core 对齐，UI 5 级口径作废；`EnchantsOverride` 供 EditMode 直注）（08 F25）
+- **F 键还给熔炉**：飞行改**双击空格唯一入口**；帮助菜单补 F 熔炉 / R 武器面板 / 双击空格三行 + 飞行教学行，菜单高 660→732（07#1/#2、08 F1）
+- **空手右键不再放石头**：m3 `placeBlockId` 占位路径退役，放置只走 `ItemDefinition.BlockId` 路由（07#9）
+- **世界删除兜底**：`TryDelete` IO 占用返回 false + 主菜单失败提示（05 T-B2）；**items/recipes 坏 JSON 降级空表**不再炸启动（04 R-8）
+- 测试纪律新条目：`RegionSaveCoordinatorTests.双写者并发`（20 轮循环）+ `WorldCatalogTests.文件被占用` 均为 Windows 独占句柄型用例，Linux CI 上 `FileShare.None` 语义不同可能需调整（见 `.github/workflows/ci.yml` 注释）
 
 ## 测试纪律
 

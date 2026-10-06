@@ -5,6 +5,7 @@
 ## 当前基线
 
 - m12 全波次落地（2026-08-21），双链全绿——dotnet **1039/1039**、EditMode **1813/1813**（实测）
+- **2026-10-06 评审修复批（REVIEW P0）已落地**：region 写锁/保存失败上报/换世界自动保存/RegionFile 加固/附魔台真化/F 键还给熔炉（双击空格=飞行唯一入口）/空手右键不放石头/删除兜底/坏 JSON 降级/文档漂移修正——详见 CLAUDE.md「2026-10-06 评审修复批」节
 - **m12 已全部落地**（含 W4 水生 5 + 飞行 4 生物，MobKind 28-36——**新 kind 从 37 起**）；唯一遗留 P2 美术批 71 项卡 Token Plan 配额
 - 完整约束见 `CLAUDE.md`，本文档只是速查；三份文档（README/CLAUDE/AGENTS）在里程碑收口时同步更新
 
@@ -57,7 +58,7 @@ Unity 侧 EditMode（Windows）：
 - **玩家血量**唯一真源：`Gameplay/PlayerContext.Health`（UI 与 Combat 都读写它）
 - **mob 受伤**唯一入口：`MobAI.TakeHit`（致死一击走 `TransitionToDying`，绕过会丢掉落/经验序列）
 - **昼夜判定**：只走 `Combat/MobManager.IsNightPhase`，别处手写时间比较
-- **飞行态**（m13 W1）：Core 真源 `Core/Player/FlightState.cs`，存档不记飞行态（重进世界默认步行）；飞行中受伤 `PlayerController.TakeDamage` 守卫短路；HUD IMGUI 一行；双击空格 <0.3s 窗口 + F 等效切换；6 向 8m/s；触地/再切换退出
+- **飞行态**（m13 W1）：Core 真源 `Core/Player/FlightState.cs`，存档不记飞行态（重进世界默认步行）；飞行中受伤 `PlayerController.TakeDamage` 守卫短路；HUD IMGUI 一行；**双击空格 <0.3s 窗口唯一入口**（2026-10-06 评审 07#1：F 已让位熔炉——任务链教「按 F 开熔炉」）；6 向 8m/s；触地/再切换退出
 - **宝宝难度**（m13 W2）：Core 静态开关 `DifficultyMode`（**不放 PlayerPrefs，Core 禁 UnityEngine**），Unity 镜像 `DifficultyModeBridge` 键名 `BabyMode`。宝宝模式 = `MobAI.TakeHit` 入口处 `damage = mob.Health.Max`。**Core 静态 bool 跨测试夹具污染**——调用 `MobAI.TakeHit` 的测试 TearDown 加 `DifficultyMode.ResetCache()`（`PlayerAttackTests` / `ProjectileManagerTests` / `HostileAiTests` / `MachineGuardianTests` / `MobDeathSequenceTests` / `SettingsPanelUiTests` 共 6 个）
 
 ## 数据驱动注册表（改 JSON 通常不改 C#）
@@ -66,12 +67,12 @@ Unity 侧 EditMode（Windows）：
 
 | 目录 | 内容 | 关键约束 |
 | --- | --- | --- |
-| `blocks/*.json` | 方块 | 内置 7 个 `numericId` 写死 0–6 必须对得上 `Core/Voxel/BlockIds.cs`；1000-1063 矿石段已固化，**1064+** 后续新方块；贴图必须在 `art/requests/blocks/` 提过需求 |
-| `items/*.json` | 物品 | numericId 1000 起；1607/1608 已被 musket/bullet 占用、1700/1701 为早期物品（crafting_table/redstone_dust），新增建议 1609-1699 顺延；m13 W3 新增 `range` 字段（米，缺失=近战，负数抛异常）+ `IsStraightLine` 标记（直射无重力） |
-| `recipes/*.json` | 合成/熔炉 | 按 `tier` 区分 2x2 / 3x3 / 熔炉 |
+| `blocks/*.json` | 方块 | 内置 7 个 `numericId` 写死 0–6 必须对得上 `Core/Voxel/BlockIds.cs`；1000-1063 矿石段已固化，music_box 已占 **1064**，新方块从 **1065** 起；贴图必须在 `art/requests/blocks/` 提过需求 |
+| `items/*.json` | 物品 | numericId 1000 起；已用到 **1619**（1607/1608 musket/bullet、1609-1619 m12 药水乐器），1700/1701 为早期物品（crafting_table/redstone_dust），新增从 **1620** 顺延；m13 W3 新增 `range` 字段（米，缺失=近战，负数抛异常）+ `IsStraightLine` 标记（直射无重力） |
+| `recipes/*.json` | 合成配方 | 按 `tier` 区分 2x2 / 3x3；**熔炉 4 对硬编码于 `FurnaceSystem.TryGetSpecialSmelt`（JSON 无熔炉 tier，评审修正旧说法）** |
 | `biomes.json` | 生物群系 | 群系名与 `spawn_rules.json` 引用一致 |
 | `mobs/spawn_rules.json`、`mobs/drop_tables.json` | 生物生成/掉落 | 生成一律走 `MobSpawnRules.PickKind`，**不要写 `UnityEngine.Random`**；掉落走 `MobDropTable.RollAll` |
-| `mobs/models/*.json` | 生物造型（m11 I1 外置） | `MobKind` 1-27 + **28-36（m12 W4 水生飞行）已占**，新 kind 从 **37** 起；坐标约定「脚底原点、面朝 +Z」；**加生物 = 1 份 JSON + spawn_rules 一行，不动 C#** |
+| `mobs/models/*.json` | 生物造型（m11 I1 外置） | `MobKind` 1-27 + **28-36（m12 W4 水生飞行）已占**，新 kind 从 **37** 起；坐标约定「脚底原点、面朝 +Z」；**加生物 = 1 份 JSON + spawn_rules 一行起步，AI 行为/白名单/属性常需动 C#**（评审修正：cc19117 实改 8 个 C#） |
 | `vegetation/trees.json`、`vegetation/flowers.json` | 植被（m11 I2 外置） | 树种哈希通道互相独立；oak 与旧常量逐格一致有守卫 |
 | `quests/chapter1.json`、`quests/chapter2.json` | 引导任务双章 | 12 类事件词汇含 `ObtainItem/CraftItem/SmeltItem/SurviveNight/SleepInBed/HarvestCrop/EnchantItem/KillKind` 等；事件由 `QuestEventBus` 转发；进度进 `level.dat`，旧档无字段=全新开始 |
 

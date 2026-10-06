@@ -5,7 +5,7 @@
 ## 当前进度
 
 - **m13 W5 收口**（2026-08-20）+ **m12 第 0 波**（2026-08-21），双链全绿——dotnet **1012/1012**、EditMode **1786/1786**（实测）
-- 三层架构稳定：`MyWorld.Core`（纯 C# 零 UnityEngine）/ `MyWorld.Unity`（URP 2022.3 适配层）/ `MyWorld.Gameplay`（玩法接线）
+- 两层架构稳定（2026-10-06 评审修正：`MyWorld.Gameplay` 程序集实际不存在）：`MyWorld.Core`（纯 C# 零 UnityEngine）/ `MyWorld.Unity`（URP 2022.3 适配层，内含 `Unity/Gameplay/` 接线子目录）
 - 内容范围：
   - **m5** 视觉打磨（Linear 色域 / `UrpMaterialFactory` / 自适应全屏 / 毫秒预算流式）
   - **m6** UI 修复 + 帮助菜单 + 引导任务双章
@@ -16,7 +16,8 @@
   - **m11** 完整游戏（盔甲穿戴 / 附魔系统 / 村庄 / Boss / 音频四系统 / 视频两系统 / TitleScreenUi 多视频源）
 - **m12 全波次已落地**（2026-08-21）：挖掘计时 + 六向放置/垫脚 + 世界管理（P0/P1）+ 成就 16 枚 / 图鉴 26 条目 / 药水乐器（W1-W3）+ **水生 5 种 + 飞行 4 种生物**（W4，MobKind 28-36）——双链 dotnet **1039/1039**、EditMode **1813/1813** 全绿
 - **唯一遗留**：P2 美术批 71 项被 Token Plan 配额挡住（2026-08-21 实证），配额恢复后一条命令补齐
-- **已完成 m13**：飞行（双击空格+F）/ 怪物血条 + 宝宝难度 / 远程参数化 + 火枪 / 武器面板 + 模态点外关闭
+- **已完成 m13**：飞行（双击空格）/ 怪物血条 + 宝宝难度 / 远程参数化 + 火枪 / 武器面板 + 模态点外关闭
+- **2026-10-06 评审修复批已落地**（`docs/REVIEW_2026-10-06.md` P0）：region 写锁、保存失败上报、换世界自动保存、附魔台真化、F 键还给熔炉（飞行=双击空格唯一入口）、空手右键不再放石头等——详见 CLAUDE.md 对应节
 
 ## 架构
 
@@ -25,8 +26,7 @@
 | 层 | 位置 | 说明 |
 | --- | --- | --- |
 | `MyWorld.Core` | `Assets/Scripts/Core` | 纯 C#，**零 Unity 依赖**。世界数据、生成、光照、网格算法、存档格式、生物 AI 状态机 |
-| `MyWorld.Unity` | `Assets/Scripts/Unity` | Unity 适配层：Burst Job 包装、Mesh 上传、生命周期管理、渲染、UI、音频、视频 |
-| `MyWorld.Gameplay` | `Assets/Scripts/Gameplay` | 玩家控制、交互、物品栏、昼夜（接线为主） |
+| `MyWorld.Unity` | `Assets/Scripts/Unity` | Unity 适配层：Burst Job 包装、Mesh 上传、生命周期管理、渲染、UI、音频、视频；`Unity/Gameplay/` 子目录承载玩家控制/交互/物品栏等接线（PlayerContext 单例），**无独立程序集**（评审 06 #1 修正） |
 
 `MyWorld.Core.asmdef` 设置 `"noEngineReferences": true`——Core 里出现任何 `UnityEngine.*` 都编译不过。这既让世界逻辑可脱离引擎快速测试，也是将来做专用服务器的前提。
 
