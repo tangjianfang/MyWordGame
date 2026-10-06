@@ -117,6 +117,40 @@ namespace MyWorld.Core.Tests.UI
         }
 
         [Test]
+        public void PutMainSlotAll_整组送入_合镐五材料一击到位()
+        {
+            // 评审 07#4：m13 P0 的「一次 1 个」让孩子合一把镐 5 连击——整组语义 1 击到位
+            _inv.SetSlot(9, new ItemStack(1000, 5)); // 主背包 5 个木板
+            var grid = new ItemStack[4];
+
+            int moved = CraftGridInteraction.PutMainSlotAll(null, _inv, grid, 9);
+
+            Assert.That(moved, Is.EqualTo(5), "整组 5 个全部送入");
+            Assert.That(grid[0].Count, Is.EqualTo(5), "进第一个空格（maxStack 64 内）");
+            Assert.That(_inv.GetSlot(9).IsEmpty, Is.True, "主背包格清空");
+        }
+
+        [Test]
+        public void PutMainSlotAll_同类叠加_异类拒收_网格满留原格()
+        {
+            var grid = new ItemStack[2];
+            grid[0] = new ItemStack(1000, 60); // 同类已有 60，还能叠 4
+            grid[1] = new ItemStack(1001, 1);  // 异类占位
+            _inv.SetSlot(9, new ItemStack(1000, 10));
+
+            int moved = CraftGridInteraction.PutMainSlotAll(null, _inv, grid, 9);
+
+            Assert.That(moved, Is.EqualTo(4), "只在同类格叠到 64");
+            Assert.That(grid[0].Count, Is.EqualTo(64));
+            Assert.That(grid[1].ItemId, Is.EqualTo(1001), "异类格不动");
+            Assert.That(_inv.GetSlot(9).Count, Is.EqualTo(6), "叠不下的留主背包原格");
+
+            // 再点：全部格满/异类 → 零送入
+            Assert.That(CraftGridInteraction.PutMainSlotAll(null, _inv, grid, 9), Is.EqualTo(0),
+                "没有可叠空间时零送入（不误消费点击）");
+        }
+
+        [Test]
         public void ReturnGrid_网格物品归位进背包_空格清空()
         {
             // 评审 04 R-3：合成网格材料不进存档——保存前 ReturnGrid 归位，Alt+F4 不再蒸发

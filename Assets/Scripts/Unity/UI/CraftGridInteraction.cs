@@ -122,6 +122,45 @@ namespace MyWorld.Unity.UI
             return true;
         }
 
+        /// <summary>评审 07#4：SHIFT+点击背包格 → <b>整组</b>送进合成网格（顺网格找空格
+        /// 或同类格叠满 maxStack，放不下的留原格）。m13 P0 的「一次 1 个」让孩子合一把镐
+        /// 要 5 连击——与「没法合成」误判同源的挫败点。返回实际送入数量。</summary>
+        public static int PutMainSlotAll(ItemDatabase items, PlayerInventory inv, ItemStack[] grid, int slotIndex)
+        {
+            if (inv == null || grid == null || grid.Length == 0) return 0;
+            if (slotIndex < 0 || slotIndex >= PlayerInventory.TotalSize) return 0;
+            ItemStack source = inv.GetSlot(slotIndex);
+            if (source.IsEmpty) return 0;
+
+            int maxStack = 64;
+            if (items != null && items.TryGetByNumericId(source.ItemId, out ItemDefinition def)
+                && def.MaxStack > 0)
+            {
+                maxStack = def.MaxStack;
+            }
+
+            int remaining = source.Count;
+            for (int i = 0; i < grid.Length && remaining > 0; i++)
+            {
+                if (grid[i].IsEmpty)
+                {
+                    int move = System.Math.Min(maxStack, remaining);
+                    grid[i] = source.WithCount(move);
+                    remaining -= move;
+                }
+                else if (grid[i].ItemId == source.ItemId && grid[i].Count < maxStack)
+                {
+                    int move = System.Math.Min(maxStack - grid[i].Count, remaining);
+                    grid[i] = grid[i].WithCount(grid[i].Count + move);
+                    remaining -= move;
+                }
+            }
+
+            if (remaining == source.Count) return 0; // 网格满/异类：一格都没送进
+            inv.SetSlot(slotIndex, remaining > 0 ? source.WithCount(remaining) : ItemStack.Empty);
+            return source.Count - remaining;
+        }
+
         /// <summary>m13 P0 修：SHIFT+点击合成网格有物品的格 → 把 1 个送回指定主背包槽位。
         /// 目标格非空就拒绝（防意外覆盖既有材料——和 TakeBackOne 走背包零空间的失败模式对称）。
         /// 不调 TryAdd 而调 SetSlot 是因为目标槽已知、可控；走堆叠会让用户失去对格位布局的控制。</summary>

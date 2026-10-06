@@ -268,14 +268,11 @@ namespace MyWorld.Unity.UI
                 // SHIFT+click hotbar 格 → 找第一个空格合成位塞入（hotbar 也走同一入口）
                 if (CraftGridInteraction.IsShiftLeftClickIn(r))
                 {
-                    for (int cellIdx = 0; cellIdx < _craft.Length; cellIdx++)
+                    // 评审 07#4：整组送入（空格/同类叠满 maxStack，剩余留原格）——
+                    // m13 P0 的「一次 1 个」让孩子合一把镐要 5 连击
+                    if (CraftGridInteraction.PutMainSlotAll(ctx.Items, ctx.Inventory, _craft, slotIndex) > 0)
                     {
-                        if (_craft[cellIdx].IsEmpty
-                            && CraftGridInteraction.PutMainSlotOne(ctx.Inventory, ref _craft[cellIdx], slotIndex))
-                        {
-                            Event.current.Use();
-                            break;
-                        }
+                        Event.current.Use();
                     }
                 }
             }
@@ -290,14 +287,11 @@ namespace MyWorld.Unity.UI
                 // SHIFT+click 主背包格 → 把 1 个送进合成网格
                 if (CraftGridInteraction.IsShiftLeftClickIn(r))
                 {
-                    for (int cellIdx = 0; cellIdx < _craft.Length; cellIdx++)
+                    // 评审 07#4：整组送入（空格/同类叠满 maxStack，剩余留原格）——
+                    // m13 P0 的「一次 1 个」让孩子合一把镐要 5 连击
+                    if (CraftGridInteraction.PutMainSlotAll(ctx.Items, ctx.Inventory, _craft, slotIndex) > 0)
                     {
-                        if (_craft[cellIdx].IsEmpty
-                            && CraftGridInteraction.PutMainSlotOne(ctx.Inventory, ref _craft[cellIdx], slotIndex))
-                        {
-                            Event.current.Use();
-                            break;
-                        }
+                        Event.current.Use();
                     }
                 }
             }
