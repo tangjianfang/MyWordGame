@@ -6,6 +6,7 @@
 using System.IO;
 using System.Linq;
 using MyWorld.Core.Entities;
+using MyWorld.Core.Enchanting;
 using MyWorld.Core.Items;
 using MyWorld.Core.Player;
 using MyWorld.Unity.Gameplay;
@@ -37,11 +38,15 @@ namespace MyWorld.Core.Tests.UI
             _ctx.Health = new Health(20f);
             _ctx.Items = _db;
             _ctx.Experience = new Experience(30, 0);
+            // 评审 08 F25 真化后 DoEnchant 会写 store——夹具统一直注独立实例，
+            // 不碰 EnchantStore.Default 静态单例（EnchantStore 文档纪律）
+            EnchantingUi.EnchantsOverride = new EnchantStore();
         }
 
         [TearDown]
         public void TearDown()
         {
+            EnchantingUi.EnchantsOverride = null;
             Object.DestroyImmediate(_go);
         }
 
@@ -98,6 +103,39 @@ namespace MyWorld.Core.Tests.UI
             var enchanted = _ctx.Inventory.GetSlot(0);
             Assert.That(enchanted.Metadata, Is.EqualTo(worn.Metadata),
                 "已落耐久编码的镐经附魔后 Metadata 一位不变（上限/剩余都原样保留）");
+        }
+
+        [Test]
+        public void 附魔真化_写入EnchantStore_经验按级扣()
+        {
+            // 评审 08 F25：占位只掷 Debug.Log 不写 store——孩子花真经验真青金石换一行日志。
+            // 现在必须写 store（后续攻击/挖速/耐久加成经 store 生效）。
+            PrepareIronPickaxe();
+            var pick = _db.GetById("iron_pickaxe");
+
+            EnchantingUi.DoEnchant(_ctx, _ctx.Inventory.GetSlot(0), EnchantingTable.CostForLevel(2), 2);
+
+            var store = EnchantingUi.EnchantsOverride;
+            Assert.That(store.Count, Is.EqualTo(1), "真附魔必须写 store");
+            Assert.That(store.TryGet(0, pick.NumericId, out var kind, out var level), Is.True,
+                "hotbar 0 号槽的铁镐应带附魔记录");
+            Assert.That(kind, Is.EqualTo(EnchantmentType.Sharpness), "Roll 确定性掷 Sharpness");
+            Assert.That(level, Is.EqualTo(2), "等级 = 所选级");
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(20), "Lv2 扣 10 经验（30-10）");
+            Assert.That(_ctx.Inventory.GetSlot(1).Count, Is.EqualTo(63), "青金石扣 1");
+        }
+
+        [Test]
+        public void 附魔经验不足_零副作用不扣青金石()
+        {
+            PrepareIronPickaxe();
+            _ctx.Experience = new Experience(3, 0); // 不够 Lv1 的 5 点
+
+            EnchantingUi.DoEnchant(_ctx, _ctx.Inventory.GetSlot(0), EnchantingTable.CostForLevel(1), 1);
+
+            Assert.That(EnchantingUi.EnchantsOverride.Count, Is.EqualTo(0), "失败零副作用：store 不写");
+            Assert.That(_ctx.Inventory.GetSlot(1).Count, Is.EqualTo(64), "失败零副作用：青金石不扣");
+            Assert.That(_ctx.Experience.Current, Is.EqualTo(3), "失败零副作用：经验不动");
         }
     }
 }

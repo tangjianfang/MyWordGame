@@ -1,4 +1,5 @@
 using MyWorld.Core.Entities;
+using MyWorld.Core.Enchanting;
 using MyWorld.Core.Items;
 using MyWorld.Core.Player;
 using MyWorld.Unity.Gameplay;
@@ -7,20 +8,22 @@ using UnityEngine;
 namespace MyWorld.Unity.UI
 {
     /// <summary>
-    /// 附魔界面：按 X 打开。选目标等级（1-5）→ 扣经验 + 青金石 → 掷出 Sharpness 等级做提示。
+    /// 附魔界面：按 X 打开。选目标等级（1-3，封顶 <see cref="EnchantSystem.MaxLevel"/>）→
+    /// 扣经验 + 青金石 → 写 <see cref="EnchantStore"/> 真附魔。
     /// <para>
-    /// 简化：作用于 hotbar 选中槽的工具。失败提示理由（缺经验/缺青金石/无工具）。
+    /// 评审 08 F25 真化：此前是占位——真扣经验与青金石却只掷 Debug.Log 提示、不写 store，
+    /// 孩子花 30 级经验换一行日志。现在经验扣除与 store 写入一体走
+    /// <see cref="EnchantSystem.Enchant"/>（成功才扣、失败零副作用），青金石在成功后扣。
     /// </para>
     /// <para>
-    /// m10 终审修 I1：附魔是占位系统——**不实际改写工具栈**（不写 Metadata、不改耐久上限）。
-    /// 耐久上限唯一来源是 items 表 <c>maxDurability</c>，只在首次消耗时经
-    /// <see cref="ItemStack.WithDurabilityUsed"/> 惰性落编码，附魔绝不当第三条初始化路径。
+    /// m10 终审修 I1 不变量保持：附魔**不改写工具栈**（不写 Metadata、不改耐久上限）——
+    /// 附魔只进 <see cref="EnchantStore"/> 的槽位字典（m11 W2-2），耐久上限唯一来源
+    /// 仍是 items 表 <c>maxDurability</c>。
     /// </para>
     /// </summary>
     public sealed class EnchantingUi : MonoBehaviour
     {
         public KeyCode ToggleKey = KeyCode.X;
-        public int MaxLevel = 5;
 
         /// <summary>
         /// m11 W3-4：附魔完成公开事件——纯视觉订阅点（<see cref="MyWorld.Unity.FX.ParticlePool"/>
@@ -75,9 +78,9 @@ namespace MyWorld.Unity.UI
 
             GUI.Label(new Rect(bg.x + 20, bg.y + 40, w - 40, 20), $"目标工具：{toolName}");
 
-            // 等级按钮
+            // 等级按钮（封顶 3 级：与 EnchantSystem.MaxLevel 对齐——评审 08 F25 前 UI 口径 5 级作废）
             GUI.Label(new Rect(bg.x + 20, bg.y + 70, w - 40, 20), "选择附魔等级：");
-            for (int lv = 1; lv <= MaxLevel; lv++)
+            for (int lv = 1; lv <= EnchantSystem.MaxLevel; lv++)
             {
                 var btnRect = new Rect(bg.x + 20 + (lv - 1) * 50, bg.y + 95, 40, 30);
                 if (GUI.Toggle(btnRect, _selectedLevel == lv, "Lv " + lv) && _selectedLevel != lv)
@@ -116,46 +119,41 @@ namespace MyWorld.Unity.UI
             return total;
         }
 
-        /// <summary>执行一次附魔（占位语义）：扣青金石 + 扣经验 + 掷 Sharpness 等级出提示。
-        /// m10 终审修 I1：**不改写工具栈**——耐久上限唯一来源是 items 表 <c>maxDurability</c>，
-        /// 且只在首次消耗时经 <see cref="ItemStack.WithDurabilityUsed"/> 惰性落编码
-        /// （Metadata=0 视为满耐久）。旧实现给无耐久位的工具写死 100，铁镐 250 被静默砍到 100、
-        /// 金镐 32 被放大到 100，违反「两条初始化路径永不给同一把工具写不同的 max」。
-        /// public 供 EditMode 测试直驱（OnGUI 不可无头驱动）。</summary>
+        /// <summary>EditMode 直注附魔存储（优先于 <see cref="EnchantStore.Default"/>）——
+        /// 与 <see cref="Player.BlockInteraction"/> 的 ResolveEnchants 双源解析同款，
+        /// 测试不碰静态单例（EnchantStore 文档纪律）。</summary>
+        internal static EnchantStore EnchantsOverride;
+
+        /// <summary>附魔存储双源解析：EditMode 直注优先，否则全局 <see cref="EnchantStore.Default"/>。</summary>
+        private static EnchantStore ResolveEnchants() => EnchantsOverride ?? EnchantStore.Default;
+
+        /// <summary>执行一次附魔（评审 08 F25 真化）：经验扣除与 <see cref="EnchantStore"/>
+        /// 写入一体走 <see cref="EnchantSystem.Enchant"/>（成功才扣、任何一步不过零副作用），
+        /// 青金石在其成功后扣。掷骰沿用 <see cref="EnchantingTable.Roll"/>（当前确定性给
+        /// Sharpness=所选级）。等级封顶 <see cref="EnchantSystem.MaxLevel"/>。
+        /// m10 终审修 I1 不变量保持：**不改写工具栈**——耐久上限唯一来源是 items 表
+        /// <c>maxDurability</c>，附魔只进 store 字典。public 供 EditMode 测试直驱。</summary>
         public static void DoEnchant(PlayerContext ctx, ItemStack tool, (int ExpCost, int LapisCost) cost, int selectedLevel)
         {
-            // 扣青金石
+            var rolled = EnchantingTable.Roll(selectedLevel);
+            var store = ResolveEnchants();
+            var xp = ctx.Experience;
+            var result = EnchantSystem.Enchant(store, ctx.Inventory, ref xp, ctx.Items,
+                ctx.Inventory.SelectedHotbarIndex, rolled.Type, rolled.Level);
+            if (result != EnchantResult.Ok)
+            {
+                Debug.LogWarning($"[EnchantingUi] 附魔未生效：{result}（经验/目标不满足，本次零消耗）");
+                return;
+            }
+            ctx.Experience = xp;
+
+            // 青金石在 Enchant 成功后扣（EnchantSystem 不认识 lapis——材料成本归 UI 层；
+            // canDo 已验过余额，单线程内不会失败）
             if (!ctx.Items.TryGetById("lapis", out var lapisDef)) return;
             ctx.Inventory.TryRemoveCount(lapisDef.NumericId, cost.LapisCost);
-            // 扣经验
-            int remaining = cost.ExpCost;
-            while (remaining > 0)
-            {
-                if (ctx.Experience.Current > 0)
-                {
-                    int take = System.Math.Min(ctx.Experience.Current, remaining);
-                    // 减经验：Add(-x) 不降级，简单做法是手动 set
-                    var newXp = new Experience(ctx.Experience.Current - take, ctx.Experience.Level);
-                    ctx.Experience = newXp;
-                    remaining -= take;
-                }
-                else if (ctx.Experience.Level > 0)
-                {
-                    ctx.Experience = new Experience(Experience.ExpPerLevel - 1, ctx.Experience.Level - 1);
-                    remaining -= 1;
-                }
-                else break;
-            }
 
-            // 投附魔：只掷出 Sharpness 等级用于提示，不写工具 Metadata（占位语义，见方法注释）
-            var rolled = EnchantingTable.Roll(selectedLevel);
             ctx.Items.TryGetByNumericId(tool.ItemId, out var def);
-            int newDamage = def != null && def.AttackDamage != null
-                ? (int)(def.AttackDamage.Value + rolled.AttackBonus)
-                : 0;
-
-            // 用 IMGUI 弹一条提示（无 GUI 信息通道，简化为 Debug.Log）
-            Debug.Log($"附魔 {def?.DisplayName ?? "工具"} → +Sharpness Lv{rolled.Level}，攻击 {newDamage}");
+            Debug.Log($"附魔 {def?.DisplayName ?? "工具"} → {rolled.Type} Lv{rolled.Level}");
 
             // m11 W2-4 B7：占位台路径同样算「完成一次附魔」（扣了真经验与青金石，
             // 是实机可触发的附魔动作）→ EnchantItem 任务事件。真附魔路径
